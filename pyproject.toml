@@ -1,0 +1,23 @@
+[project]
+name = "fika-core"
+version = "0.1.0"
+description = "Core for Fika Travel Itinerary Planner"
+readme = "README.md"
+requires-python = "==3.10.*"
+dependencies = [
+    "fastapi>=0.119.0",
+    "uvicorn[standard]>=0.37.0",
+    "supabase>=2.22.0",
+    "googlemaps>=4.10.0",
+    "ortools>=9.14.6206",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "pydantic-settings>=2.11.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "black",
+]
