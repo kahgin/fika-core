@@ -1,19 +1,21 @@
-VENV = .venv
+VENV := .venv
 
-all: install
+all: sync
 
-venv: 
+venv:
 	@uv venv $(VENV) --clear
 
-install: venv
-	@uv pip install .
+sync: venv
+	@uv lock
+	@uv sync --frozen
 
-upgrade: venv
-	@uv pip install --upgrade .
+sync-prod: venv
+	@uv lock
+	@uv sync --frozen --no-dev
 
-clean:
-	@rm -rf build *.egg-info
-	@find app -type d -name "__pycache__" -exec rm -rf {} +
+update: venv
+	@uv lock --upgrade
+	@uv sync --frozen
 
 dev:
 	@uv run uvicorn app.main:app --reload --port 8000
@@ -21,4 +23,11 @@ dev:
 run:
 	@uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-.PHONY: all venv install upgrade clean dev run
+clean:
+	@rm -rf build *.egg-info
+	@find app -type d -name "__pycache__" -exec rm -rf {} +
+
+distclean: clean
+	@rm -rf $(VENV) uv.lock
+
+.PHONY: all venv sync sync-prod update dev run clean distclean

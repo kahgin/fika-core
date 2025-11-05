@@ -1,0 +1,1016 @@
+{
+  "chat_id": "fe42065c-9c92-4dc1-818a-64fe97460728",
+  "status": "success",
+  "meta": {
+    "destination": "Singapore",
+    "dates": {
+      "type": "flexible",
+      "days": 1,
+      "preferredMonth": "october"
+    },
+    "travelers": {
+      "adults": 2,
+      "children": 0,
+      "pets": 0
+    },
+    "preferences": {
+      "budget": "any",
+      "pacing": "balanced",
+      "interests": [
+        "Culture & History"
+      ]
+    }
+  },
+  "maut": {
+    "selected_themes": [
+      "shopping",
+      "nature",
+      "cultural_history"
+    ],
+    "count_in": 26,
+    "count_out": 43,
+    "items": [
+      {
+        "id": "dd8a0a92-99ec-453a-8fa5-4e1dbff67d5c",
+        "name": "Kranji Coastal Nature Park",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "park"
+        ],
+        "rating": 4.3,
+        "reviews": 182,
+        "price_level": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7285
+      },
+      {
+        "id": "2ce9ef5d-6c64-40ff-83fc-01338cf73288",
+        "name": "Kranji Marshes",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "nature_preserve",
+          "national_reserve"
+        ],
+        "rating": 4.0,
+        "reviews": 454,
+        "price_level": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7282
+      },
+      {
+        "id": "2dbc4bbc-522d-4a76-acac-7bdcee95ee5b",
+        "name": "Cashin House",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "historical_landmark"
+        ],
+        "rating": 3.8,
+        "reviews": 29,
+        "price_level": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.71
+      },
+      {
+        "id": "86597568-2b2f-4f8f-9ed5-ebdd7c5d7241",
+        "name": "Tuas Amenity Centre",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 3.9,
+        "reviews": 1088,
+        "price_level": 1.0,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6474
+      },
+      {
+        "id": "419f210c-a737-43c0-8b09-e5297364d560",
+        "name": "Marsiling Mall Hawker Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "shopping_mall"
+        ],
+        "rating": 4.1,
+        "reviews": 2731,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.6341
+      },
+      {
+        "id": "419f210c-a737-43c0-8b09-e5297364d560",
+        "name": "Marsiling Mall Hawker Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "shopping_mall"
+        ],
+        "rating": 4.1,
+        "reviews": 2731,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.6341
+      },
+      {
+        "id": "d4ea070e-5236-4708-912a-92842e7e1301",
+        "name": "Kebun Baru Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "market"
+        ],
+        "rating": 4.0,
+        "reviews": 1412,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.6326
+      },
+      {
+        "id": "d4ea070e-5236-4708-912a-92842e7e1301",
+        "name": "Kebun Baru Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "market"
+        ],
+        "rating": 4.0,
+        "reviews": 1412,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.6326
+      },
+      {
+        "id": "26071f28-b449-4951-ba69-8ea9aa351524",
+        "name": "Sungei Buloh Wetland Reserve",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "nature_preserve",
+          "park",
+          "tourist_attraction"
+        ],
+        "rating": 4.6,
+        "reviews": 4556,
+        "price_level": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.618
+      },
+      {
+        "id": "a2f411f2-04c8-48d4-84df-251fbbafee2c",
+        "name": "NTU North Spine Plaza",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.4,
+        "reviews": 1362,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6145
+      },
+      {
+        "id": "5482a752-bcb0-4327-979d-b6884f39a9fa",
+        "name": "Yik Zhuan Orchid Garden",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "orchid_grower"
+        ],
+        "rating": 4.4,
+        "reviews": 12,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5909
+      },
+      {
+        "id": "f327f8b6-32ff-409d-83a5-990e342b23ea",
+        "name": "Noi Gardens - Wholesale plant nursery",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden_center"
+        ],
+        "rating": 4.0,
+        "reviews": 24,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5875
+      },
+      {
+        "id": "5e4dd444-db45-4510-8988-8fc5af4548a9",
+        "name": "Taman Jurong Market & Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "food_court",
+          "market"
+        ],
+        "rating": 4.2,
+        "reviews": 5336,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5801
+      },
+      {
+        "id": "11e7ef91-2b62-4960-babf-30b2fd3a0f46",
+        "name": "Bukit Timah Wet Market & Food Centre (Interim)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "food_court",
+          "market"
+        ],
+        "rating": 4.2,
+        "reviews": 7022,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5801
+      },
+      {
+        "id": "5e4dd444-db45-4510-8988-8fc5af4548a9",
+        "name": "Taman Jurong Market & Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "food_court",
+          "market"
+        ],
+        "rating": 4.2,
+        "reviews": 5336,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5801
+      },
+      {
+        "id": "11e7ef91-2b62-4960-babf-30b2fd3a0f46",
+        "name": "Bukit Timah Wet Market & Food Centre (Interim)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "food_court",
+          "market"
+        ],
+        "rating": 4.2,
+        "reviews": 7022,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5801
+      },
+      {
+        "id": "a00b0f9f-c9e4-4bac-87af-3987ea754b58",
+        "name": "Kranji Beach Battle Historic Marker",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "historical_landmark",
+          "tourist_attraction"
+        ],
+        "rating": 4.2,
+        "reviews": 13,
+        "price_level": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5253
+      },
+      {
+        "id": "a9e6266a-296f-4cfd-83ea-88f36c48081b",
+        "name": "Egg Splash Café and Gift Shop",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "cafe",
+          "gift_shop"
+        ],
+        "rating": 3.4,
+        "reviews": 40,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4967
+      },
+      {
+        "id": "a9e6266a-296f-4cfd-83ea-88f36c48081b",
+        "name": "Egg Splash Café and Gift Shop",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "cafe",
+          "gift_shop"
+        ],
+        "rating": 3.4,
+        "reviews": 40,
+        "price_level": 1.0,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4967
+      },
+      {
+        "id": "621d6b62-c035-4658-8bb7-337e2e699cc7",
+        "name": "Chong Pang City (Shopping Belt)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "outlet_mall",
+          "bazar",
+          "cultural_landmark",
+          "hawker_center",
+          "market",
+          "restaurant"
+        ],
+        "rating": 4.3,
+        "reviews": 2150,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4336
+      },
+      {
+        "id": "621d6b62-c035-4658-8bb7-337e2e699cc7",
+        "name": "Chong Pang City (Shopping Belt)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "outlet_mall",
+          "bazar",
+          "cultural_landmark",
+          "hawker_center",
+          "market",
+          "restaurant"
+        ],
+        "rating": 4.3,
+        "reviews": 2150,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4336
+      },
+      {
+        "id": "d38ea8f2-4677-4a3d-9121-0cc2324a7973",
+        "name": "Funan",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "hotel"
+        ],
+        "rating": 4.4,
+        "reviews": 7948,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.427
+      },
+      {
+        "id": "d38ea8f2-4677-4a3d-9121-0cc2324a7973",
+        "name": "Funan",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "hotel"
+        ],
+        "rating": 4.4,
+        "reviews": 7948,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.427
+      },
+      {
+        "id": "a1e8f205-abca-4fc6-b88a-f25563885ba5",
+        "name": "Hotel NuVe Urbane, Lavender",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 4.2,
+        "reviews": 766,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4221
+      },
+      {
+        "id": "a1e8f205-abca-4fc6-b88a-f25563885ba5",
+        "name": "Hotel NuVe Urbane, Lavender",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 4.2,
+        "reviews": 766,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4221
+      },
+      {
+        "id": "37ba1f3f-9336-406b-b309-edc7175876d3",
+        "name": "Santa Grand Hotel East Coast, a NuVe Group Collection",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "heritage_building"
+        ],
+        "rating": 4.2,
+        "reviews": 660,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4213
+      },
+      {
+        "id": "37ba1f3f-9336-406b-b309-edc7175876d3",
+        "name": "Santa Grand Hotel East Coast, a NuVe Group Collection",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "heritage_building"
+        ],
+        "rating": 4.2,
+        "reviews": 660,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4213
+      },
+      {
+        "id": "120bb103-d4dd-406e-a562-0956ee183745",
+        "name": "Link Hotel",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 3.7,
+        "reviews": 660,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4125
+      },
+      {
+        "id": "120bb103-d4dd-406e-a562-0956ee183745",
+        "name": "Link Hotel",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 3.7,
+        "reviews": 660,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.4125
+      },
+      {
+        "id": "c07cad34-010c-4ada-a702-4eee9a643aee",
+        "name": "Kebun Baru Market & Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "market",
+          "hawker_center"
+        ],
+        "rating": 4.1,
+        "reviews": 360,
+        "price_level": 1.0,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.407
+      },
+      {
+        "id": "c07cad34-010c-4ada-a702-4eee9a643aee",
+        "name": "Kebun Baru Market & Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "market",
+          "hawker_center"
+        ],
+        "rating": 4.1,
+        "reviews": 360,
+        "price_level": 1.0,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.407
+      },
+      {
+        "id": "319ae036-3b4f-43ea-ae72-e08bd8fadf06",
+        "name": "HoneySpree",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop",
+          "gift_basket_store",
+          "hotel_supply_store",
+          "party_store",
+          "souvenir_store"
+        ],
+        "rating": 4.9,
+        "reviews": 79,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.3845
+      },
+      {
+        "id": "319ae036-3b4f-43ea-ae72-e08bd8fadf06",
+        "name": "HoneySpree",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop",
+          "gift_basket_store",
+          "hotel_supply_store",
+          "party_store",
+          "souvenir_store"
+        ],
+        "rating": 4.9,
+        "reviews": 79,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.3845
+      },
+      {
+        "id": "bc7aa43c-4ef5-47ae-b2ef-49a669c3d411",
+        "name": "Thow Kwang Pottery Jungle",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "pottery_store",
+          "art_gallery",
+          "tourist_attraction"
+        ],
+        "rating": 4.6,
+        "reviews": 631,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.3655
+      },
+      {
+        "id": "c1caea0a-613c-4b04-8649-10274717924b",
+        "name": "Sunshine Place",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "food_court",
+          "pen_store"
+        ],
+        "rating": 3.9,
+        "reviews": 2018,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.3162
+      },
+      {
+        "id": "c1caea0a-613c-4b04-8649-10274717924b",
+        "name": "Sunshine Place",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "food_court",
+          "pen_store"
+        ],
+        "rating": 3.9,
+        "reviews": 2018,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.3162
+      },
+      {
+        "id": "2ca5a32d-1b59-4860-98bb-7362d37bd120",
+        "name": "NEWest",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "convenience_store",
+          "health_and_beauty_shop",
+          "recreation_center",
+          "restaurant"
+        ],
+        "rating": 3.7,
+        "reviews": 186,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2606
+      },
+      {
+        "id": "2ca5a32d-1b59-4860-98bb-7362d37bd120",
+        "name": "NEWest",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "convenience_store",
+          "health_and_beauty_shop",
+          "recreation_center",
+          "restaurant"
+        ],
+        "rating": 3.7,
+        "reviews": 186,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2606
+      },
+      {
+        "id": "038b4d7b-2ef4-4149-b247-946443ee7679",
+        "name": "PPT Lodge 1B",
+        "roles": [
+          "meal",
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "lodge",
+          "barber_shop",
+          "coffee_shop",
+          "hostel",
+          "market",
+          "cinema"
+        ],
+        "rating": 4.3,
+        "reviews": 141,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2575
+      },
+      {
+        "id": "038b4d7b-2ef4-4149-b247-946443ee7679",
+        "name": "PPT Lodge 1B",
+        "roles": [
+          "meal",
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "lodge",
+          "barber_shop",
+          "coffee_shop",
+          "hostel",
+          "market",
+          "cinema"
+        ],
+        "rating": 4.3,
+        "reviews": 141,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2575
+      },
+      {
+        "id": "038b4d7b-2ef4-4149-b247-946443ee7679",
+        "name": "PPT Lodge 1B",
+        "roles": [
+          "meal",
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "lodge",
+          "barber_shop",
+          "coffee_shop",
+          "hostel",
+          "market",
+          "cinema"
+        ],
+        "rating": 4.3,
+        "reviews": 141,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2575
+      },
+      {
+        "id": "847ea8da-0dc5-4287-ad95-90fe9a2a090b",
+        "name": "thatsmybrew.sg @Bukit Timah",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "beer_store",
+          "beer_garden",
+          "burrito_restaurant",
+          "cafe",
+          "coffee_shop",
+          "creperie"
+        ],
+        "rating": 3.8,
+        "reviews": 20,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2405
+      },
+      {
+        "id": "847ea8da-0dc5-4287-ad95-90fe9a2a090b",
+        "name": "thatsmybrew.sg @Bukit Timah",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "beer_store",
+          "beer_garden",
+          "burrito_restaurant",
+          "cafe",
+          "coffee_shop",
+          "creperie"
+        ],
+        "rating": 3.8,
+        "reviews": 20,
+        "price_level": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.2405
+      }
+    ]
+  }
+}

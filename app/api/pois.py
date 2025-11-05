@@ -1,125 +1,119 @@
-import random
 import logging
 from typing import Optional
 from fastapi import APIRouter, Query, HTTPException
-from app.db.supabase_client import get_supabase
 from app.core.config import settings
+from app.db.supabase_client import get_supabase
 from app.services.transformers import transform_supabase_poi
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["pois"])
 
-def get_random_pois(limit: int = 20, category: Optional[str] = None):
-    """Fetch random POIs from Supabase"""
-    try:
-        supabase = get_supabase()
-        response = supabase.table('pois').select('*').limit(10000).execute()
-        
-        if not response.data:
-            return []
-        
-        pois = response.data
-        
-        # Filter by category
-        if category and category in ['attractions', 'restaurants', 'hotels']:
-            category_map = {
-                'attractions': ['Tourist attraction', 'Attraction', 'Museum', 'Park', 'Beach', 
-                               'Historical landmark', 'Art gallery', 'Zoo', 'Aquarium'],
-                'restaurants': ['Restaurant', 'Cafe', 'Bar', 'Food court', 'Hawker centre',
-                              'Bakery', 'Coffee shop'],
-                'hotels': ['Hotel', 'Hostel', 'Resort', 'Guest house', 'Lodging', 'Motel']
-            }
-            
-            filtered_pois = []
-            for poi in pois:
-                if poi.get('categories'):
-                    poi_categories = poi['categories'] if isinstance(poi['categories'], list) else [poi['categories']]
-                    for cat in poi_categories:
-                        if any(filter_cat.lower() in str(cat).lower() for filter_cat in category_map[category]):
-                            filtered_pois.append(poi)
-                            break
-            pois = filtered_pois
-        
-        if len(pois) > limit:
-            pois = random.sample(pois, limit)
-        
-        return [transform_supabase_poi(poi) for poi in pois]
-    
-    except Exception as e:
-        logger.error(f"Error fetching POIs: {e}")
-        return []
+UI_TO_ROLE = {
+    "attractions": "attraction",
+    "restaurants": "meal",
+    "hotels": "accommodation",
+}
+
+def apply_common_ordering(q):
+    # Highest rated first, tie-break by more reviews
+    return q.order("review_rating", desc=True).order("review_count", desc=True)
 
 @router.get("/pois")
-def get_pois(
+def list_pois(
     limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT),
+    offset: int = Query(0, ge=0),
     category: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$")
 ):
-    """Get random POIs"""
-    pois = get_random_pois(limit=limit, category=category)
-    
-    return {
-        "status": "success",
-        "count": len(pois),
-        "data": [poi.model_dump() for poi in pois]
-    }
+    """
+    Paginated POIs (optionally filtered by UI category tab).
+    - Uses DB paging (range) and returns total count.
+    - Filters via poi_roles (array): attractions->attraction, restaurants->meal, hotels->accommodation.
+    """
+    try:
+        supabase = get_supabase()
+
+        # Base select with total count
+        q = supabase.table("pois").select("*", count="exact")
+
+        # Optional category (via poi_roles)
+        if category:
+            role = UI_TO_ROLE[category]
+            # 'contains' with a single-element list checks array overlap
+            q = q.contains("poi_roles", [role])
+
+        # Ordering + paging
+        q = apply_common_ordering(q)
+        start = offset
+        end = offset + limit - 1
+        resp = q.range(start, end).execute()
+
+        data = resp.data or []
+        total = resp.count or 0
+
+        pois = [transform_supabase_poi(p) for p in data]
+        return {
+            "status": "success",
+            "count": total,
+            "data": [p.model_dump() for p in pois],
+        }
+    except Exception as e:
+        logger.exception("Error listing POIs")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/pois/{poi_id}")
 def get_poi(poi_id: str):
     """Get a specific POI by ID"""
     try:
         supabase = get_supabase()
-        response = supabase.table('pois').select('*').eq('id', poi_id).single().execute()
-        
-        if not response.data:
+        resp = supabase.table("pois").select("*").eq("id", poi_id).single().execute()
+        if not resp.data:
             raise HTTPException(status_code=404, detail="POI not found")
-        
-        poi = transform_supabase_poi(response.data)
-        
-        return {
-            "status": "success",
-            "data": poi.model_dump()
-        }
+        poi = transform_supabase_poi(resp.data)
+        return {"status": "success", "data": poi.model_dump()}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error fetching POI {poi_id}: {e}")
+        logger.exception("Error fetching POI")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/search")
 def search_pois(
     q: str = Query("", description="Search query"),
-    limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT)
+    limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT),
+    offset: int = Query(0, ge=0),
 ):
-    """Search POIs by name, category, or description"""
+    """
+    Full-text-ish search over name/description/address.
+    - Paginates and returns total count.
+    - Keeps UI simple (no category filter here). Tabs use /pois?category=...
+    """
     try:
+        if not q.strip():
+            return {"status": "success", "query": q, "count": 0, "data": []}
+
         supabase = get_supabase()
-        
-        if not q:
-            return {
-                "status": "success",
-                "query": q,
-                "count": 0,
-                "data": []
-            }
-        
-        response = supabase.table('pois').select('*').or_(
-            f"name.ilike.%{q}%,descriptions.ilike.%{q}%,address.ilike.%{q}%"
-        ).limit(limit).execute()
-        
-        if not response.data:
-            return {
-                "status": "success",
-                "query": q,
-                "count": 0,
-                "data": []
-            }
-        
-        pois = [transform_supabase_poi(poi) for poi in response.data]
-        
+
+        # NOTE: ilike across a few fields; you can add category token search later
+        filt = f"name.ilike.%{q}%,descriptions.ilike.%{q}%,address.ilike.%{q}%"
+        base = supabase.table("pois").select("*", count="exact").or_(filt)
+
+        base = apply_common_ordering(base)
+        start = offset
+        end = offset + limit - 1
+        resp = base.range(start, end).execute()
+
+        data = resp.data or []
+        total = resp.count or 0
+
+        pois = [transform_supabase_poi(p) for p in data]
         return {
             "status": "success",
             "query": q,
-            "count": len(pois),
-            "data": [poi.model_dump() for poi in pois]
+            "count": total,
+            "data": [p.model_dump() for p in pois],
         }
     except Exception as e:
-        logger.error(f"Error searching POIs: {e}")
+        logger.exception("Error searching POIs")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,16 @@
+{
+  "destination": "Singapore",
+  "num_days": 7,
+  "budget_tier": "sensible",
+  "interest_categories": ["shopping", "nature", "cultural_history"],
+  "dietary_restrictions": ["halal"],
+  "flags": {
+    "has_child": true,
+    "has_pets": true,
+    "wheelchair_accessible": false
+  },
+  "per_area_cap": 10,
+  "seed_lon": 101.694,
+  "seed_lat": 3.139,
+  "excluded_themes": ["nightlife"]
+}
