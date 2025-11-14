@@ -1,10 +1,11 @@
 from supabase import create_client, Client
 from app.core.config import settings
-import logging
+from app.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 supabase: Client = None
+
 
 def init_supabase():
     global supabase
@@ -20,8 +21,10 @@ def init_supabase():
         logger.error("SUPABASE_URL or SUPABASE_KEY not set")
         return None
 
+
 # Initialize Supabase client
 supabase = init_supabase()
+
 
 def get_supabase() -> Client:
     if supabase is None:

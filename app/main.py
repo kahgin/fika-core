@@ -18,10 +18,7 @@ app.add_middleware(
 app.include_router(pois.router)
 app.include_router(itinerary.router)
 
+
 @app.get("/")
 def read_root():
-    return {
-        "message": "Fika API is running.",
-        "status": "healthy",
-        "version": "0.1.0"
-    }
+    return {"message": "Fika API is running.", "status": "healthy", "version": "0.1.0"}

@@ -1,0 +1,3973 @@
+{
+  "chat_id": "67a5aee6-8be5-44ae-b6ef-51cc9aea9ebd",
+  "status": "success",
+  "meta": {
+    "destination": "Singapore",
+    "dates": {
+      "type": "flexible",
+      "days": 6,
+      "preferredMonth": "august"
+    },
+    "num_days": 6,
+    "travelers": {
+      "adults": 2,
+      "children": 1,
+      "pets": 1
+    },
+    "preferences": {
+      "budget": "sensible",
+      "pacing": "balanced",
+      "interests": [
+        "nature",
+        "family"
+      ]
+    }
+  },
+  "maut": {
+    "selected_themes": [
+      "nature",
+      "family",
+      "shopping"
+    ],
+    "count_in": 210,
+    "count_out": 94,
+    "items": [
+      {
+        "id": "eaf5ce4a-6a1b-4c8f-854d-e3393a6c38ed",
+        "name": "Singapore Botanic Gardens Gallop Extension",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "botanical_garden",
+          "park"
+        ],
+        "rating": 4.7,
+        "reviews": 364,
+        "price_level": null,
+        "longitude": 103.812303,
+        "latitude": 1.311967,
+        "openHours": {
+          "Friday": [
+            "5 am-12 am"
+          ],
+          "Monday": [
+            "5 am-12 am"
+          ],
+          "Sunday": [
+            "5 am-12 am"
+          ],
+          "Tuesday": [
+            "5 am-12 am"
+          ],
+          "Saturday": [
+            "5 am-12 am"
+          ],
+          "Thursday": [
+            "5 am-12 am"
+          ],
+          "Wednesday": [
+            "5 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.9893
+      },
+      {
+        "id": "6134b256-3301-4d0f-ae5e-3d55da1d9543",
+        "name": "Singapore Botanic Gardens Bandstand",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "botanical_garden"
+        ],
+        "rating": 4.7,
+        "reviews": 218,
+        "price_level": null,
+        "longitude": 103.816401,
+        "latitude": 1.310374,
+        "openHours": {
+          "Friday": [
+            "5 am-12 am"
+          ],
+          "Monday": [
+            "5 am-12 am"
+          ],
+          "Sunday": [
+            "5 am-12 am"
+          ],
+          "Tuesday": [
+            "5 am-12 am"
+          ],
+          "Saturday": [
+            "5 am-12 am"
+          ],
+          "Thursday": [
+            "5 am-12 am"
+          ],
+          "Wednesday": [
+            "5 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.9865
+      },
+      {
+        "id": "07c65c65-718f-47ac-99a6-08aca72c09ea",
+        "name": "Mount Faber Park",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "park"
+        ],
+        "rating": 4.7,
+        "reviews": 212,
+        "price_level": null,
+        "longitude": 103.819212,
+        "latitude": 1.271874,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.9864
+      },
+      {
+        "id": "93f60ee0-8fe4-43f2-b146-b6ece2e29528",
+        "name": "Lornie Trail",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "hiking_area"
+        ],
+        "rating": 4.7,
+        "reviews": 118,
+        "price_level": null,
+        "longitude": 103.829607,
+        "latitude": 1.341296,
+        "openHours": null,
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.9832
+      },
+      {
+        "id": "e1d3f992-710e-4b38-9d51-e017dd1f6b1f",
+        "name": "Gardens by the Bay",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden",
+          "botanical_garden",
+          "park",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 151020,
+        "price_level": null,
+        "longitude": 103.863613,
+        "latitude": 1.281568,
+        "openHours": {
+          "Friday": [
+            "5 am-2 am"
+          ],
+          "Monday": [
+            "5 am-2 am"
+          ],
+          "Sunday": [
+            "5 am-2 am"
+          ],
+          "Tuesday": [
+            "5 am-2 am"
+          ],
+          "Saturday": [
+            "5 am-2 am"
+          ],
+          "Thursday": [
+            "5 am-2 am"
+          ],
+          "Wednesday": [
+            "5 am-2 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.901
+      },
+      {
+        "id": "3d688aca-adc9-4e5a-a88a-aeead336a85e",
+        "name": "HomeTeamNS Aqua Adventure",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "water_park"
+        ],
+        "rating": 4.9,
+        "reviews": 2186,
+        "price_level": null,
+        "longitude": 103.919539,
+        "latitude": 1.341736,
+        "openHours": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8732
+      },
+      {
+        "id": "0d2e7a89-6dc2-40c8-ae1c-bfca17ea439c",
+        "name": "Kiztopia @ Marina Square",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "indoor_playground"
+        ],
+        "rating": 4.8,
+        "reviews": 5600,
+        "price_level": null,
+        "longitude": 103.856035,
+        "latitude": 1.291169,
+        "openHours": {
+          "Friday": [
+            "10 am-9 pm"
+          ],
+          "Monday": [
+            "10 am-8 pm"
+          ],
+          "Sunday": [
+            "10 am-8 pm"
+          ],
+          "Tuesday": [
+            "10 am-8 pm"
+          ],
+          "Saturday": [
+            "10 am-9 pm"
+          ],
+          "Thursday": [
+            "10 am-8 pm"
+          ],
+          "Wednesday": [
+            "10 am-8 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8715
+      },
+      {
+        "id": "f5ae9aca-1a5a-4411-a02c-6f97b5fc4c25",
+        "name": "National Orchid Garden",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden"
+        ],
+        "rating": 4.8,
+        "reviews": 1673,
+        "price_level": null,
+        "longitude": 103.814859,
+        "latitude": 1.311624,
+        "openHours": {
+          "Friday": [
+            "8:30 am-7 pm"
+          ],
+          "Monday": [
+            "8:30 am-7 pm"
+          ],
+          "Sunday": [
+            "8:30 am-7 pm"
+          ],
+          "Tuesday": [
+            "8:30 am-7 pm"
+          ],
+          "Saturday": [
+            "8:30 am-7 pm"
+          ],
+          "Thursday": [
+            "8:30 am-7 pm"
+          ],
+          "Wednesday": [
+            "8:30 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8715
+      },
+      {
+        "id": "c5acd2dc-fe84-4c95-a52b-5e41935c532d",
+        "name": "MacRitchie Reservoir Park",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "nature_preserve",
+          "park",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 1517,
+        "price_level": null,
+        "longitude": 103.834638,
+        "latitude": 1.341861,
+        "openHours": {
+          "Friday": [
+            "7 am-7 pm"
+          ],
+          "Monday": [
+            "7 am-7 pm"
+          ],
+          "Sunday": [
+            "7 am-7 pm"
+          ],
+          "Tuesday": [
+            "7 am-7 pm"
+          ],
+          "Saturday": [
+            "7 am-7 pm"
+          ],
+          "Thursday": [
+            "7 am-7 pm"
+          ],
+          "Wednesday": [
+            "7 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8697
+      },
+      {
+        "id": "6427549d-e292-4669-82b7-416cd433749c",
+        "name": "Marugen Koi Farm - Japanese Koi Fish For Sale In Singapore",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "fish_farm",
+          "farm",
+          "farm_shop"
+        ],
+        "rating": 4.9,
+        "reviews": 258,
+        "price_level": null,
+        "longitude": 103.719466,
+        "latitude": 1.414463,
+        "openHours": {
+          "Friday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Monday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Sunday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Tuesday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Saturday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Thursday": [
+            "9:30 am-5:30 pm"
+          ],
+          "Wednesday": [
+            "9:30 am-5:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8659
+      },
+      {
+        "id": "fe828710-dd00-4a1b-b451-524fedad38b9",
+        "name": "MacRitchie Nature Trail",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "hiking_area"
+        ],
+        "rating": 4.8,
+        "reviews": 347,
+        "price_level": null,
+        "longitude": 103.836524,
+        "latitude": 1.345774,
+        "openHours": null,
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8658
+      },
+      {
+        "id": "314f219c-086a-400b-b5d1-832436d61f1a",
+        "name": "Enchanted Garden, T2, Changi Airport",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden"
+        ],
+        "rating": 4.7,
+        "reviews": 260,
+        "price_level": null,
+        "longitude": 103.989954,
+        "latitude": 1.355993,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8625
+      },
+      {
+        "id": "4738eae6-9070-426a-bf7c-000a593ce37f",
+        "name": "Sembcorp Cool House",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden"
+        ],
+        "rating": 4.9,
+        "reviews": 78,
+        "price_level": null,
+        "longitude": 103.814546,
+        "latitude": 1.31363,
+        "openHours": {
+          "Friday": [
+            "8:30 am-7 pm"
+          ],
+          "Monday": [
+            "8:30 am-7 pm"
+          ],
+          "Sunday": [
+            "8:30 am-7 pm"
+          ],
+          "Tuesday": [
+            "8:30 am-7 pm"
+          ],
+          "Saturday": [
+            "8:30 am-7 pm"
+          ],
+          "Thursday": [
+            "8:30 am-7 pm"
+          ],
+          "Wednesday": [
+            "8:30 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8595
+      },
+      {
+        "id": "65dd4b2d-1284-44a9-994f-dac55620a70c",
+        "name": "Far Far Away",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "theme_park"
+        ],
+        "rating": 4.8,
+        "reviews": 58,
+        "price_level": null,
+        "longitude": 103.8239,
+        "latitude": 1.255104,
+        "openHours": {
+          "Friday": [
+            "6 am-1 am"
+          ],
+          "Monday": [
+            "6 am-1 am"
+          ],
+          "Sunday": [
+            "6 am-1 am"
+          ],
+          "Tuesday": [
+            "6 am-1 am"
+          ],
+          "Saturday": [
+            "6 am-1 am"
+          ],
+          "Thursday": [
+            "6 am-1 am"
+          ],
+          "Wednesday": [
+            "6 am-1 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8561
+      },
+      {
+        "id": "65ce8074-195a-4665-ba32-ac362c339f57",
+        "name": "Rainforest Trail",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "national_forest"
+        ],
+        "rating": 4.8,
+        "reviews": 55,
+        "price_level": null,
+        "longitude": 103.816215,
+        "latitude": 1.311213,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8559
+      },
+      {
+        "id": "983203c3-1602-45a6-97e5-1baf31d45890",
+        "name": "MacRitchie Petai Trail",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "hiking_area"
+        ],
+        "rating": 4.9,
+        "reviews": 37,
+        "price_level": null,
+        "longitude": 103.832559,
+        "latitude": 1.348786,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8555
+      },
+      {
+        "id": "21bbb465-6254-4e1c-a570-857443390199",
+        "name": "Esplanade Forecourt Garden",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden"
+        ],
+        "rating": 4.8,
+        "reviews": 49,
+        "price_level": null,
+        "longitude": 103.854862,
+        "latitude": 1.29014,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8552
+      },
+      {
+        "id": "fb3bd805-e041-4ba2-aa80-c0542a75bb67",
+        "name": "Mandai Trail",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "hiking_area"
+        ],
+        "rating": 4.8,
+        "reviews": 27,
+        "price_level": null,
+        "longitude": 103.774963,
+        "latitude": 1.398109,
+        "openHours": {
+          "Friday": [
+            "7 am-7 pm"
+          ],
+          "Monday": [
+            "7 am-7 pm"
+          ],
+          "Sunday": [
+            "7 am-7 pm"
+          ],
+          "Tuesday": [
+            "7 am-7 pm"
+          ],
+          "Saturday": [
+            "7 am-7 pm"
+          ],
+          "Thursday": [
+            "7 am-7 pm"
+          ],
+          "Wednesday": [
+            "7 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8521
+      },
+      {
+        "id": "450ae988-6105-449a-96fa-8aef8c597f30",
+        "name": "East Coast Park Area H",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "park"
+        ],
+        "rating": 4.8,
+        "reviews": 10,
+        "price_level": null,
+        "longitude": 103.970444,
+        "latitude": 1.3163,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.847
+      },
+      {
+        "id": "426a52c3-eb41-4516-9262-0eba37101054",
+        "name": "Supertree Grove",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 50893,
+        "price_level": null,
+        "longitude": 103.863906,
+        "latitude": 1.281962,
+        "openHours": {
+          "Friday": [
+            "5 am-2 am"
+          ],
+          "Monday": [
+            "5 am-2 am"
+          ],
+          "Sunday": [
+            "5 am-2 am"
+          ],
+          "Tuesday": [
+            "5 am-2 am"
+          ],
+          "Saturday": [
+            "5 am-2 am"
+          ],
+          "Thursday": [
+            "5 am-2 am"
+          ],
+          "Wednesday": [
+            "5 am-2 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8073
+      },
+      {
+        "id": "c4b852b3-cae4-4311-bc87-f5aaa1e50496",
+        "name": "Singapore Botanic Gardens",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "botanical_garden",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 44926,
+        "price_level": null,
+        "longitude": 103.815914,
+        "latitude": 1.31384,
+        "openHours": {
+          "Friday": [
+            "5 am-12 am"
+          ],
+          "Monday": [
+            "5 am-12 am"
+          ],
+          "Sunday": [
+            "5 am-12 am"
+          ],
+          "Tuesday": [
+            "5 am-12 am"
+          ],
+          "Saturday": [
+            "5 am-12 am"
+          ],
+          "Thursday": [
+            "5 am-12 am"
+          ],
+          "Wednesday": [
+            "5 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.8073
+      },
+      {
+        "id": "b93bcb7f-56f8-4333-91b2-311762ec4d3c",
+        "name": "FOCUS Adventure",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 4.9,
+        "reviews": 966,
+        "price_level": null,
+        "longitude": 103.822102,
+        "latitude": 1.251731,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7481
+      },
+      {
+        "id": "05a2b1f1-bb4a-422e-a0d6-baa98dbc6662",
+        "name": "Cloud Forest",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "botanical_garden",
+          "garden",
+          "tourist_attraction"
+        ],
+        "rating": 4.8,
+        "reviews": 29942,
+        "price_level": null,
+        "longitude": 103.866002,
+        "latitude": 1.283868,
+        "openHours": {
+          "Friday": [
+            "9 am-9 pm"
+          ],
+          "Monday": [
+            "9 am-9 pm"
+          ],
+          "Sunday": [
+            "9 am-9 pm"
+          ],
+          "Tuesday": [
+            "9 am-9 pm"
+          ],
+          "Saturday": [
+            "9 am-9 pm"
+          ],
+          "Thursday": [
+            "9 am-9 pm"
+          ],
+          "Wednesday": [
+            "9 am-9 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7465
+      },
+      {
+        "id": "cd3740d8-23a1-46b6-82c3-dc470882d902",
+        "name": "Sandbox VR",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "amusement_park",
+          "video_arcade",
+          "tourist_attraction"
+        ],
+        "rating": 4.8,
+        "reviews": 1913,
+        "price_level": null,
+        "longitude": 103.839872,
+        "latitude": 1.300895,
+        "openHours": {
+          "Friday": [
+            "9:50 am-9:30 pm"
+          ],
+          "Monday": [
+            "10:50 am-9:30 pm"
+          ],
+          "Sunday": [
+            "9:50 am-9:30 pm"
+          ],
+          "Tuesday": [
+            "10:50 am-9:30 pm"
+          ],
+          "Saturday": [
+            "9:50 am-9:30 pm"
+          ],
+          "Thursday": [
+            "10:50 am-9:30 pm"
+          ],
+          "Wednesday": [
+            "10:50 am-9:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7465
+      },
+      {
+        "id": "c4dd8198-4256-48fa-8b09-d67a2b9feda4",
+        "name": "Adventures by Asian Detours",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 4.9,
+        "reviews": 675,
+        "price_level": null,
+        "longitude": 103.970291,
+        "latitude": 1.402854,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7461
+      },
+      {
+        "id": "e495b6c5-73f7-4298-a4a4-6343998ac627",
+        "name": "Paulaner Bräuhaus Singapore",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "german_restaurant",
+          "beer_garden",
+          "brewery"
+        ],
+        "rating": 4.7,
+        "reviews": 3817,
+        "price_level": 2.0,
+        "longitude": 103.858287,
+        "latitude": 1.293077,
+        "openHours": {
+          "Friday": [
+            "11 am-1 am"
+          ],
+          "Monday": [
+            "11 am-12 am"
+          ],
+          "Sunday": [
+            "11 am-12 am"
+          ],
+          "Tuesday": [
+            "11 am-12 am"
+          ],
+          "Saturday": [
+            "11 am-1 am"
+          ],
+          "Thursday": [
+            "11 am-12 am"
+          ],
+          "Wednesday": [
+            "11 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7448
+      },
+      {
+        "id": "fc8638f5-db9e-4cd5-ad4f-c86f9b919b49",
+        "name": "National Parks Board",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden",
+          "park",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 5904,
+        "price_level": null,
+        "longitude": 103.816182,
+        "latitude": 1.315706,
+        "openHours": {
+          "Friday": [
+            "5 am-12 am"
+          ],
+          "Monday": [
+            "5 am-12 am"
+          ],
+          "Sunday": [
+            "5 am-12 am"
+          ],
+          "Tuesday": [
+            "5 am-12 am"
+          ],
+          "Saturday": [
+            "5 am-12 am"
+          ],
+          "Thursday": [
+            "5 am-12 am"
+          ],
+          "Wednesday": [
+            "5 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7447
+      },
+      {
+        "id": "5056b143-faf8-4147-86dd-ca4abe577475",
+        "name": "Rifle Range Nature Park",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "park",
+          "nature_preserve",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 931,
+        "price_level": null,
+        "longitude": 103.779406,
+        "latitude": 1.343475,
+        "openHours": {
+          "Friday": [
+            "7 am-7 pm"
+          ],
+          "Monday": [
+            "7 am-7 pm"
+          ],
+          "Sunday": [
+            "7 am-7 pm"
+          ],
+          "Tuesday": [
+            "7 am-7 pm"
+          ],
+          "Saturday": [
+            "7 am-7 pm"
+          ],
+          "Thursday": [
+            "7 am-7 pm"
+          ],
+          "Wednesday": [
+            "7 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7444
+      },
+      {
+        "id": "2314670a-fc68-4b47-9de4-009f37c84bd7",
+        "name": "SG LOVE GIFTS (54 Pagoda Street)",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "souvenir_store"
+        ],
+        "rating": 4.9,
+        "reviews": 398,
+        "price_level": null,
+        "longitude": 103.844211,
+        "latitude": 1.283602,
+        "openHours": {
+          "Friday": [
+            "8 am-11 pm"
+          ],
+          "Monday": [
+            "8 am-11 pm"
+          ],
+          "Sunday": [
+            "8 am-11 pm"
+          ],
+          "Tuesday": [
+            "8 am-11 pm"
+          ],
+          "Saturday": [
+            "8 am-11 pm"
+          ],
+          "Thursday": [
+            "8 am-11 pm"
+          ],
+          "Wednesday": [
+            "8 am-11 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7433
+      },
+      {
+        "id": "782e26d6-9e43-4989-9a17-29b00d495440",
+        "name": "Sotravel",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 4.9,
+        "reviews": 235,
+        "price_level": null,
+        "longitude": 103.859072,
+        "latitude": 1.295938,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7404
+      },
+      {
+        "id": "ef319574-5962-430d-b011-f233cd65e67a",
+        "name": "Gift by Changi Airport",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 4.9,
+        "reviews": 203,
+        "price_level": null,
+        "longitude": 103.989341,
+        "latitude": 1.360445,
+        "openHours": {
+          "Friday": [
+            "10 am-10 pm"
+          ],
+          "Monday": [
+            "10 am-10 pm"
+          ],
+          "Sunday": [
+            "10 am-10 pm"
+          ],
+          "Tuesday": [
+            "10 am-10 pm"
+          ],
+          "Saturday": [
+            "10 am-10 pm"
+          ],
+          "Thursday": [
+            "10 am-10 pm"
+          ],
+          "Wednesday": [
+            "10 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7396
+      },
+      {
+        "id": "4ac93d12-3439-4c03-ab62-120aefe8eaa5",
+        "name": "Turtle @ Pasir Ris mall",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 4.9,
+        "reviews": 197,
+        "price_level": null,
+        "longitude": 103.948762,
+        "latitude": 1.373378,
+        "openHours": {
+          "Friday": [
+            "10:30 am-10 pm"
+          ],
+          "Monday": [
+            "10:30 am-10 pm"
+          ],
+          "Sunday": [
+            "10 am-10 pm"
+          ],
+          "Tuesday": [
+            "10:30 am-10 pm"
+          ],
+          "Saturday": [
+            "10 am-10 pm"
+          ],
+          "Thursday": [
+            "10:30 am-10 pm"
+          ],
+          "Wednesday": [
+            "10:30 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7395
+      },
+      {
+        "id": "4b14277a-a193-416d-a6db-de19217dfae5",
+        "name": "Purehybridz Kayak Fishing Lessons",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "canoe_and_kayak_tour_agency",
+          "canoe_and_kayak_rental_service",
+          "fishing_charter"
+        ],
+        "rating": 5.0,
+        "reviews": 125,
+        "price_level": null,
+        "longitude": 103.941363,
+        "latitude": 1.386359,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7388
+      },
+      {
+        "id": "843aabb5-09b9-4989-81b1-254c15908569",
+        "name": "STELLAR@TE2",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 226,
+        "price_level": null,
+        "longitude": 103.788139,
+        "latitude": 1.435972,
+        "openHours": {
+          "Friday": [
+            "9 am-9 pm"
+          ],
+          "Monday": [
+            "9 am-9 pm"
+          ],
+          "Sunday": [
+            "9 am-9 pm"
+          ],
+          "Tuesday": [
+            "9 am-9 pm"
+          ],
+          "Saturday": [
+            "9 am-9 pm"
+          ],
+          "Thursday": [
+            "9 am-9 pm"
+          ],
+          "Wednesday": [
+            "9 am-9 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7385
+      },
+      {
+        "id": "285c3cbe-5def-412d-a4fa-372487f98c61",
+        "name": "Fragrance Bak Kwa @ Chinatown (Flagship Store) 香味肉干（牛车水）旗舰店",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "souvenir_store"
+        ],
+        "rating": 4.8,
+        "reviews": 181,
+        "price_level": null,
+        "longitude": 103.843597,
+        "latitude": 1.284034,
+        "openHours": {
+          "Friday": [
+            "10 am-10 pm"
+          ],
+          "Monday": [
+            "10 am-10 pm"
+          ],
+          "Sunday": [
+            "10 am-10 pm"
+          ],
+          "Tuesday": [
+            "10 am-10 pm"
+          ],
+          "Saturday": [
+            "10 am-10 pm"
+          ],
+          "Thursday": [
+            "10 am-10 pm"
+          ],
+          "Wednesday": [
+            "10 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7373
+      },
+      {
+        "id": "613d767b-dbf1-4716-8a4d-afe864d2ab87",
+        "name": "Camp Asia",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "children_s_amusement_center",
+          "holiday_park",
+          "outdoor_activity_organiser"
+        ],
+        "rating": 4.8,
+        "reviews": 177,
+        "price_level": null,
+        "longitude": 103.868591,
+        "latitude": 1.337773,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7371
+      },
+      {
+        "id": "351f2884-ca41-4e35-a555-762461f5cfaf",
+        "name": "The Ride Side - Snowboard & Ski Tours",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 5.0,
+        "reviews": 87,
+        "price_level": null,
+        "longitude": 103.896837,
+        "latitude": 1.331612,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7368
+      },
+      {
+        "id": "35fd313a-1604-49b4-b0f5-a684e93a0d75",
+        "name": "Play @ Heights Park",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "playground",
+          "park"
+        ],
+        "rating": 4.7,
+        "reviews": 173,
+        "price_level": null,
+        "longitude": 103.844516,
+        "latitude": 1.334919,
+        "openHours": {
+          "Friday": [
+            "8 am-9 pm"
+          ],
+          "Monday": [
+            "8 am-9 pm"
+          ],
+          "Sunday": [
+            "8 am-9 pm"
+          ],
+          "Tuesday": [
+            "8 am-9 pm"
+          ],
+          "Saturday": [
+            "8 am-9 pm"
+          ],
+          "Thursday": [
+            "8 am-9 pm"
+          ],
+          "Wednesday": [
+            "8 am-9 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7353
+      },
+      {
+        "id": "b4209740-3183-45ad-ac01-e0a29d71783c",
+        "name": "Kult Yard",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "bar",
+          "art_cafe",
+          "beer_garden"
+        ],
+        "rating": 4.5,
+        "reviews": 307,
+        "price_level": 2.0,
+        "longitude": 103.841537,
+        "latitude": 1.284753,
+        "openHours": {
+          "Friday": [
+            "5 pm-12 am"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "5 pm-12 am"
+          ],
+          "Tuesday": [
+            "5 pm-12 am"
+          ],
+          "Saturday": [
+            "5 pm-12 am"
+          ],
+          "Thursday": [
+            "5 pm-12 am"
+          ],
+          "Wednesday": [
+            "5 pm-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7349
+      },
+      {
+        "id": "7263f06b-29bf-499e-972c-eb1cea3992cf",
+        "name": "Wheniwasfour",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "souvenir_store"
+        ],
+        "rating": 4.8,
+        "reviews": 107,
+        "price_level": null,
+        "longitude": 103.853528,
+        "latitude": 1.296847,
+        "openHours": {
+          "Friday": [
+            "12-7 pm"
+          ],
+          "Monday": [
+            "12-7 pm"
+          ],
+          "Sunday": [
+            "Closed"
+          ],
+          "Tuesday": [
+            "12-7 pm"
+          ],
+          "Saturday": [
+            "12:30-6:30 pm"
+          ],
+          "Thursday": [
+            "12-7 pm"
+          ],
+          "Wednesday": [
+            "12-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7344
+      },
+      {
+        "id": "5d08159d-f900-472d-9b7a-2251e1a3e515",
+        "name": "Imperial Arowana Breeding Farm",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "fish_farm"
+        ],
+        "rating": 5.0,
+        "reviews": 47,
+        "price_level": null,
+        "longitude": 103.721413,
+        "latitude": 1.4147,
+        "openHours": {
+          "Friday": [
+            "11 am-5 pm"
+          ],
+          "Monday": [
+            "11 am-5 pm"
+          ],
+          "Sunday": [
+            "Closed"
+          ],
+          "Tuesday": [
+            "11 am-5 pm"
+          ],
+          "Saturday": [
+            "11 am-5 pm"
+          ],
+          "Thursday": [
+            "11 am-5 pm"
+          ],
+          "Wednesday": [
+            "11 am-5 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7335
+      },
+      {
+        "id": "ae386ba7-4083-40c9-b518-a3fe9589b6be",
+        "name": "Cat Socrates",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 4.7,
+        "reviews": 116,
+        "price_level": null,
+        "longitude": 103.830427,
+        "latitude": 1.282834,
+        "openHours": {
+          "Friday": [
+            "10 am-8 pm"
+          ],
+          "Monday": [
+            "10 am-6 pm"
+          ],
+          "Sunday": [
+            "10 am-6 pm"
+          ],
+          "Tuesday": [
+            "10 am-7 pm"
+          ],
+          "Saturday": [
+            "10 am-8 pm"
+          ],
+          "Thursday": [
+            "10 am-7 pm"
+          ],
+          "Wednesday": [
+            "10 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7331
+      },
+      {
+        "id": "be976e16-bd38-4f59-9a83-53626d6b914d",
+        "name": "Myths & Legends Collection",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 4.9,
+        "reviews": 56,
+        "price_level": null,
+        "longitude": 103.843908,
+        "latitude": 1.319957,
+        "openHours": {
+          "Friday": [
+            "12-8 pm"
+          ],
+          "Monday": [
+            "12-8 pm"
+          ],
+          "Sunday": [
+            "12-8 pm"
+          ],
+          "Tuesday": [
+            "12-8 pm"
+          ],
+          "Saturday": [
+            "12-8 pm"
+          ],
+          "Thursday": [
+            "12-8 pm"
+          ],
+          "Wednesday": [
+            "12-8 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7327
+      },
+      {
+        "id": "ca2708a7-e9bd-4919-ba76-76f0d3fa210e",
+        "name": "Upper Peirce Reservoir Viewpoint",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "scenic_spot",
+          "hiking_area"
+        ],
+        "rating": 4.8,
+        "reviews": 76,
+        "price_level": null,
+        "longitude": 103.812036,
+        "latitude": 1.372063,
+        "openHours": {
+          "Friday": [
+            "7 am-7 pm"
+          ],
+          "Monday": [
+            "7 am-7 pm"
+          ],
+          "Sunday": [
+            "7 am-7 pm"
+          ],
+          "Tuesday": [
+            "7 am-7 pm"
+          ],
+          "Saturday": [
+            "7 am-7 pm"
+          ],
+          "Thursday": [
+            "7 am-7 pm"
+          ],
+          "Wednesday": [
+            "7 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7326
+      },
+      {
+        "id": "42950b1f-6f28-4bf7-b064-0482fadc415f",
+        "name": "Yenidraws & Friends",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "souvenir_store"
+        ],
+        "rating": 5.0,
+        "reviews": 38,
+        "price_level": null,
+        "longitude": 103.8342,
+        "latitude": 1.284425,
+        "openHours": {
+          "Friday": [
+            "10 am-5 pm"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "11 am-4 pm"
+          ],
+          "Tuesday": [
+            "10 am-5 pm"
+          ],
+          "Saturday": [
+            "10 am-5 pm"
+          ],
+          "Thursday": [
+            "10 am-5 pm"
+          ],
+          "Wednesday": [
+            "10 am-5 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7324
+      },
+      {
+        "id": "b3938316-6a00-4882-a85b-aa8daa958d3d",
+        "name": "Into The Wild Camps",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 5.0,
+        "reviews": 33,
+        "price_level": null,
+        "longitude": 103.798796,
+        "latitude": 1.335805,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7316
+      },
+      {
+        "id": "e8cef9e5-fbf0-4a84-96c5-d4f6d9371037",
+        "name": "Yale Smart Shop Yishun",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 63,
+        "price_level": null,
+        "longitude": 103.835829,
+        "latitude": 1.429831,
+        "openHours": {
+          "Friday": [
+            "11 am-9 pm"
+          ],
+          "Monday": [
+            "11 am-9 pm"
+          ],
+          "Sunday": [
+            "11 am-9 pm"
+          ],
+          "Tuesday": [
+            "11 am-9 pm"
+          ],
+          "Saturday": [
+            "11 am-9 pm"
+          ],
+          "Thursday": [
+            "11 am-9 pm"
+          ],
+          "Wednesday": [
+            "11 am-9 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7316
+      },
+      {
+        "id": "72a3b80a-ee79-4eb3-a610-1705f8576260",
+        "name": "Turkish Lamps & More by Sabina",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 5.0,
+        "reviews": 31,
+        "price_level": null,
+        "longitude": 103.883033,
+        "latitude": 1.297483,
+        "openHours": {
+          "Friday": [
+            "10 am-5 pm"
+          ],
+          "Monday": [
+            "10 am-5 pm"
+          ],
+          "Sunday": [
+            "Closed"
+          ],
+          "Tuesday": [
+            "10 am-5 pm"
+          ],
+          "Saturday": [
+            "10:30 am-4 pm"
+          ],
+          "Thursday": [
+            "10 am-5 pm"
+          ],
+          "Wednesday": [
+            "10 am-5 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7313
+      },
+      {
+        "id": "75e29c1a-5471-4df5-bd61-1c34236f40ea",
+        "name": "Gold Nugget Gang - Pokemon Card Shop - Seal Raw Slabs Comics Toys Collectible",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.9,
+        "reviews": 37,
+        "price_level": null,
+        "longitude": 103.87865,
+        "latitude": 1.353978,
+        "openHours": {
+          "Friday": [
+            "5-9 pm"
+          ],
+          "Monday": [
+            "5-9 pm"
+          ],
+          "Sunday": [
+            "5-9 pm"
+          ],
+          "Tuesday": [
+            "5-9 pm"
+          ],
+          "Saturday": [
+            "5-9 pm"
+          ],
+          "Thursday": [
+            "Closed"
+          ],
+          "Wednesday": [
+            "Closed"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7305
+      },
+      {
+        "id": "e8003ed5-466c-45ec-a48a-b02210eaf4a1",
+        "name": "Rasau Walk",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "scenic_spot",
+          "hiking_area",
+          "park"
+        ],
+        "rating": 4.8,
+        "reviews": 38,
+        "price_level": null,
+        "longitude": 103.728579,
+        "latitude": 1.333122,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7289
+      },
+      {
+        "id": "beda2520-9d3d-4ed0-8588-f8dbf0ac9616",
+        "name": "Mystery Singapore",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 5.0,
+        "reviews": 18,
+        "price_level": null,
+        "longitude": 103.847493,
+        "latitude": 1.280749,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7285
+      },
+      {
+        "id": "a052cb53-c339-4921-aa39-5aa87ab2f196",
+        "name": "Silk Walk",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 4.9,
+        "reviews": 24,
+        "price_level": null,
+        "longitude": 103.823845,
+        "latitude": 1.305035,
+        "openHours": {
+          "Friday": [
+            "10 am-8 pm"
+          ],
+          "Monday": [
+            "10 am-8 pm"
+          ],
+          "Sunday": [
+            "10 am-8 pm"
+          ],
+          "Tuesday": [
+            "10 am-8 pm"
+          ],
+          "Saturday": [
+            "10 am-8 pm"
+          ],
+          "Thursday": [
+            "10 am-8 pm"
+          ],
+          "Wednesday": [
+            "10 am-8 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7282
+      },
+      {
+        "id": "44cc4a87-d52a-418f-bd05-b85eeb186f30",
+        "name": "Wildlife Warriors",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 5.0,
+        "reviews": 17,
+        "price_level": null,
+        "longitude": 103.820746,
+        "latitude": 1.450929,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7282
+      },
+      {
+        "id": "a597f9cc-bf38-4bc7-89ab-9c7fa7b60483",
+        "name": "SG Xiao Xian Rou (SG小鲜肉)",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "market"
+        ],
+        "rating": 5.0,
+        "reviews": 17,
+        "price_level": null,
+        "longitude": 103.8553,
+        "latitude": 1.36278,
+        "openHours": {
+          "Friday": [
+            "5:30 am-1 pm"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "5:30 am-1 pm"
+          ],
+          "Tuesday": [
+            "5:30 am-1 pm"
+          ],
+          "Saturday": [
+            "5:30 am-1 pm"
+          ],
+          "Thursday": [
+            "5:30 am-1 pm"
+          ],
+          "Wednesday": [
+            "5:30 am-1 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7282
+      },
+      {
+        "id": "6438c26a-676b-4ca2-9f99-9ab416831c06",
+        "name": "Talk of Town",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "boutique"
+        ],
+        "rating": 4.8,
+        "reviews": 32,
+        "price_level": null,
+        "longitude": 103.823845,
+        "latitude": 1.305035,
+        "openHours": {
+          "Friday": [
+            "10 am-8 pm"
+          ],
+          "Monday": [
+            "10 am-8 pm"
+          ],
+          "Sunday": [
+            "10 am-8 pm"
+          ],
+          "Tuesday": [
+            "10 am-8 pm"
+          ],
+          "Saturday": [
+            "10 am-8 pm"
+          ],
+          "Thursday": [
+            "10 am-8 pm"
+          ],
+          "Wednesday": [
+            "10 am-8 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.728
+      },
+      {
+        "id": "eb8dd8c1-7869-471d-8a84-c6cd5a474aa7",
+        "name": "TREEM @ Bukit Panjang Plaza",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "gift_shop"
+        ],
+        "rating": 5.0,
+        "reviews": 16,
+        "price_level": null,
+        "longitude": 103.764309,
+        "latitude": 1.379965,
+        "openHours": {
+          "Friday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Monday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Sunday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Tuesday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Saturday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Thursday": [
+            "10:30 am-9:30 pm"
+          ],
+          "Wednesday": [
+            "10:30 am-9:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7279
+      },
+      {
+        "id": "c5131e10-3c9d-44ee-b859-b9802b613fb8",
+        "name": "iORA @ Westgate",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 31,
+        "price_level": null,
+        "longitude": 103.742691,
+        "latitude": 1.334662,
+        "openHours": {
+          "Friday": [
+            "11 am-9:30 pm"
+          ],
+          "Monday": [
+            "11 am-9:30 pm"
+          ],
+          "Sunday": [
+            "11 am-9:30 pm"
+          ],
+          "Tuesday": [
+            "11 am-9:30 pm"
+          ],
+          "Saturday": [
+            "11 am-9:30 pm"
+          ],
+          "Thursday": [
+            "11 am-9:30 pm"
+          ],
+          "Wednesday": [
+            "11 am-9:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7278
+      },
+      {
+        "id": "015a9432-ce0b-476d-ab20-5290ce82a344",
+        "name": "Moyuan Culture Education Centre (Jelita Mall)",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 5.0,
+        "reviews": 14,
+        "price_level": null,
+        "longitude": 103.785857,
+        "latitude": 1.317578,
+        "openHours": {
+          "Friday": [
+            "10 am-7 pm"
+          ],
+          "Monday": [
+            "10 am-7 pm"
+          ],
+          "Sunday": [
+            "9 am-6 pm"
+          ],
+          "Tuesday": [
+            "Closed"
+          ],
+          "Saturday": [
+            "9 am-6 pm"
+          ],
+          "Thursday": [
+            "10 am-7 pm"
+          ],
+          "Wednesday": [
+            "10 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7272
+      },
+      {
+        "id": "0b13beb4-3801-4332-94ab-4e27e0a795f2",
+        "name": "Yili Farm (Yili Vegetation & Trading Pte Ltd)",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "farm"
+        ],
+        "rating": 4.8,
+        "reviews": 24,
+        "price_level": null,
+        "longitude": 103.717777,
+        "latitude": 1.420768,
+        "openHours": {
+          "Friday": [
+            "10 am-6 pm"
+          ],
+          "Monday": [
+            "10 am-6 pm"
+          ],
+          "Sunday": [
+            "10 am-6 pm"
+          ],
+          "Tuesday": [
+            "10 am-6 pm"
+          ],
+          "Saturday": [
+            "10 am-6 pm"
+          ],
+          "Thursday": [
+            "10 am-6 pm"
+          ],
+          "Wednesday": [
+            "10 am-6 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7265
+      },
+      {
+        "id": "0ef2d82a-270b-4c38-84ae-cd2b4a09a9dd",
+        "name": "Adventour Singapore",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 4.9,
+        "reviews": 17,
+        "price_level": null,
+        "longitude": 103.892198,
+        "latitude": 1.333422,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7264
+      },
+      {
+        "id": "ac3dac63-659d-44e2-af21-22161af04344",
+        "name": "Chan Ngee 燦藝",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "antique_store"
+        ],
+        "rating": 4.9,
+        "reviews": 17,
+        "price_level": null,
+        "longitude": 103.845496,
+        "latitude": 1.282404,
+        "openHours": {
+          "Friday": [
+            "10:30 am-8 pm"
+          ],
+          "Monday": [
+            "10:30 am-8 pm"
+          ],
+          "Sunday": [
+            "10:30 am-5 pm"
+          ],
+          "Tuesday": [
+            "10:30 am-8 pm"
+          ],
+          "Saturday": [
+            "10:30 am-8 pm"
+          ],
+          "Thursday": [
+            "10:30 am-8 pm"
+          ],
+          "Wednesday": [
+            "10:30 am-8 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7264
+      },
+      {
+        "id": "34ab953b-fd37-4aba-a0fb-cc9eb614269c",
+        "name": "OneDYNAMICS Teambuilding",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outdoor_activity_organiser"
+        ],
+        "rating": 5.0,
+        "reviews": 12,
+        "price_level": null,
+        "longitude": 103.826472,
+        "latitude": 1.28154,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7264
+      },
+      {
+        "id": "3ea9933b-c94b-48e3-9068-b8152649be00",
+        "name": "Lion City Gift",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "souvenir_store"
+        ],
+        "rating": 5.0,
+        "reviews": 12,
+        "price_level": null,
+        "longitude": 103.844106,
+        "latitude": 1.283671,
+        "openHours": {
+          "Friday": [
+            "8 am-11 pm"
+          ],
+          "Monday": [
+            "8 am-11 pm"
+          ],
+          "Sunday": [
+            "8 am-11 pm"
+          ],
+          "Tuesday": [
+            "8 am-11 pm"
+          ],
+          "Saturday": [
+            "8 am-11 pm"
+          ],
+          "Thursday": [
+            "8 am-11 pm"
+          ],
+          "Wednesday": [
+            "8 am-11 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7264
+      },
+      {
+        "id": "f94db52e-467f-4abd-95c6-192c9fcc891a",
+        "name": "SC Collection",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 22,
+        "price_level": null,
+        "longitude": 103.829143,
+        "latitude": 1.306944,
+        "openHours": {
+          "Friday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ],
+          "Monday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ],
+          "Sunday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ],
+          "Tuesday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ],
+          "Saturday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ],
+          "Thursday": [
+            "Closed"
+          ],
+          "Wednesday": [
+            "2-5:30 pm",
+            "6:30-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.726
+      },
+      {
+        "id": "72b85692-9a24-4cb2-8251-2cc8ae9d921e",
+        "name": "Bay East Cycling Path",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "cycling_park",
+          "park"
+        ],
+        "rating": 5.0,
+        "reviews": 11,
+        "price_level": null,
+        "longitude": 103.868564,
+        "latitude": 1.293852,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.726
+      },
+      {
+        "id": "d061b109-057b-437e-b8e9-7b2ed720acdb",
+        "name": "The Barrack Shop",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outlet_mall"
+        ],
+        "rating": 4.9,
+        "reviews": 15,
+        "price_level": null,
+        "longitude": 103.891189,
+        "latitude": 1.314686,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7258
+      },
+      {
+        "id": "fae47290-d7df-4d46-8305-810a64f1ba42",
+        "name": "RevibeX Studio",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.9,
+        "reviews": 10,
+        "price_level": null,
+        "longitude": 103.903961,
+        "latitude": 1.30496,
+        "openHours": {
+          "Friday": [
+            "7 am-10 pm"
+          ],
+          "Monday": [
+            "7 am-10 pm"
+          ],
+          "Sunday": [
+            "7 am-8 pm"
+          ],
+          "Tuesday": [
+            "7 am-10 pm"
+          ],
+          "Saturday": [
+            "7 am-8 pm"
+          ],
+          "Thursday": [
+            "7 am-10 pm"
+          ],
+          "Wednesday": [
+            "7 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7238
+      },
+      {
+        "id": "333fb9a5-6747-4e48-bd75-56dc95f639e3",
+        "name": "Bugis Square",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 12,
+        "price_level": null,
+        "longitude": 103.855726,
+        "latitude": 1.29941,
+        "openHours": {
+          "Friday": [
+            "10 am-10 pm"
+          ],
+          "Monday": [
+            "10 am-10 pm"
+          ],
+          "Sunday": [
+            "10 am-10 pm"
+          ],
+          "Tuesday": [
+            "10 am-10 pm"
+          ],
+          "Saturday": [
+            "10 am-10 pm"
+          ],
+          "Thursday": [
+            "10 am-10 pm"
+          ],
+          "Wednesday": [
+            "10 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7229
+      },
+      {
+        "id": "dd32594a-cd96-49d6-849d-687ebe9d812f",
+        "name": "Golf Link Water Fountain",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "scenic_spot"
+        ],
+        "rating": 4.8,
+        "reviews": 11,
+        "price_level": null,
+        "longitude": 103.814636,
+        "latitude": 1.341957,
+        "openHours": {
+          "Friday": [
+            "Open 24 hours"
+          ],
+          "Monday": [
+            "Open 24 hours"
+          ],
+          "Sunday": [
+            "Open 24 hours"
+          ],
+          "Tuesday": [
+            "Open 24 hours"
+          ],
+          "Saturday": [
+            "Open 24 hours"
+          ],
+          "Thursday": [
+            "Open 24 hours"
+          ],
+          "Wednesday": [
+            "Open 24 hours"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7225
+      },
+      {
+        "id": "fc63fd99-056c-4635-ac7b-9509d2e9ebc1",
+        "name": "MAISON MARCEL",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "outlet_mall"
+        ],
+        "rating": 4.8,
+        "reviews": 10,
+        "price_level": null,
+        "longitude": 103.829506,
+        "latitude": 1.306649,
+        "openHours": {
+          "Friday": [
+            "10 am-9:30 pm"
+          ],
+          "Monday": [
+            "11 am-8:30 pm"
+          ],
+          "Sunday": [
+            "11 am-8:30 pm"
+          ],
+          "Tuesday": [
+            "11 am-8:30 pm"
+          ],
+          "Saturday": [
+            "10 am-9:30 pm"
+          ],
+          "Thursday": [
+            "10 am-9:30 pm"
+          ],
+          "Wednesday": [
+            "10 am-8:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.722
+      },
+      {
+        "id": "8f65380d-9220-47d4-8303-afdf2c0a1956",
+        "name": "FOC by the Beach",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "spanish_restaurant",
+          "beach_club"
+        ],
+        "rating": 4.2,
+        "reviews": 1646,
+        "price_level": 3.0,
+        "longitude": 103.824976,
+        "latitude": 1.246788,
+        "openHours": {
+          "Friday": [
+            "11:30 am-11 pm"
+          ],
+          "Monday": [
+            "12-9 pm"
+          ],
+          "Sunday": [
+            "11:30 am-10:30 pm"
+          ],
+          "Tuesday": [
+            "Closed"
+          ],
+          "Saturday": [
+            "11:30 am-11 pm"
+          ],
+          "Thursday": [
+            "11:30 am-10:30 pm"
+          ],
+          "Wednesday": [
+            "11:30 am-10:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7152
+      },
+      {
+        "id": "30fe5ab9-cab6-4d44-9e5e-dd0dba5d7a27",
+        "name": "Rumours Beach Club",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "restaurant",
+          "beach_pavillion"
+        ],
+        "rating": 4.1,
+        "reviews": 1696,
+        "price_level": 3.0,
+        "longitude": 103.814562,
+        "latitude": 1.254018,
+        "openHours": {
+          "Friday": [
+            "10 am-10 pm"
+          ],
+          "Monday": [
+            "11 am-10 pm"
+          ],
+          "Sunday": [
+            "10 am-10 pm"
+          ],
+          "Tuesday": [
+            "11 am-10 pm"
+          ],
+          "Saturday": [
+            "10 am-10 pm"
+          ],
+          "Thursday": [
+            "11 am-10 pm"
+          ],
+          "Wednesday": [
+            "11 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.7134
+      },
+      {
+        "id": "ffc7a44f-6b47-40a2-a07c-5b0e5165c187",
+        "name": "Bistro At The Park",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "restaurant",
+          "beer_garden"
+        ],
+        "rating": 4.3,
+        "reviews": 168,
+        "price_level": 1.0,
+        "longitude": 103.951913,
+        "latitude": 1.372715,
+        "openHours": {
+          "Friday": [
+            "3:30 pm-12 am"
+          ],
+          "Monday": [
+            "3:30-11 pm"
+          ],
+          "Sunday": [
+            "12 pm-12 am"
+          ],
+          "Tuesday": [
+            "3:30 pm-12 am"
+          ],
+          "Saturday": [
+            "12 pm-12 am"
+          ],
+          "Thursday": [
+            "3:30 pm-12 am"
+          ],
+          "Wednesday": [
+            "3:30 pm-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.7073
+      },
+      {
+        "id": "a08e6b49-4819-4c71-a2d9-d3802588170e",
+        "name": "Grin Affair",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "ice_cream_shop",
+          "cake_shop",
+          "dessert_restaurant",
+          "gift_shop",
+          "novelty_store"
+        ],
+        "rating": 4.5,
+        "reviews": 1069,
+        "price_level": 2.0,
+        "longitude": 103.848915,
+        "latitude": 1.349112,
+        "openHours": {
+          "Friday": [
+            "12 pm-1 am"
+          ],
+          "Monday": [
+            "12 pm-12 am"
+          ],
+          "Sunday": [
+            "12 pm-1 am"
+          ],
+          "Tuesday": [
+            "12 pm-12 am"
+          ],
+          "Saturday": [
+            "12 pm-1 am"
+          ],
+          "Thursday": [
+            "12 pm-12 am"
+          ],
+          "Wednesday": [
+            "12 pm-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6913
+      },
+      {
+        "id": "02ebd491-5ce4-459a-b408-38ef74a7ff39",
+        "name": "Flower Dome",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "garden",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 25289,
+        "price_level": null,
+        "longitude": 103.864697,
+        "latitude": 1.284629,
+        "openHours": {
+          "Friday": [
+            "9 am-9 pm"
+          ],
+          "Monday": [
+            "9 am-9 pm"
+          ],
+          "Sunday": [
+            "9 am-9 pm"
+          ],
+          "Tuesday": [
+            "9 am-9 pm"
+          ],
+          "Saturday": [
+            "9 am-9 pm"
+          ],
+          "Thursday": [
+            "9 am-9 pm"
+          ],
+          "Wednesday": [
+            "9 am-9 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6823
+      },
+      {
+        "id": "3b5f01b1-3bb7-421c-93da-8267e62e865e",
+        "name": "SkyHelix Sentosa",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "amusement_park_ride",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 1130,
+        "price_level": null,
+        "longitude": 103.817616,
+        "latitude": 1.254938,
+        "openHours": {
+          "Friday": [
+            "10 am-9:15 pm"
+          ],
+          "Monday": [
+            "10 am-9:15 pm"
+          ],
+          "Sunday": [
+            "10 am-9:15 pm"
+          ],
+          "Tuesday": [
+            "10 am-9:15 pm"
+          ],
+          "Saturday": [
+            "10 am-9:15 pm"
+          ],
+          "Thursday": [
+            "10 am-9:15 pm"
+          ],
+          "Wednesday": [
+            "10 am-9:15 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6823
+      },
+      {
+        "id": "dca9e1e1-4a79-4df6-8e34-0ca017b1c529",
+        "name": "Far East Organization Children’s Garden",
+        "roles": [
+          "attraction"
+        ],
+        "categories": [
+          "water_park",
+          "tourist_attraction"
+        ],
+        "rating": 4.7,
+        "reviews": 1563,
+        "price_level": null,
+        "longitude": 103.866972,
+        "latitude": 1.283308,
+        "openHours": {
+          "Friday": [
+            "9 am-7 pm"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "9 am-7 pm"
+          ],
+          "Tuesday": [
+            "Closed"
+          ],
+          "Saturday": [
+            "9 am-7 pm"
+          ],
+          "Thursday": [
+            "9 am-7 pm"
+          ],
+          "Wednesday": [
+            "Closed"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6823
+      },
+      {
+        "id": "95052680-904b-4451-9788-625c104df00b",
+        "name": "Hard Rock Cafe Changi Airport Singapore",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "american_restaurant",
+          "clothing_store",
+          "cocktail_bar",
+          "international_airport",
+          "souvenir_store",
+          "store"
+        ],
+        "rating": 4.4,
+        "reviews": 139,
+        "price_level": null,
+        "longitude": 103.98852,
+        "latitude": 1.355644,
+        "openHours": {
+          "Friday": [
+            "6 am-1 am"
+          ],
+          "Monday": [
+            "6 am-1 am"
+          ],
+          "Sunday": [
+            "6 am-1 am"
+          ],
+          "Tuesday": [
+            "6 am-1 am"
+          ],
+          "Saturday": [
+            "6 am-1 am"
+          ],
+          "Thursday": [
+            "6 am-1 am"
+          ],
+          "Wednesday": [
+            "6 am-1 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6663
+      },
+      {
+        "id": "d0005b1d-b9c8-407c-b1ff-bacb6a9b61c1",
+        "name": "Ancient Egypt",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "amusement_park",
+          "egyptian_restaurant"
+        ],
+        "rating": 4.7,
+        "reviews": 27,
+        "price_level": null,
+        "longitude": 103.822618,
+        "latitude": 1.253496,
+        "openHours": {
+          "Friday": [
+            "11 am-6 pm"
+          ],
+          "Monday": [
+            "11 am-6 pm"
+          ],
+          "Sunday": [
+            "11 am-6 pm"
+          ],
+          "Tuesday": [
+            "11 am-6 pm"
+          ],
+          "Saturday": [
+            "11 am-6 pm"
+          ],
+          "Thursday": [
+            "11 am-6 pm"
+          ],
+          "Wednesday": [
+            "11 am-6 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6628
+      },
+      {
+        "id": "584b703d-3c3b-4547-8e5a-83dc9b66ca65",
+        "name": "Open Farm Community",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "restaurant",
+          "brunch_restaurant",
+          "cafe",
+          "farm_shop",
+          "lunch_restaurant",
+          "delivery_restaurant",
+          "takeaways",
+          "wine_bar"
+        ],
+        "rating": 4.2,
+        "reviews": 2184,
+        "price_level": 2.0,
+        "longitude": 103.815591,
+        "latitude": 1.30583,
+        "openHours": {
+          "Friday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Monday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Sunday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Tuesday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Saturday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Thursday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ],
+          "Wednesday": [
+            "11 am-3:30 pm",
+            "6-11 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6579
+      },
+      {
+        "id": "319e3396-b225-4edf-ad2b-7316fa8c8215",
+        "name": "Bollywood Farms Pte Ltd",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "bistro",
+          "cafe",
+          "farm"
+        ],
+        "rating": 4.3,
+        "reviews": 1691,
+        "price_level": 1.0,
+        "longitude": 103.716517,
+        "latitude": 1.418487,
+        "openHours": {
+          "Friday": [
+            "10 am-3 pm"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "7 am-6 pm"
+          ],
+          "Tuesday": [
+            "Closed"
+          ],
+          "Saturday": [
+            "7 am-6 pm"
+          ],
+          "Thursday": [
+            "10 am-3 pm"
+          ],
+          "Wednesday": [
+            "10 am-3 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.6544
+      },
+      {
+        "id": "4df396fb-6eec-47ca-ae86-597152985bba",
+        "name": "Splash Tribe - Mastercard Pitstop",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "family_restaurant",
+          "beach_club",
+          "playground",
+          "restaurant",
+          "tourist_attraction"
+        ],
+        "rating": 4.0,
+        "reviews": 497,
+        "price_level": null,
+        "longitude": 103.819656,
+        "latitude": 1.25051,
+        "openHours": {
+          "Friday": [
+            "10 am-7 pm"
+          ],
+          "Monday": [
+            "10 am-7 pm"
+          ],
+          "Sunday": [
+            "9:30 am-8 pm"
+          ],
+          "Tuesday": [
+            "10 am-7 pm"
+          ],
+          "Saturday": [
+            "9:30 am-8 pm"
+          ],
+          "Thursday": [
+            "10 am-7 pm"
+          ],
+          "Wednesday": [
+            "10 am-7 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6287
+      },
+      {
+        "id": "ce0e52ed-a6d3-4410-afa3-e5140549907c",
+        "name": "The Good Beer Company",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "beer_garden",
+          "beer_store",
+          "pub",
+          "taco_restaurant"
+        ],
+        "rating": 4.6,
+        "reviews": 91,
+        "price_level": 1.0,
+        "longitude": 103.84762,
+        "latitude": 1.284048,
+        "openHours": {
+          "Friday": [
+            "3 pm-12 am"
+          ],
+          "Monday": [
+            "3-10:30 pm"
+          ],
+          "Sunday": [
+            "Closed"
+          ],
+          "Tuesday": [
+            "3-11 pm"
+          ],
+          "Saturday": [
+            "3 pm-12 am"
+          ],
+          "Thursday": [
+            "3-11 pm"
+          ],
+          "Wednesday": [
+            "3-11 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": true,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.6155
+      },
+      {
+        "id": "fc78b9bb-68c7-4c3c-b1ea-f67a345829b5",
+        "name": "Timbre+ One North",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "live_music_venue",
+          "beer_garden",
+          "food_court"
+        ],
+        "rating": 4.2,
+        "reviews": 6322,
+        "price_level": 2.0,
+        "longitude": 103.787459,
+        "latitude": 1.297324,
+        "openHours": {
+          "Friday": [
+            "7 am-1 am"
+          ],
+          "Monday": [
+            "7 am-12 am"
+          ],
+          "Sunday": [
+            "11 am-10 pm"
+          ],
+          "Tuesday": [
+            "7 am-12 am"
+          ],
+          "Saturday": [
+            "7 am-1 am"
+          ],
+          "Thursday": [
+            "7 am-12 am"
+          ],
+          "Wednesday": [
+            "7 am-12 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.611
+      },
+      {
+        "id": "419f210c-a737-43c0-8b09-e5297364d560",
+        "name": "Marsiling Mall Hawker Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "shopping_mall"
+        ],
+        "rating": 4.1,
+        "reviews": 2731,
+        "price_level": 1.0,
+        "longitude": 103.779864,
+        "latitude": 1.433508,
+        "openHours": {
+          "Friday": [
+            "7 am-10 pm"
+          ],
+          "Monday": [
+            "Closed"
+          ],
+          "Sunday": [
+            "7 am-10 pm"
+          ],
+          "Tuesday": [
+            "7 am-10 pm"
+          ],
+          "Saturday": [
+            "7 am-10 pm"
+          ],
+          "Thursday": [
+            "7 am-10 pm"
+          ],
+          "Wednesday": [
+            "7 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5884
+      },
+      {
+        "id": "d1239ff2-1713-4a4b-87f4-fd402f81f0b0",
+        "name": "Fleurato",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "cafe",
+          "florist",
+          "gift_shop",
+          "indian_takeaway",
+          "party_store",
+          "souvenir_store",
+          "vegetarian_cafe_and_deli"
+        ],
+        "rating": 4.4,
+        "reviews": 200,
+        "price_level": null,
+        "longitude": 103.827687,
+        "latitude": 1.306816,
+        "openHours": {
+          "Friday": [
+            "8:45 am-1 am"
+          ],
+          "Monday": [
+            "8:45 am-6 pm",
+            "8:30-11 pm"
+          ],
+          "Sunday": [
+            "8:45 am-11:30 pm"
+          ],
+          "Tuesday": [
+            "8:45 am-11:30 pm"
+          ],
+          "Saturday": [
+            "8:45 am-1 am"
+          ],
+          "Thursday": [
+            "9:30 am-11:30 pm"
+          ],
+          "Wednesday": [
+            "8:45 am-11:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5879
+      },
+      {
+        "id": "d4ea070e-5236-4708-912a-92842e7e1301",
+        "name": "Kebun Baru Food Centre",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "hawker_center",
+          "market"
+        ],
+        "rating": 4.0,
+        "reviews": 1412,
+        "price_level": 1.0,
+        "longitude": 103.840028,
+        "latitude": 1.367223,
+        "openHours": {
+          "Friday": [
+            "5:30 am-10 pm"
+          ],
+          "Monday": [
+            "5:30 am-10 pm"
+          ],
+          "Sunday": [
+            "5:30 am-10 pm"
+          ],
+          "Tuesday": [
+            "5:30 am-10 pm"
+          ],
+          "Saturday": [
+            "5:30 am-10 pm"
+          ],
+          "Thursday": [
+            "5:30 am-10 pm"
+          ],
+          "Wednesday": [
+            "5:30 am-10 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": true,
+          "access": false
+        },
+        "score": 0.5867
+      },
+      {
+        "id": "7d49652a-a6f4-49b7-a678-6e0cda8153a5",
+        "name": "Toast Box (Marina Bay Link Mall)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "coffee_shop",
+          "shopping_mall"
+        ],
+        "rating": 4.1,
+        "reviews": 503,
+        "price_level": 1.0,
+        "longitude": 103.853046,
+        "latitude": 1.279781,
+        "openHours": {
+          "Friday": [
+            "7:30 am-7:30 pm"
+          ],
+          "Monday": [
+            "7:30 am-7:30 pm"
+          ],
+          "Sunday": [
+            "8 am-5 pm"
+          ],
+          "Tuesday": [
+            "7:30 am-7:30 pm"
+          ],
+          "Saturday": [
+            "8 am-5 pm"
+          ],
+          "Thursday": [
+            "7:30 am-7:30 pm"
+          ],
+          "Wednesday": [
+            "7:30 am-7:30 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5847
+      },
+      {
+        "id": "73f9a93a-49b4-4702-9880-1da50a3dba8c",
+        "name": "HaveFun Karaoke & Outdoor Beer Garden (SAFRA Yishun)",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "karaoke_bar",
+          "bar",
+          "beer_garden",
+          "bistro"
+        ],
+        "rating": 4.4,
+        "reviews": 526,
+        "price_level": null,
+        "longitude": 103.840918,
+        "latitude": 1.424235,
+        "openHours": {
+          "Friday": [
+            "11 am-2:30 am"
+          ],
+          "Monday": [
+            "11 am-2:30 am"
+          ],
+          "Sunday": [
+            "11 am-2:30 am"
+          ],
+          "Tuesday": [
+            "11 am-2:30 am"
+          ],
+          "Saturday": [
+            "11 am-2:30 am"
+          ],
+          "Thursday": [
+            "11 am-2:30 am"
+          ],
+          "Wednesday": [
+            "11 am-2:30 am"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5798
+      },
+      {
+        "id": "f936e629-0764-4bd7-8c0e-b3989917f7d5",
+        "name": "Brotzeit German Beer Bar and Restaurant - WestGate",
+        "roles": [
+          "meal",
+          "attraction"
+        ],
+        "categories": [
+          "german_restaurant",
+          "bar",
+          "beer_garden",
+          "restaurant"
+        ],
+        "rating": 4.2,
+        "reviews": 1753,
+        "price_level": 2.0,
+        "longitude": 103.742557,
+        "latitude": 1.333676,
+        "openHours": {
+          "Friday": [
+            "11 am-11 pm"
+          ],
+          "Monday": [
+            "11 am-11 pm"
+          ],
+          "Sunday": [
+            "11 am-11 pm"
+          ],
+          "Tuesday": [
+            "11 am-11 pm"
+          ],
+          "Saturday": [
+            "11 am-11 pm"
+          ],
+          "Thursday": [
+            "11 am-11 pm"
+          ],
+          "Wednesday": [
+            "11 am-11 pm"
+          ]
+        },
+        "flags": {
+          "kids": true,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5797
+      },
+      {
+        "id": "d38ea8f2-4677-4a3d-9121-0cc2324a7973",
+        "name": "Funan",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "shopping_mall",
+          "hotel"
+        ],
+        "rating": 4.4,
+        "reviews": 7948,
+        "price_level": null,
+        "longitude": 103.850193,
+        "latitude": 1.291265,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.552
+      },
+      {
+        "id": "a1e8f205-abca-4fc6-b88a-f25563885ba5",
+        "name": "Hotel NuVe Urbane, Lavender",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 4.2,
+        "reviews": 766,
+        "price_level": null,
+        "longitude": 103.858906,
+        "latitude": 1.307306,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5471
+      },
+      {
+        "id": "120bb103-d4dd-406e-a562-0956ee183745",
+        "name": "Link Hotel",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "hotel",
+          "boutique"
+        ],
+        "rating": 3.7,
+        "reviews": 660,
+        "price_level": null,
+        "longitude": 103.834366,
+        "latitude": 1.284858,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.5375
+      },
+      {
+        "id": "0a02a8f0-a02f-4990-aac9-5a08daced021",
+        "name": "Resorts World Sentosa",
+        "roles": [
+          "accommodation",
+          "attraction"
+        ],
+        "categories": [
+          "resort_hotel",
+          "aquarium",
+          "casino",
+          "hotel",
+          "tourist_attraction"
+        ],
+        "rating": 4.6,
+        "reviews": 90138,
+        "price_level": null,
+        "longitude": 103.821811,
+        "latitude": 1.255179,
+        "openHours": null,
+        "flags": {
+          "kids": false,
+          "pet": false,
+          "halal": false,
+          "access": false
+        },
+        "score": 0.443
+      }
+    ]
+  }
+}

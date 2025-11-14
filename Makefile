@@ -23,9 +23,12 @@ dev:
 run:
 	@uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
+test:
+	@uv run pytest 
+
 clean:
-	@rm -rf build *.egg-info
-	@find app -type d -name "__pycache__" -exec rm -rf {} +
+	@rm -rf build *.egg-info .pytest_cache .ruff_cache
+	@find app tests -type d -name "__pycache__" -exec rm -rf {} +
 
 distclean: clean
 	@rm -rf $(VENV) uv.lock

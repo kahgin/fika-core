@@ -1,19 +1,20 @@
-import os, json, math
-from typing import Dict, Any, List
+from __future__ import annotations
+
+import os
+import math
 from dotenv import load_dotenv
 from supabase import create_client
+from typing import Any, Dict, List, Optional, Set, TypedDict
+from app.schemas.itinerary import POI, Coordinates, ItineraryResponse
+
+# Supabase client
 
 load_dotenv()
-sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+_sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
-# ----- Config -----
-BUDGET_TARGET = {
-    "tight": 1.0,
-    "sensible": 2.0,
-    "upscale": 3.0,
-    "premium": 4.0,
-    "any": 4.0,
-}
+# Config
+
+BUDGET_TARGET = {"tight": 1.0, "sensible": 2.0, "upscale": 3.0, "luxury": 4.0}
 
 BASE_WEIGHTS = {
     "interest": 0.3,
@@ -25,113 +26,125 @@ BASE_WEIGHTS = {
     "access": 0.1,
 }
 
-# ----- Utils -----
-def norm_01(x, lo, hi):
-    if x is None or hi == lo: return 0.0
-    v = (x - lo) / (hi - lo)
-    return max(0.0, min(1.0, v))
 
-def popularity_score(rating, reviews):
+# Internal DTO
+class Row(TypedDict, total=False):
+    id: str
+    name: str
+    poi_roles: Optional[List[str]]
+    categories: Optional[List[str]]
+    themes: Optional[List[str]]
+    open_hours: Optional[Dict[str, Any]]
+    review_count: Optional[int]
+    review_rating: Optional[float]
+    latitude: float
+    longitude: float
+    price_level: Optional[float]
+    images: Optional[List[str]]
+    kids_friendly: Optional[bool]
+    pets_friendly: Optional[bool]
+    wheelchair_accessible_entrance: Optional[bool]
+    wheelchair_accessible_seating: Optional[bool]
+    wheelchair_accessible_toilet: Optional[bool]
+    halal_food: Optional[bool]
+    vegan_options: Optional[bool]
+    vegetarian_options: Optional[bool]
+    role_pick: Optional[str]
+    area_name: Optional[str]
+    distance_m: Optional[float]
+    _score: float
+    _role: Optional[str]
+
+
+# Helpers
+
+
+def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     r = 0.0 if rating is None else max(0.0, min(1.0, float(rating) / 5.0))
     if not reviews or reviews <= 0:
         return 0.5 * r
-    rc = min(1.0, math.log10(1.0 + reviews) / 3.0)  # ~cap at 1k reviews
+    rc = min(1.0, math.log10(1.0 + reviews) / 3.0)
     return 0.7 * r + 0.3 * rc
 
-def budget_alignment(price_level, budget_tier):
-    if price_level is None: return 0.5
+
+def budget_alignment(price_level: Optional[float], budget_tier: str) -> float:
+    if price_level is None:
+        return 1.0
     target = BUDGET_TARGET.get(budget_tier, 4.0)
     dist = abs(float(price_level) - target)
     return max(0.0, 1.0 - (dist / 3.0))
 
-def dietary_score(req, poi):
-    """Score 1.0 if POI satisfies *any* of user's dietary restrictions."""
-    prefs = set(req.get("dietary_restrictions") or [])
-    if not prefs:
-        return 0.5  # neutral if user has no dietary preference
 
-    # Each POI flag
-    halal = poi.get("halal_food", False)
-    vegan = poi.get("vegan_options", False)
-    vegetarian = poi.get("vegetarian_options", False)
-
-    # Evaluate
-    score = 0.0
-    if "halal" in prefs and halal:
-        score = max(score, 1.0)
-    if "vegan" in prefs and vegan:
-        score = max(score, 1.0)
-    if "vegetarian" in prefs and (vegetarian or vegan):
-        score = max(score, 1.0)
-    return score
-
-def any_accessible(p):
+def any_accessible(p: Row) -> bool:
     return bool(
-        p.get('wheelchair_accessible_entrance') or
-        p.get('wheelchair_accessible_seating') or
-        p.get('wheelchair_accessible_toilet')
+        p.get("wheelchair_accessible_entrance")
+        or p.get("wheelchair_accessible_seating")
+        or p.get("wheelchair_accessible_toilet")
     )
 
+
 def derive_selected_themes(req: Dict[str, Any]) -> List[str]:
-    # ensure 3 themes
-    t = list(dict.fromkeys(req.get("interest_categories", [])))
-    fallback = ["shopping","cultural_history","nature"]
+    t = list(dict.fromkeys(req.get("interest_themes", [])))
+    fallback = ["shopping", "cultural_history", "nature"]
     for f in fallback:
-        if len(t) >= 3: break
+        if len(t) >= 3:
+            break
         if f not in t:
             t.append(f)
     return t[:3]
 
+
 def role_keep_counts(num_days: int) -> Dict[str, int]:
-    d = max(1, int(num_days or 3))
+    d = max(1, int(num_days or 7))
     return {
-        "attraction": min(10 * d, 60),
-        "meal":       min(10 * d, 60),
-        "accommodation": min(max(6, d), 30),
+        "attraction": min(12 * d, 150),
+        "meal": min(3 * d, 50),
+        "accommodation": min(d + 5, 15),  # At least d+5 to ensure options
     }
 
-def applicable_dims(req: Dict[str, Any], poi: Dict[str, Any]):
-    dims = {"interest","cost","popularity"}
-    if req.get("flags", {}).get("has_child"):
+
+def applicable_dims(req: Dict[str, Any], poi_roles: List[str]) -> Set[str]:
+    dims: Set[str] = {"interest", "cost", "popularity"}
+    flags = req.get("flags", {})
+    if flags.get("has_child"):
         dims.add("child")
-    if req.get("flags", {}).get("has_pets"):
+    if flags.get("has_pets"):
         dims.add("pet")
-    if "halal" in (req.get("dietary_restrictions") or []):
-        if "meal" in (poi.get("poi_roles") or []):
-            dims.add("dietary")
-    if req.get("flags", {}).get("wheelchair_accessible"):
+    if "halal" in (req.get("dietary_restrictions") or []) and (
+        "meal" in (poi_roles or [])
+    ):
+        dims.add("dietary")
+    if flags.get("wheelchair_accessible"):
         dims.add("access")
     return dims
 
-def renorm_weights(dims):
+
+def renorm_weights(dims: Set[str]) -> Dict[str, float]:
     s = sum(BASE_WEIGHTS[d] for d in dims)
-    return {d: (BASE_WEIGHTS[d] / s) for d in dims} if s > 0 else {k:0 for k in dims}
+    return {d: (BASE_WEIGHTS[d] / s) for d in dims} if s > 0 else {k: 0.0 for k in dims}
 
-# ----- theme-category lookup for interest score -----
-def get_theme_lookup(selected_themes: List[str]) -> Dict[str, set]:
-    if not selected_themes:
-        return {}
-    rows = sb.table("theme_category_map") \
-             .select("theme,category") \
-             .in_("theme", selected_themes) \
-             .execute().data
-    m: Dict[str, set] = {}
-    for r in rows:
-        m.setdefault(r["category"], set()).add(r["theme"])
-    return m
 
-def interest_match_score(categories, selected_themes, theme_cats_lookup):
-    if not categories: return 0.0
-    sel = set(selected_themes)
-    hit = 0
-    for c in categories:
-        mapped = theme_cats_lookup.get(c, set())
-        if mapped & sel:
-            hit += 1
-    return hit / max(1, len(categories))
+def interest_match_score(
+    poi_themes: Optional[List[str]], selected_themes: List[str]
+) -> float:
+    """Score POI by directly matching its themes with user-selected themes."""
+    if not poi_themes or not selected_themes:
+        return 0.0
 
-# ----- Fetch via latest RPC (quota-aware) -----
-def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Dict[str, Any]]:
+    poi_theme_set = set(poi_themes)
+    selected_theme_set = set(selected_themes)
+
+    # Count how many user themes match POI themes
+    matches = len(poi_theme_set & selected_theme_set)
+
+    # Normalize by number of selected themes
+    return matches / len(selected_themes)
+
+
+# Supabase RPC
+
+
+def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Row]:
     quotas = role_keep_counts(req.get("num_days", 3))
     params = {
         "p_destination": req["destination"],
@@ -139,95 +152,307 @@ def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Di
         "p_quota_attraction": quotas["attraction"],
         "p_quota_meal": quotas["meal"],
         "p_quota_accommodation": quotas["accommodation"],
-
-        "p_roles": ["attraction","meal","accommodation"],
+        "p_roles": ["attraction", "meal", "accommodation"],
         "p_min_rating": 2.0,
         "p_min_reviews": 10,
-        "p_per_area_cap": req.get("per_area_cap", 10),
-
         "p_halal_only": bool(req.get("flags", {}).get("is_muslim", False)),
-        "p_wheelchair_only": bool(req.get("flags", {}).get("wheelchair_accessible", False)),
+        "p_wheelchair_only": bool(
+            req.get("flags", {}).get("wheelchair_accessible", False)
+        ),
         "p_excluded_themes": req.get("excluded_themes") or None,
-        "p_exclude_nightlife": bool(req.get("flags", {}).get("exclude_nightlife", False)),
-
+        "p_exclude_nightlife": bool(
+            req.get("flags", {}).get("exclude_nightlife", False)
+        ),
         "p_seed_lon": req.get("seed_lon"),
         "p_seed_lat": req.get("seed_lat"),
     }
-    # NOTE: matches your SQL name exactly:
-    rsp = sb.rpc("rpc_fetch_poi_candidates_quota", params).execute()
-    return rsp.data or []
+    rsp = _sb.rpc("rpc_fetch_poi_candidates_quota", params).execute()
+    return list(rsp.data or [])
 
-# ----- Scoring -----
-def score_poi(req: Dict[str, Any], poi: Dict[str, Any], theme_lookup: Dict[str, set], selected_themes: List[str]) -> float:
-    dims = applicable_dims(req, poi)
+
+# Scoring
+
+
+def dietary_score(req: Dict[str, Any], poi: Row) -> float:
+    prefs = set(req.get("dietary_restrictions") or [])
+    if not prefs:
+        return 0.5
+    halal = bool(poi.get("halal_food"))
+    vegan = bool(poi.get("vegan_options"))
+    vegetarian = bool(poi.get("vegetarian_options"))
+    hit = (
+        ("halal" in prefs and halal)
+        or ("vegan" in prefs and vegan)
+        or ("vegetarian" in prefs and (vegetarian or vegan))
+    )
+    return 1.0 if hit else 0.0
+
+
+def score_row(req: Dict[str, Any], row: Row, selected_themes: List[str]) -> float:
+    roles = row.get("poi_roles") or []
+    dims = applicable_dims(req, roles)
     W = renorm_weights(dims)
 
-    s_interest = interest_match_score(poi.get("categories"), selected_themes, theme_lookup) if "interest" in W else 0
-    s_cost     = budget_alignment(poi.get("price_level"), req.get("budget_tier")) if "cost" in W else 0
-    s_pop      = popularity_score(poi.get("review_rating"), poi.get("review_count")) if "popularity" in W else 0
-    s_child    = 1.0 if ("child" in W and poi.get("kids_friendly")) else (0 if "child" in W else 0)
-    s_diet     = dietary_score(req, poi) if "dietary" in W else 0
-    s_pet      = 1.0 if ("pet" in W and poi.get("pets_friendly")) else (0 if "pet" in W else 0)
-    s_access   = 1.0 if ("access" in W and any_accessible(poi)) else (0 if "access" in W else 0)
-
-    return float(
-        W.get("interest",0)*s_interest +
-        W.get("cost",0)*s_cost +
-        W.get("popularity",0)*s_pop +
-        W.get("child",0)*s_child +
-        W.get("dietary",0)*s_diet +
-        W.get("pet",0)*s_pet +
-        W.get("access",0)*s_access
+    # Theme matching only for attractions, not for meals or accommodations
+    is_attraction = (
+        "attraction" in roles and "meal" not in roles and "accommodation" not in roles
+    )
+    s_interest = (
+        interest_match_score(row.get("themes"), selected_themes)
+        if ("interest" in W and is_attraction)
+        else 0.0
     )
 
-def trim_by_role(scored: List[Dict[str, Any]], num_days: int) -> List[Dict[str, Any]]:
-    # SQL already applied quotas, this is a safe guard if RPC returns >quota
+    s_cost = (
+        budget_alignment(row.get("price_level"), req.get("budget_tier"))
+        if "cost" in W
+        else 0.0
+    )
+    s_pop = (
+        popularity_score(row.get("review_rating"), row.get("review_count"))
+        if "popularity" in W
+        else 0.0
+    )
+    s_child = (
+        1.0
+        if ("child" in W and row.get("kids_friendly"))
+        else (0.0 if "child" in W else 0.0)
+    )
+    s_diet = dietary_score(req, row) if "dietary" in W else 0.0
+    s_pet = (
+        1.0
+        if ("pet" in W and row.get("pets_friendly"))
+        else (0.0 if "pet" in W else 0.0)
+    )
+    s_access = (
+        1.0
+        if ("access" in W and any_accessible(row))
+        else (0.0 if "access" in W else 0.0)
+    )
+
+    return float(
+        W.get("interest", 0) * s_interest
+        + W.get("cost", 0) * s_cost
+        + W.get("popularity", 0) * s_pop
+        + W.get("child", 0) * s_child
+        + W.get("dietary", 0) * s_diet
+        + W.get("pet", 0) * s_pet
+        + W.get("access", 0) * s_access
+    )
+
+
+def trim_by_role(
+    scored: List[Row], num_days: int, selected_themes: List[str]
+) -> Dict[str, List[Row]]:
+    """
+    Trim scored POIs by role quotas and return structured by role.
+    Ensures minimum POIs per role AND theme balance for attractions.
+
+    Returns:
+        {
+            "attraction": [Row, ...],
+            "meal": [Row, ...],
+            "accommodation": [Row, ...]
+        }
+    """
     keep = role_keep_counts(num_days)
-    out: List[Dict[str, Any]] = []
-    for role, k in keep.items():
-        bunch = [r for r in scored if role in (r.get("poi_roles") or [])]
-        bunch.sort(key=lambda x: x["_score"], reverse=True)
-        out.extend(bunch[:k])
-    return out
 
-# ----- Orchestrator -----
-def run_pipeline(request_path="tests/maut_test.json") -> Dict[str, Any]:
-    with open(request_path, "r", encoding="utf-8") as f:
-        req = json.load(f)
+    # Group by role - POIs can appear in multiple role groups
+    by_role: Dict[str, List[Row]] = {"attraction": [], "meal": [], "accommodation": []}
 
-    selected_themes = derive_selected_themes(req)
-    theme_lookup = get_theme_lookup(selected_themes)
+    for r in scored:
+        roles = r.get("poi_roles") or []
+        # Add POI to each role it belongs to
+        if "meal" in roles:
+            by_role["meal"].append(r)
+        if "accommodation" in roles:
+            by_role["accommodation"].append(r)
+        if "attraction" in roles:
+            by_role["attraction"].append(r)
+        # If no specific role, default to attraction
+        if not roles or (
+            not any(role in roles for role in ["meal", "accommodation", "attraction"])
+        ):
+            by_role["attraction"].append(r)
 
-    rows = fetch_candidates(req, selected_themes)
+    # Sort each role by score
+    for role in by_role:
+        by_role[role].sort(key=lambda x: x["_score"], reverse=True)
 
-    scored = []
-    for p in rows:
-        p["_score"] = score_poi(req, p, theme_lookup, selected_themes)
-        scored.append(p)
+    # Trim to quotas - process in priority order to avoid duplicates
+    result: Dict[str, List[Row]] = {}
+    seen: Set[str] = set()
 
-    trimmed = trim_by_role(scored, req.get("num_days", 3))
-    trimmed.sort(key=lambda x: x["_score"], reverse=True)
+    # Priority order: accommodation > meal > attraction (with theme balance)
+    for role in ["accommodation", "meal"]:
+        quota = keep[role]
+        result[role] = []
+        picked = 0
+        for r in by_role[role]:
+            rid = r["id"]
+            if rid in seen:
+                continue
+            result[role].append(r)
+            seen.add(rid)
+            picked += 1
+            if picked >= quota:
+                break
 
-    return {
-        "selected_themes": selected_themes,
-        "count_in": len(rows),
-        "count_out": len(trimmed),
-        "items": [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "roles": r.get("poi_roles"),
-                "categories": r.get("categories"),
-                "rating": r.get("review_rating"),
-                "reviews": r.get("review_count"),
-                "price_level": r.get("price_level"),
-                "flags": {
-                    "kids": r.get("kids_friendly"),
-                    "pet": r.get("pets_friendly"),
-                    "halal": r.get("halal_food"),
-                    "access": any_accessible(r)
-                },
-                "score": round(r["_score"], 4)
-            } for r in trimmed
-        ]
+    # Special handling for attractions - ensure theme balance
+    result["attraction"] = []
+    if selected_themes and by_role["attraction"]:
+        # Calculate target per theme
+        quota = keep["attraction"]
+        target_per_theme = quota // len(selected_themes)
+        remainder = quota % len(selected_themes)
+
+        # Group attractions by theme
+        by_theme: Dict[str, List[Row]] = {theme: [] for theme in selected_themes}
+        no_theme: List[Row] = []
+
+        for r in by_role["attraction"]:
+            if r["id"] in seen:
+                continue
+            themes = r.get("themes", [])
+            matched = False
+            for theme in selected_themes:
+                if theme in themes:
+                    by_theme[theme].append(r)
+                    matched = True
+                    break
+            if not matched:
+                no_theme.append(r)
+
+        # Pick from each theme
+        picked = 0
+        for theme_idx, theme in enumerate(selected_themes):
+            # Add 1 extra to first themes if there's remainder
+            theme_quota = target_per_theme + (1 if theme_idx < remainder else 0)
+            theme_pois = by_theme[theme]
+
+            for r in theme_pois[:theme_quota]:
+                if r["id"] not in seen:
+                    result["attraction"].append(r)
+                    seen.add(r["id"])
+                    picked += 1
+
+        # Fill remaining quota with highest scored POIs (including no_theme)
+        if picked < quota:
+            remaining = [r for r in by_role["attraction"] if r["id"] not in seen]
+            for r in remaining[: (quota - picked)]:
+                result["attraction"].append(r)
+                seen.add(r["id"])
+    else:
+        # No theme balancing needed
+        quota = keep["attraction"]
+        picked = 0
+        for r in by_role["attraction"]:
+            rid = r["id"]
+            if rid in seen:
+                continue
+            result["attraction"].append(r)
+            seen.add(rid)
+            picked += 1
+            if picked >= quota:
+                break
+
+    return result
+
+
+# Mapping to API POI
+
+
+def to_poi(row: Row) -> POI:
+    """Convert internal Row to POI schema with all fields for CVRPTW."""
+    return POI(
+        id=row["id"],
+        name=row["name"],
+        poi_roles=row.get("poi_roles") or [],
+        category=(row.get("categories") or [None])[0],
+        categories=row.get("categories") or [],
+        themes=row.get("themes", []),
+        rating=row.get("review_rating"),
+        reviewCount=row.get("review_count"),
+        images=row.get("images") or [],
+        coordinates=Coordinates(
+            lat=float(row["latitude"]), lng=float(row["longitude"])
+        ),
+        latitude=float(row["latitude"]),
+        longitude=float(row["longitude"]),
+        hours=row.get("open_hours"),
+        openHours=row.get("open_hours"),
+        priceLevel=int(row["price_level"])
+        if row.get("price_level") is not None
+        else None,
+    )
+
+
+# Orchestrator
+
+
+def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
+    """
+    Run MAUT pipeline to score and select POIs.
+
+    Args:
+        payload: Internal MAUT request (already transformed from frontend)
+        as_model: If True, return Pydantic model; else return dict
+
+    Returns:
+        ItineraryResponse with scored POIs structured by role
+    """
+    # 1) Derive selected themes (3 themes with fallback)
+    selected_themes = derive_selected_themes(payload)
+
+    # 2) Fetch POI candidates from Supabase RPC
+    rows: List[Row] = fetch_candidates(payload, selected_themes)
+
+    # 3) Score each POI using MAUT algorithm
+    scored: List[Row] = []
+    for r in rows:
+        r["_score"] = score_row(payload, r, selected_themes)
+        scored.append(r)
+
+    # 4) Trim by role quotas - returns dict by role with theme balance
+    trimmed_by_role = trim_by_role(scored, payload.get("num_days", 3), selected_themes)
+
+    # 5) Flatten and sort all POIs by score for places list
+    all_trimmed: List[Row] = []
+    for role_pois in trimmed_by_role.values():
+        all_trimmed.extend(role_pois)
+    all_trimmed.sort(key=lambda x: x["_score"], reverse=True)
+
+    # 6) Map internal Row format to API POI format
+    pois = [to_poi(r) for r in all_trimmed]
+
+    # 7) Also create role-separated POI lists for CVRPTW
+    pois_by_role = {
+        role: [to_poi(r) for r in rows_list]
+        for role, rows_list in trimmed_by_role.items()
     }
+
+    # 8) Build response (CVRPTW/ACO will compute route_order, total_distance, total_time)
+    resp = ItineraryResponse(
+        status="ok",
+        places=pois,
+        total_distance=0.0,
+        total_time=0,
+        route_order=[],
+        meta={
+            "selected_themes": selected_themes,
+            "count_in": len(rows),
+            "count_out": len(all_trimmed),
+            "by_role": {
+                "attraction": len(trimmed_by_role["attraction"]),
+                "meal": len(trimmed_by_role["meal"]),
+                "accommodation": len(trimmed_by_role["accommodation"]),
+            },
+            "pois_by_role": {
+                role: [
+                    p.model_dump() if hasattr(p, "model_dump") else p for p in pois_list
+                ]
+                for role, pois_list in pois_by_role.items()
+            },
+        },
+    )
+    return resp if as_model == True else resp.model_dump()
