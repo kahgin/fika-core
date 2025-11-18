@@ -97,9 +97,9 @@ def derive_selected_themes(req: Dict[str, Any]) -> List[str]:
 def role_keep_counts(num_days: int) -> Dict[str, int]:
     d = max(1, int(num_days or 7))
     return {
-        "attraction": min(12 * d, 150),
-        "meal": min(3 * d, 50),
-        "accommodation": min(d + 5, 15),  # At least d+5 to ensure options
+        "attraction": min(30 * d, 200),
+        "meal": min(5 * d, 50),
+        "accommodation": min(d + 3, 15),  # At least d+3 to ensure options
     }
 
 
@@ -262,14 +262,24 @@ def trim_by_role(
 
     for r in scored:
         roles = r.get("poi_roles") or []
-        # Add POI to each role it belongs to
+
+        # Meals: any POI that has a meal role
         if "meal" in roles:
             by_role["meal"].append(r)
-        if "accommodation" in roles:
+
+        # Pure accommodation only: no attraction/meal role
+        if (
+            "accommodation" in roles
+            and "attraction" not in roles
+            and "meal" not in roles
+        ):
             by_role["accommodation"].append(r)
+
+        # Attractions: anything marked as attraction (even if also meal/accommodation)
         if "attraction" in roles:
             by_role["attraction"].append(r)
-        # If no specific role, default to attraction
+
+        # If no explicit roles at all, treat as attraction
         if not roles or (
             not any(role in roles for role in ["meal", "accommodation", "attraction"])
         ):
@@ -431,6 +441,13 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
         for role, rows_list in trimmed_by_role.items()
     }
 
+    # 7.1) Select default hotel from accommodations (highest scored)
+    accom_rows = trimmed_by_role.get("accommodation", [])
+    selected_hotel_poi: Optional[POI] = None
+    if accom_rows:
+        best_hotel_row = accom_rows[0]
+        selected_hotel_poi = to_poi(best_hotel_row)
+
     # 8) Build response (CVRPTW/ACO will compute route_order, total_distance, total_time)
     resp = ItineraryResponse(
         status="ok",
@@ -453,6 +470,11 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
                 ]
                 for role, pois_list in pois_by_role.items()
             },
+            "num_days": payload.get("num_days"),
+            "dates": payload.get("dates"),
+            "selected_hotel": (
+                selected_hotel_poi.model_dump() if selected_hotel_poi else None
+            ),
         },
     )
     return resp if as_model == True else resp.model_dump()

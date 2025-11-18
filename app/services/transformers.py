@@ -4,9 +4,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ============================================================================
 # Frontend → Backend Transformation
-# ============================================================================
 
 
 def derive_flags_from_travelers(travelers: Dict[str, Any]) -> Dict[str, bool]:
@@ -151,9 +149,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# ============================================================================
 # Backend → Frontend Transformation
-# ============================================================================
 
 
 def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
@@ -166,6 +162,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     - poi_roles → roles
     - price_level → priceLevel
     - open_hours → hours, openHours
+    - complete_address → location (derived from city or country)
 
     Args:
         poi: Internal POI dict from MAUT service
@@ -187,27 +184,31 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     elif poi.get("category"):
         category = poi["category"]
 
+    # Derive location from complete_address
+    location = None
+    complete_addr = poi.get("complete_address")
+    if isinstance(complete_addr, dict):
+        # Priority: city > country
+        location = complete_addr.get("city") or complete_addr.get("country")
+
     return {
         "id": poi.get("id"),
         "name": poi.get("name"),
         "category": category,
         "categories": poi.get("categories", [category] if category else []),
         "rating": poi.get("review_rating") or poi.get("rating"),
-        "reviews": poi.get("review_count") or poi.get("reviewCount"),
         "reviewCount": poi.get("review_count") or poi.get("reviewCount"),
-        "location": poi.get("location"),
+        "location": location,
         "images": poi.get("images", []),
         "description": poi.get("description") or poi.get("descriptions"),
-        "latitude": coords["lat"] if coords else None,
-        "longitude": coords["lng"] if coords else None,
+        # "latitude": coords["lat"] if coords else None,
+        # "longitude": coords["lng"] if coords else None,
         "coordinates": coords,
         "website": poi.get("website"),
         "googleMapsUrl": poi.get("googleMapsUrl") or poi.get("google_map_link"),
         "address": poi.get("address"),
         "phone": poi.get("phone"),
-        "hours": poi.get("open_hours") or poi.get("hours"),
         "openHours": poi.get("open_hours") or poi.get("hours"),
-        "price_level": poi.get("price_level") or poi.get("priceLevel"),
         "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
         "roles": poi.get("poi_roles", []),
     }
@@ -231,7 +232,7 @@ def transform_response_to_frontend(
     for poi in output.get("items") or output.get("places") or []:
         items.append(transform_poi_to_frontend(poi))
 
-    # Build plan structure (selected_themes only in meta, not at root)
+    # Build plan structure
     return {
         "status": output.get("status", "ok"),
         "items": items,
@@ -242,9 +243,7 @@ def transform_response_to_frontend(
     }
 
 
-# ============================================================================
 # Validation Helpers
-# ============================================================================
 
 
 def validate_create_itinerary_payload(

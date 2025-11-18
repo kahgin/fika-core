@@ -20,12 +20,20 @@ SERVICE_TIME = {
     "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
 }
 
-LUNCH_WIN = (12 * 60, 14 * 60)
-DINNER_WIN = (18 * 60, 21 * 60)
+# Default time windows when open_hours is missing (minutes from midnight)
+DEFAULT_ROLE_WINDOWS = {
+    "attraction": (9 * 60, 19 * 60),  # 09:00–19:00
+    "meal": (10 * 60, 22 * 60),  # 10:00–22:00
+    "accommodation": (0, 24 * 60),  # 24h for stay
+    "depot": (0, 24 * 60),  # hotel depot
+}
+
+LUNCH_WIN = (12 * 60, 14 * 60)  # 12:00-14:00
+DINNER_WIN = (18 * 60, 21 * 60)  # 18:00-21:00
 
 PENALTY_MEAL_TO_MEAL = 40
 PENALTY_SAME_THEME = 15
-DROP_PENALTY_BASE = 2000
+DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI
 
 
 # Data Structures
@@ -186,14 +194,18 @@ def build_problem(
     """
     # Extract dates and num_days
     meta = maut_output.get("meta", {})
-    dates = meta.get("dates", {})
+    dates = meta.get("dates") or {}
+
+    print(f"DEBUG: meta keys = {list(meta.keys())}")
+    print(f"DEBUG: num_days in meta = {meta.get('num_days')}")
+    print(f"DEBUG: dates = {dates}")
 
     # num_days can be in meta or at root level
-    num_days = meta.get("num_days") or maut_output.get("num_days", 3)
+    num_days = meta.get("num_days") or maut_output.get("num_days")
 
-    # If not found, calculate from by_role or places count
-    if not num_days:
-        num_days = 3  # default
+    # If not found, default to 3
+    if not num_days or num_days <= 0:
+        num_days = 3
 
     # Parse dates
     if dates.get("type") == "specific" and dates.get("startDate"):
@@ -334,35 +346,32 @@ def _add_poi_node(
     # Build per-day windows
     wbd: Dict[int, List[Tuple[int, int]]] = {}
 
-    # Check if this is a day-specific POI (like hotel accommodation)
+    open_hours = poi.get("openHours") or poi.get("hours")
     day_specific = poi.get("_day_specific")
+
+    # Role-based default window
+    role_default = DEFAULT_ROLE_WINDOWS.get(role, (9 * 60, 21 * 60))
+
     if day_specific is not None:
         # Only available on specific day
         d = day_specs[day_specific]
 
-        # Check if POI is open on this specific day
-        open_hours = poi.get("openHours") or poi.get("hours")
-        if open_hours:
-            weekday = d.date.strftime("%A")
-            day_hours = open_hours.get(weekday, [])
-            # Skip if closed on this day
-            if not day_hours or "closed" in str(day_hours).lower():
-                return
+        # Intersect day span with role default
+        day_start = max(d.start_min, role_default[0])
+        day_end = min(d.end_min, role_default[1])
+        day_default = (day_start, day_end)
 
-        wbd = {day_specific: [(d.start_min, d.end_min)]}
+        windows = extract_windows_for_date(open_hours, d.date, day_default)
+        # If closed or no valid windows, skip this POI for that day
+        if not windows:
+            return
+        wbd[day_specific] = windows
     else:
         # Available on all days - check each day
         for d in day_specs:
-            day_default = (d.start_min, d.end_min)
-            open_hours = poi.get("openHours") or poi.get("hours")
-
-            # Check if POI is open on this day
-            if open_hours:
-                weekday = d.date.strftime("%A")
-                day_hours = open_hours.get(weekday, [])
-                # Skip this day if closed
-                if not day_hours or "closed" in str(day_hours).lower():
-                    continue
+            day_start = max(d.start_min, role_default[0])
+            day_end = min(d.end_min, role_default[1])
+            day_default = (day_start, day_end)
 
             windows = extract_windows_for_date(open_hours, d.date, day_default)
             if windows:
@@ -372,14 +381,20 @@ def _add_poi_node(
         if not wbd:
             return
 
-    # Check if mandatory
-    is_mand = bool(mandatory and poi["id"] in mandatory)
-    if is_mand:
-        md_spec = mandatory[poi["id"]]
-        dk = int(md_spec["day"]) - 1
-        a = minutes(md_spec["window"][0])
-        b = minutes(md_spec["window"][1])
-        wbd = {dk: [(a, b)]}
+    # Mandatory override: use base POI ID and match day
+    base_id = poi["id"].rsplit("_day", 1)[0]
+    is_mand = False
+
+    if mandatory and base_id in mandatory:
+        md_spec = mandatory[base_id]
+        dk = int(md_spec["day"]) - 1  # 1-based in API, 0-based internally
+
+        # If this node is day-specific, enforce only on that day
+        if day_specific is None or day_specific == dk:
+            a = minutes(md_spec["window"][0])
+            b = minutes(md_spec["window"][1])
+            wbd = {dk: [(a, b)]}
+            is_mand = True
 
     nodes.append(
         Node(
@@ -420,6 +435,12 @@ def solve_cvrptw(
     Returns:
         {"days": [{"date": str, "stops": [...], "meals": int}]}
     """
+    # Validate inputs
+    if not day_specs:
+        return {"days": [], "note": "No days specified"}
+    if len(nodes) <= 1:  # Only depot
+        return {"days": [], "note": "No POIs available"}
+
     N = len(nodes)
     V = len(day_specs)
 
@@ -556,7 +577,7 @@ def solve_cvrptw(
                     day_plan["meals"] += 1
             idx = solution.Value(routing.NextVar(idx))
 
-        # Add hotel return at end of day
+        # Add hotel return at end of day with coordinates
         end_idx = routing.End(v)
         end_time = solution.Min(time_dim.CumulVar(end_idx))
         day_plan["stops"].append(
@@ -567,6 +588,8 @@ def solve_cvrptw(
                 "arrival": fmt(end_time),
                 "start_service": fmt(end_time),
                 "depart": fmt(end_time),
+                "latitude": depot_node.lat,
+                "longitude": depot_node.lon,
             }
         )
 
@@ -598,15 +621,46 @@ def run_cvrptw(
     Returns:
         {"days": [{"date": str, "stops": [...], "meals": int}]}
     """
-    selected_themes = maut_output.get("meta", {}).get("selected_themes", [])
-    day_specs, nodes, travel = build_problem(
-        maut_output,
-        hotel,
-        pacing=pacing,
-        selected_themes=selected_themes,
-        mandatory=mandatory,
-    )
-    # Reduce meal requirement to 1 per day to make problem more feasible
-    return solve_cvrptw(
-        day_specs, nodes, travel, meals_required=1, time_limit_sec=time_limit_sec
-    )
+    try:
+        selected_themes = maut_output.get("meta", {}).get("selected_themes", [])
+        day_specs, nodes, travel = build_problem(
+            maut_output,
+            hotel,
+            pacing=pacing,
+            selected_themes=selected_themes,
+            mandatory=mandatory,
+        )
+
+        # Debug: Check what we got
+        if not day_specs:
+            return {
+                "days": [],
+                "note": f"No day_specs generated. num_days in meta: {maut_output.get('meta', {}).get('num_days')}, dates: {maut_output.get('meta', {}).get('dates')}",
+            }
+
+        if len(nodes) <= 1:
+            return {
+                "days": [],
+                "note": f"Only depot node. pois_by_role keys: {list(maut_output.get('meta', {}).get('pois_by_role', {}).keys())}, meal count: {len(maut_output.get('meta', {}).get('pois_by_role', {}).get('meal', []))}, attraction count: {len(maut_output.get('meta', {}).get('pois_by_role', {}).get('attraction', []))}",
+            }
+
+        # Count available meal nodes
+        meal_nodes = sum(1 for n in nodes if n.role == "meal")
+
+        # Adjust meal requirement based on availability
+        # If no meals available, set requirement to 0 to allow solution
+        meals_required = (
+            min(2, meal_nodes // len(day_specs))
+            if meal_nodes > 0 and len(day_specs) > 0
+            else 0
+        )
+
+        return solve_cvrptw(
+            day_specs,
+            nodes,
+            travel,
+            meals_required=meals_required,
+            time_limit_sec=time_limit_sec,
+        )
+    except Exception as e:
+        return {"days": [], "note": f"Exception in run_cvrptw: {str(e)}"}

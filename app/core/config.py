@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
 
     # CORS and app constants
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "https://fikatrip.vercel.app"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "https://fikatrip.vercel.app"]
     DEFAULT_LIMIT: int = 12
     MAX_LIMIT: int = 90
 

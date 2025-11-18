@@ -274,14 +274,14 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
     print("=" * 70)
 
     stats = validation_result["stats"]
-    print(f"\n📊 Statistics:")
+    print("\n📊 Statistics:")
     print(f"   Total days: {stats['total_days']}")
     print(f"   Total stops: {stats['total_stops']}")
     print(f"   Total meals: {stats['total_meals']}")
     print(f"   Meals per day: {stats['meals_per_day']}")
 
     if stats["theme_distribution"]:
-        print(f"\n🎨 Theme Distribution:")
+        print("\n🎨 Theme Distribution:")
         for theme, count in sorted(
             stats["theme_distribution"].items(), key=lambda x: -x[1]
         ):
@@ -289,7 +289,7 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
 
     violations = validation_result["violations"]
     if not violations:
-        print(f"\n✅ VALID - No violations found")
+        print("\n✅ VALID - No violations found")
     else:
         errors = [v for v in violations if v["severity"] == "error"]
         warnings = [v for v in violations if v["severity"] == "warning"]
@@ -297,13 +297,13 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
         print(f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings")
 
         if errors:
-            print(f"\n❌ ERRORS:")
+            print("\n❌ ERRORS:")
             for v in errors:
                 day_str = f"Day {v['day']}: " if v["day"] else ""
                 print(f"   {day_str}{v['message']}")
 
         if warnings:
-            print(f"\n⚠️  WARNINGS:")
+            print("\n⚠️  WARNINGS:")
             for v in warnings:
                 day_str = f"Day {v['day']}: " if v["day"] else ""
                 print(f"   {day_str}{v['message']}")

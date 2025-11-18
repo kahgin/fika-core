@@ -27,7 +27,7 @@ def list_pois(
     category: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$"),
 ):
     """
-    Paginated POIs (optionally filtered by UI category tab).
+    Paginated POIs.
     - Uses DB paging (range) and returns total count.
     - Filters via poi_roles (array): attractions->attraction, restaurants->meal, hotels->accommodation.
     """
