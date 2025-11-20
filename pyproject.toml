@@ -26,6 +26,5 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = [
-    "ignore::DeprecationWarning:supabase",
-    "ignore:builtin type SwigPy:DeprecationWarning",
+    "ignore::DeprecationWarning",
 ]

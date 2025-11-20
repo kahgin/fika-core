@@ -1,20 +1,3 @@
-"""
-Ant Colony Optimization (ACO) - Metaheuristic Algorithm for TSP
-
-ACO is a solving algorithm inspired by ant foraging behavior. It finds near-optimal
-solutions to the Traveling Salesman Problem (TSP) by simulating pheromone trails.
-
-In the pipeline context:
-- CVRPTW defines the problem model (constraints, time windows, capacities)
-- OR-Tools solves the CVRPTW to assign POIs to days
-- ACO refines the visit order within each day by solving a TSP subproblem
-
-ACO is ONE possible algorithm for route optimization. Alternatives include:
-- Genetic algorithms
-- Simulated annealing
-- 2-opt/3-opt local search
-"""
-
 from __future__ import annotations
 
 import numpy as np

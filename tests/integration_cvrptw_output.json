@@ -1,195 +1,100 @@
 {
   "days": [
     {
-      "date": "2024-06-01",
+      "date": "2025-06-01",
       "stops": [
         {
-          "poi_id": "054a848b-5d9e-490d-94b2-a3e50bec622a_day0",
-          "name": "HENRI Bistrot du Boulanger",
-          "role": "meal",
-          "arrival": "09:58",
-          "start_service": "09:58",
-          "depart": "10:58"
-        },
-        {
-          "poi_id": "00aa0033-422d-41e6-aeb2-01fc1488f49d_day0",
-          "name": "Chinatown Singapore",
+          "poi_id": "2a4e57c6-7513-489e-81cd-68f8d50c6653_day0",
+          "name": "Statue of Sir Stamford Raffles",
           "role": "attraction",
-          "arrival": "10:59",
-          "start_service": "10:59",
-          "depart": "12:29"
+          "themes": [
+            "art_museums",
+            "nature",
+            "cultural_history"
+          ],
+          "arrival": "09:14",
+          "start_service": "09:14",
+          "depart": "10:44"
         },
         {
-          "poi_id": "285d742e-a302-4c70-b40a-4c41923210e2_day0",
-          "name": "George Town Tze Char and Craft Beer",
-          "role": "meal",
-          "arrival": "12:31",
-          "start_service": "12:31",
-          "depart": "13:31"
-        },
-        {
-          "poi_id": "3c73929a-b933-4474-83ca-c9519a558010_day0",
-          "name": "Clarke Quay",
+          "poi_id": "1b4ecc40-7ab5-4931-ad4f-b95fb0375904_day0",
+          "name": "Merlion",
           "role": "attraction",
-          "arrival": "13:32",
-          "start_service": "13:32",
-          "depart": "15:02"
+          "themes": [
+            "nature"
+          ],
+          "arrival": "10:46",
+          "start_service": "10:46",
+          "depart": "12:16"
         },
         {
-          "poi_id": "3f3617b0-2ef7-4c58-99c5-1bc9c0f58940_day0",
-          "name": "Paulaner Br\u00e4uhaus Singapore",
+          "poi_id": "27262443-f45e-46ee-a66a-b55197940e07_day0",
+          "name": "Belle-Ville Pancake Cafe Bugis Junction",
           "role": "meal",
-          "arrival": "15:05",
-          "start_service": "15:05",
-          "depart": "16:05"
+          "themes": [
+            "family",
+            "nature",
+            "food_culinary"
+          ],
+          "arrival": "12:19",
+          "start_service": "12:19",
+          "depart": "13:19"
         },
         {
-          "poi_id": "1f967ffc-7d40-412d-b326-8fc1be5460e6_day0",
-          "name": "Slingshot Singapore",
-          "role": "attraction",
-          "arrival": "16:08",
-          "start_service": "16:08",
-          "depart": "17:38"
-        },
-        {
-          "poi_id": "09c21c3d-0ca8-40f3-9fd7-cacd5b9cbeb3",
-          "name": "Raffles Marina",
-          "role": "hotel",
-          "arrival": "18:36",
-          "start_service": "18:36",
-          "depart": "18:36"
-        }
-      ],
-      "meals": 3
-    },
-    {
-      "date": "2024-06-02",
-      "stops": [
-        {
-          "poi_id": "1933f8e0-1eee-4b17-8f8f-76a2b1981cda_day1",
-          "name": "The Mediterranean Deli Turk",
-          "role": "meal",
-          "arrival": "09:54",
-          "start_service": "09:54",
-          "depart": "10:54"
-        },
-        {
-          "poi_id": "6dc93596-c96c-46da-b071-14788ea17779_day1",
-          "name": "VENCHI Singapore Takashimaya",
-          "role": "attraction",
-          "arrival": "10:55",
-          "start_service": "10:55",
-          "depart": "12:25"
-        },
-        {
-          "poi_id": "2809d619-39e8-4cba-a411-666cd4d30f32_day1",
-          "name": "Sandbox VR",
-          "role": "attraction",
-          "arrival": "12:26",
-          "start_service": "12:26",
-          "depart": "13:56"
-        },
-        {
-          "poi_id": "1190dc70-9090-4ac5-83cb-e57ed4dfd628_day1",
-          "name": "The Malayan Council - Bussorah",
-          "role": "meal",
-          "arrival": "14:01",
-          "start_service": "14:01",
-          "depart": "15:01"
-        },
-        {
-          "poi_id": "1d77e583-7514-4030-b320-f052f43e039b_day1",
+          "poi_id": "02050d0e-27b4-4b1c-be15-c1b343922902_day0",
           "name": "Grin Affair",
           "role": "attraction",
-          "arrival": "15:14",
-          "start_service": "15:14",
-          "depart": "16:44"
+          "themes": [
+            "shopping",
+            "food_culinary"
+          ],
+          "arrival": "13:30",
+          "start_service": "13:30",
+          "depart": "15:00"
         },
         {
-          "poi_id": "65f166a0-7123-4a05-bde8-dcad36441c44_day1",
-          "name": "NAYANA Kpop Cafe & Restaurant@Flora Vista, nice Korean food@AMK Singapore, indoor Pet friendly, vegetarian options",
+          "poi_id": "06b19d36-37f1-48ac-8aa0-6d058de9033d_day0",
+          "name": "Dog Run @ Bishan Park",
           "role": "meal",
-          "arrival": "16:55",
-          "start_service": "16:55",
-          "depart": "17:55"
+          "themes": [
+            "family",
+            "nature"
+          ],
+          "arrival": "15:03",
+          "start_service": "15:03",
+          "depart": "16:03"
         },
         {
-          "poi_id": "09c21c3d-0ca8-40f3-9fd7-cacd5b9cbeb3",
-          "name": "Raffles Marina",
+          "poi_id": "7641ee27-6e5a-45c4-ae8b-ddafbeb87e2f_day0",
+          "name": "Art Works Gallery",
+          "role": "attraction",
+          "themes": [
+            "art_museums",
+            "shopping",
+            "cultural_history"
+          ],
+          "arrival": "16:16",
+          "start_service": "16:16",
+          "depart": "17:46"
+        },
+        {
+          "poi_id": "55edb601-a5cc-4e39-b4a2-e7380fda207a_day0",
+          "name": "Silver Shell Cafe",
+          "role": "meal",
+          "themes": [],
+          "arrival": "18:04",
+          "start_service": "18:04",
+          "depart": "19:04"
+        },
+        {
+          "poi_id": "55edb601-a5cc-4e39-b4a2-e7380fda207a",
+          "name": "Silver Shell Cafe",
           "role": "hotel",
-          "arrival": "18:54",
-          "start_service": "18:54",
-          "depart": "18:54"
-        }
-      ],
-      "meals": 3
-    },
-    {
-      "date": "2024-06-03",
-      "stops": [
-        {
-          "poi_id": "28b1d92b-04b2-4d7a-ad97-3fac2289a534_day2",
-          "name": "Burnt Cones Gelato (NUS MD11)",
-          "role": "meal",
-          "arrival": "09:41",
-          "start_service": "09:41",
-          "depart": "10:41"
-        },
-        {
-          "poi_id": "1f8765d8-6969-4c5d-8311-4708c5fe121b_day2",
-          "name": "SG LOVE GIFTS (54 Pagoda Street)",
-          "role": "attraction",
-          "arrival": "10:58",
-          "start_service": "10:58",
-          "depart": "12:28"
-        },
-        {
-          "poi_id": "3879af4b-3436-40f3-87c6-f4db4043c7d8_day2",
-          "name": "East Inspirations Shop",
-          "role": "attraction",
-          "arrival": "12:28",
-          "start_service": "12:28",
-          "depart": "13:58"
-        },
-        {
-          "poi_id": "49fcd242-6d88-4c19-a3b6-8f60ce015b0b_day2",
-          "name": "Sin Manbok",
-          "role": "meal",
-          "arrival": "13:59",
-          "start_service": "13:59",
-          "depart": "14:59"
-        },
-        {
-          "poi_id": "3836540b-2fea-4768-9867-b81e0af80f47_day2",
-          "name": "Telok Blangah Hill Park",
-          "role": "attraction",
-          "arrival": "15:08",
-          "start_service": "15:08",
-          "depart": "16:38"
-        },
-        {
-          "poi_id": "2455e9ef-32cf-4638-8e46-3266f88c892a_day2",
-          "name": "Carrara",
-          "role": "meal",
-          "arrival": "16:40",
-          "start_service": "16:40",
-          "depart": "17:40"
-        },
-        {
-          "poi_id": "374e8b6d-a1fd-4522-85b9-399c83d63461_day2",
-          "name": "Kent Ridge Park",
-          "role": "attraction",
-          "arrival": "17:44",
-          "start_service": "17:44",
-          "depart": "19:14"
-        },
-        {
-          "poi_id": "09c21c3d-0ca8-40f3-9fd7-cacd5b9cbeb3",
-          "name": "Raffles Marina",
-          "role": "hotel",
-          "arrival": "19:58",
-          "start_service": "19:58",
-          "depart": "19:58"
+          "arrival": "19:04",
+          "start_service": "19:04",
+          "depart": "19:04",
+          "latitude": 1.257449,
+          "longitude": 103.810078
         }
       ],
       "meals": 3

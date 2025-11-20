@@ -97,9 +97,9 @@ def derive_selected_themes(req: Dict[str, Any]) -> List[str]:
 def role_keep_counts(num_days: int) -> Dict[str, int]:
     d = max(1, int(num_days or 7))
     return {
-        "attraction": min(30 * d, 200),
+        "attraction": min(12 * d, 300),
         "meal": min(5 * d, 50),
-        "accommodation": min(d + 3, 15),  # At least d+3 to ensure options
+        "accommodation": min(d + 5, 15),  # At least d+5 to ensure options
     }
 
 
@@ -389,11 +389,10 @@ def to_poi(row: Row) -> POI:
         ),
         latitude=float(row["latitude"]),
         longitude=float(row["longitude"]),
-        hours=row.get("open_hours"),
         openHours=row.get("open_hours"),
-        priceLevel=int(row["price_level"])
-        if row.get("price_level") is not None
-        else None,
+        priceLevel=(
+            int(row["price_level"]) if row.get("price_level") is not None else None
+        ),
     )
 
 
@@ -477,4 +476,4 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
             ),
         },
     )
-    return resp if as_model == True else resp.model_dump()
+    return resp if as_model else resp.model_dump()

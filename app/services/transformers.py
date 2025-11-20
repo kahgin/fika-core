@@ -161,7 +161,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     - review_count → reviewCount
     - poi_roles → roles
     - price_level → priceLevel
-    - open_hours → hours, openHours
+    - open_hours → openHours
     - complete_address → location (derived from city or country)
 
     Args:
@@ -208,7 +208,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "googleMapsUrl": poi.get("googleMapsUrl") or poi.get("google_map_link"),
         "address": poi.get("address"),
         "phone": poi.get("phone"),
-        "openHours": poi.get("open_hours") or poi.get("hours"),
+        "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
         "roles": poi.get("poi_roles", []),
     }

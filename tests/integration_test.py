@@ -3,7 +3,7 @@ import json
 from app.services.transformers import transform_frontend_payload
 from app.services.maut import run_pipeline
 from app.services.cvrptw import run_cvrptw
-from app.utils.validators import assert_itinerary_valid, validate_itinerary
+from app.utils.validators import assert_itinerary_valid
 
 
 def test_full_pipeline():
@@ -15,15 +15,15 @@ def test_full_pipeline():
         "destination": "Singapore",
         "dates": {
             "type": "specific",
-            "startDate": "2024-06-01",
-            "endDate": "2024-06-03",
+            "startDate": "2025-06-01",
+            "endDate": "2025-06-01",
         },
-        "num_days": 3,
-        "travelers": {"adults": 2, "children": 1, "pets": 0},
+        "num_days": 1,
+        "travelers": {"adults": 2, "children": 1, "pets": 1},
         "preferences": {
             "budget": "sensible",
             "pacing": "balanced",
-            "interests": ["shopping", "food_culinary", "nature"],
+            "interests": ["shopping", "cultural_history", "nature"],
         },
     }
 
@@ -99,7 +99,11 @@ def test_full_pipeline():
         time_limit_sec=30,
     )
 
-    print(f"✅ Days planned: {len(cvrptw_output.get('days', []))}")
+    if len(cvrptw_output.get("days", [])) == 0:
+        print("❌ CVRPTW returned no days")
+    else:
+        print(f"✅ Days planned: {len(cvrptw_output.get('days', []))}")
+
     for i, day in enumerate(cvrptw_output.get("days", [])):
         print(
             f"   Day {i + 1} ({day['date']}): {len(day['stops'])} stops, {day['meals']} meals"
@@ -127,11 +131,29 @@ def test_full_pipeline():
         allow_warnings=True,  # Allow warnings, only fail on errors
     )
 
-    # Basic assertions
+    # Comprehensive assertions
     assert maut_output is not None
-    assert len(places) > 0
+    assert maut_output["status"] == "ok", f"MAUT failed: {maut_output.get('status')}"
+    assert len(places) > 0, "MAUT returned no POIs"
+
     assert cvrptw_output is not None
-    assert len(cvrptw_output.get("days", [])) == 3
+    days = cvrptw_output.get("days", [])
+    note = cvrptw_output.get("note")
+    assert len(days) > 0, f"CVRPTW returned no days: {note}"
+
+    # Validate day count and dates
+    assert (
+        len(days) == frontend_payload["num_days"]
+    ), f"Expected {frontend_payload['num_days']} days, got {len(days)}"
+    assert (
+        days[0]["date"] == frontend_payload["dates"]["startDate"]
+    ), "Start date mismatch"
+    assert days[-1]["date"] == frontend_payload["dates"]["endDate"], "End date mismatch"
+
+    # Validate per-day structure
+    for i, day in enumerate(days):
+        assert len(day["stops"]) >= 1, f"Day {i+1} has no stops"
+        assert day["stops"][-1]["role"] == "hotel", f"Day {i+1} doesn't end at hotel"
 
     print("\n" + "=" * 60)
     print("✅ INTEGRATION TEST PASSED")

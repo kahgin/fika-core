@@ -20,7 +20,6 @@ class POI(BaseModel):
     coordinates: Optional[Coordinates] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    hours: Optional[Dict[str, Any]] = None
     openHours: Optional[Dict[str, Any]] = None
     priceLevel: Optional[int] = None
 

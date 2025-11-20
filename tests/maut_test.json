@@ -8,16 +8,23 @@
     },
     "travelers": {
         "adults": 2,
-        "children": 0,
+        "children": 1,
         "pets": 0
     },
     "preferences": {
         "budget": "sensible",
         "pacing": "balanced",
         "interests": [
-            "food_culinary",
+            "religious_sites",
+            "adventure",
             "art_museums",
-            "family"
+            "family",
+            "nature",
+            "nightlife",
+            "relax",
+            "shopping",
+            "cultural_history",
+            "food_culinary"
         ]
     }
 }

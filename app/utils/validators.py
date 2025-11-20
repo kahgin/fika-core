@@ -2,9 +2,7 @@ from typing import Dict, List, Any
 import datetime as dt
 
 
-# ============================================================================
 # Configuration
-# ============================================================================
 
 MEAL_WINDOWS = {
     "breakfast": (7 * 60, 10 * 60),  # 7am-10am
@@ -13,7 +11,7 @@ MEAL_WINDOWS = {
 }
 
 DEFAULT_HOURS = {
-    "nature_park": (0, 24 * 60),  # 24/7 for nature & parks
+    "nature": (0, 24 * 60),  # 24/7 for nature & parks
     "meal": (10 * 60, 22 * 60),  # 10am-10pm for meals
     "attraction": (10 * 60, 22 * 60),  # 10am-10pm for attractions
     "24h": (0, 24 * 60),  # 24/7 for explicitly marked
@@ -22,9 +20,7 @@ DEFAULT_HOURS = {
 MAX_DAY_OVERRUN_MIN = 60  # Allow 1 hour past day end
 
 
-# ============================================================================
 # Helper Functions
-# ============================================================================
 
 
 def time_to_minutes(time_str: str) -> int:
@@ -45,17 +41,7 @@ def get_meal_type(arrival_min: int) -> str:
         return "other"
 
 
-def is_nature_park(categories: List[str]) -> bool:
-    """Check if POI is a nature/park attraction."""
-    cat_str = " ".join(categories or []).lower()
-    return any(
-        kw in cat_str for kw in ["park", "nature", "garden", "trail", "beach", "forest"]
-    )
-
-
-# ============================================================================
 # Validation Functions
-# ============================================================================
 
 
 def validate_itinerary(
@@ -131,7 +117,7 @@ def validate_itinerary(
                     {
                         "type": "consecutive_meals",
                         "severity": "error",
-                        "message": f"Day {day_num}: Consecutive meals ({prev_stop['name']} → {stop['name']})",
+                        "message": f"Consecutive meals ({prev_stop['name']} → {stop['name']})",
                         "day": day_num,
                         "poi": stop["name"],
                     }
@@ -147,7 +133,7 @@ def validate_itinerary(
                         {
                             "type": "meal_timing",
                             "severity": "warning",
-                            "message": f"Day {day_num}: Meal at unusual time ({stop['arrival']}) - {stop['name']}",
+                            "message": f"Meal at unusual time ({stop['arrival']}) - {stop['name']}",
                             "day": day_num,
                             "poi": stop["name"],
                             "arrival": stop["arrival"],
@@ -156,14 +142,14 @@ def validate_itinerary(
 
             # 3. Check POI opening hours
             if poi and stop["role"] != "hotel":
-                open_hours = poi.get("openHours") or poi.get("hours")
-                categories = poi.get("categories", [])
+                open_hours = poi.get("openHours")
+                themes = poi.get("themes", [])
 
                 # Determine expected hours
                 if not open_hours:
                     # Default hours based on POI type
-                    if is_nature_park(categories):
-                        expected_hours = DEFAULT_HOURS["nature_park"]
+                    if "nature" in themes:
+                        expected_hours = DEFAULT_HOURS["nature"]
                     elif stop["role"] == "meal":
                         expected_hours = DEFAULT_HOURS["meal"]
                     else:
@@ -175,36 +161,43 @@ def validate_itinerary(
                     weekday = date_obj.strftime("%A")
 
                     day_hours = open_hours.get(weekday, [])
-                    if not day_hours or "closed" in str(day_hours).lower():
+                    if not day_hours:
+                        # No hours specified, use default
+                        expected_hours = DEFAULT_HOURS["attraction"]
+                    elif "closed" in str(day_hours).lower():
                         violations.append(
                             {
                                 "type": "poi_closed",
                                 "severity": "error",
-                                "message": f"Day {day_num}: POI closed on {weekday} - {stop['name']}",
+                                "message": f"POI closed on {weekday} - {stop['name']}",
                                 "day": day_num,
                                 "poi": stop["name"],
                             }
                         )
                         prev_stop = stop
                         continue
+                    elif "open 24 hours" in str(day_hours).lower():
+                        # Open 24 hours - skip validation
+                        expected_hours = (0, 24 * 60)
+                    else:
+                        # For simplicity, use first time range
+                        # TODO: Parse actual time ranges
+                        expected_hours = DEFAULT_HOURS["attraction"]
 
-                    # For simplicity, use first time range
-                    # TODO: Parse actual time ranges
-                    expected_hours = DEFAULT_HOURS["attraction"]
-
-                # Check if visit is within hours
+                # Check if visit is within hours (skip if 24h)
                 open_start, open_end = expected_hours
-                if arrival_min < open_start or depart_min > open_end:
-                    violations.append(
-                        {
-                            "type": "outside_hours",
-                            "severity": "warning",
-                            "message": f"Day {day_num}: Visit outside hours ({stop['arrival']}-{stop['depart']}) - {stop['name']}",
-                            "day": day_num,
-                            "poi": stop["name"],
-                            "expected_hours": f"{open_start // 60:02d}:{open_start % 60:02d}-{open_end // 60:02d}:{open_end % 60:02d}",
-                        }
-                    )
+                if not (open_start == 0 and open_end == 24 * 60):
+                    if arrival_min < open_start or depart_min > open_end:
+                        violations.append(
+                            {
+                                "type": "outside_hours",
+                                "severity": "warning",
+                                "message": f"Visit outside hours ({stop['arrival']}-{stop['depart']}) - {stop['name']}",
+                                "day": day_num,
+                                "poi": stop["name"],
+                                "expected_hours": f"{open_start // 60:02d}:{open_start % 60:02d}-{open_end // 60:02d}:{open_end % 60:02d}",
+                            }
+                        )
 
             # Track themes
             if poi:

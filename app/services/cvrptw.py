@@ -3,8 +3,8 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
-from math import radians, sin, cos, sqrt, atan2
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+from app.services.osrm import osrm_client
 
 # Configuration
 
@@ -33,8 +33,7 @@ DINNER_WIN = (18 * 60, 21 * 60)  # 18:00-21:00
 
 PENALTY_MEAL_TO_MEAL = 40
 PENALTY_SAME_THEME = 15
-DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI
-
+DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI (include a POI unless including it is more expensive than 2000 cost units.)
 
 # Data Structures
 
@@ -57,7 +56,7 @@ class Node:
     lat: float
     lon: float
     service: int
-    theme: Optional[str]
+    themes: Optional[List[str]]
     windows_by_day: Dict[int, List[Tuple[int, int]]]
     is_mandatory: bool = False
 
@@ -110,25 +109,9 @@ def minutes(hhmm: str) -> int:
     return h * 60 + m
 
 
-def haversine_minutes(
-    a: Tuple[float, float], b: Tuple[float, float], speed_kmh=30
-) -> int:
-    """Calculate travel time in minutes between two coordinates."""
-    (lat1, lon1), (lat2, lon2) = a, b
-    R = 6371.0
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    u = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    )
-    km = R * 2 * atan2(sqrt(u), sqrt(1 - u))
-    return max(0, int(round((km / speed_kmh) * 60)))
-
-
-def pick_theme(categories: List[str], selected_themes: List[str]) -> Optional[str]:
-    """Pick first matching theme from POI categories."""
-    cat_s = " ".join(categories or []).lower()
+def pick_theme(themes: List[str], selected_themes: List[str]) -> Optional[str]:
+    """Pick first matching theme from POI themes."""
+    cat_s = " ".join(themes or []).lower()
     for t in selected_themes:
         if t.replace("_", " ") in cat_s:
             return t
@@ -157,7 +140,11 @@ def extract_windows_for_date(
         return [default_window]
 
     out: List[Tuple[int, int]] = []
+    closed_explicit = False
     for lab in raw:
+        if "closed" in lab.lower():
+            closed_explicit = True
+            continue
         rng = parse_time_range_label(lab)
         if not rng:
             continue
@@ -166,7 +153,11 @@ def extract_windows_for_date(
         if a1 <= b1:
             out.append((a1, b1))
 
-    return out or [default_window]
+    if out:
+        return out
+    if closed_explicit:
+        return []
+    return [default_window]
 
 
 # Build Problem from MAUT Output
@@ -195,10 +186,6 @@ def build_problem(
     # Extract dates and num_days
     meta = maut_output.get("meta", {})
     dates = meta.get("dates") or {}
-
-    print(f"DEBUG: meta keys = {list(meta.keys())}")
-    print(f"DEBUG: num_days in meta = {meta.get('num_days')}")
-    print(f"DEBUG: dates = {dates}")
 
     # num_days can be in meta or at root level
     num_days = meta.get("num_days") or maut_output.get("num_days")
@@ -243,16 +230,14 @@ def build_problem(
         lat=float(hotel["lat"]),
         lon=float(hotel["lon"]),
         service=0,
-        theme=None,
+        themes=None,
         windows_by_day={d.day_index: [(d.start_min, d.end_min)] for d in day_specs},
     )
     nodes.append(depot)
     idx += 1
 
     # POI nodes - use structured pois_by_role if available, else fall back to places
-    sel_themes = selected_themes or maut_output.get("meta", {}).get(
-        "selected_themes", []
-    )
+    sel_themes = maut_output.get("meta", {}).get("selected_themes", [])
     pois_by_role = meta.get("pois_by_role", {})
 
     # If structured by role, use that; otherwise use flat places list
@@ -307,12 +292,7 @@ def build_problem(
 
     # Build travel matrix
     coords = [(n.lat, n.lon) for n in nodes]
-    N = len(nodes)
-    travel = [[0] * N for _ in range(N)]
-    for i in range(N):
-        for j in range(N):
-            if i != j:
-                travel[i][j] = haversine_minutes(coords[i], coords[j], speed_kmh=25)
+    travel = osrm_client.matrix_minutes(coords)
 
     return day_specs, nodes, travel
 
@@ -329,7 +309,7 @@ def _add_poi_node(
 ) -> None:
     """Helper to add a POI node to the nodes list."""
     service = SERVICE_TIME[role][pacing]
-    theme = pick_theme(poi.get("categories", []), sel_themes)
+    theme = pick_theme(poi.get("themes", []), sel_themes)
 
     # Extract coordinates
     coords = poi.get("coordinates")
@@ -346,7 +326,7 @@ def _add_poi_node(
     # Build per-day windows
     wbd: Dict[int, List[Tuple[int, int]]] = {}
 
-    open_hours = poi.get("openHours") or poi.get("hours")
+    open_hours = poi.get("openHours")
     day_specific = poi.get("_day_specific")
 
     # Role-based default window
@@ -402,10 +382,10 @@ def _add_poi_node(
             poi_id=poi["id"],
             name=poi["name"],
             role=role,
+            themes=poi["themes"],
             lat=float(lat),
             lon=float(lon),
             service=service,
-            theme=theme,
             windows_by_day=wbd,
             is_mandatory=is_mand,
         )
@@ -454,7 +434,7 @@ def solve_cvrptw(
         bonus = 0
         if nodes[i].role == "meal" and nodes[j].role == "meal":
             bonus += PENALTY_MEAL_TO_MEAL
-        if nodes[i].theme and nodes[j].theme and nodes[i].theme == nodes[j].theme:
+        if nodes[i].themes and nodes[j].themes and nodes[i].themes[0] == nodes[j].themes[0]:
             bonus += PENALTY_SAME_THEME
         return base + bonus
 
@@ -568,9 +548,12 @@ def solve_cvrptw(
                         "poi_id": n.poi_id,
                         "name": n.name,
                         "role": n.role,
+                        "themes": n.themes,
                         "arrival": fmt(tmin),
                         "start_service": fmt(tmin),
                         "depart": fmt(tmin + n.service),
+                        "latitude": n.lat,
+                        "longitude": n.lon,
                     }
                 )
                 if n.role == "meal":

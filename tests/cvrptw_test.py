@@ -42,6 +42,26 @@ def test_cvrptw_with_maut():
     assert "days" in cvrptw_output
     assert isinstance(cvrptw_output["days"], list)
 
+    # Ensure CVRPTW succeeded
+    days = cvrptw_output.get("days", [])
+    assert len(days) > 0, f"CVRPTW returned no days: {cvrptw_output.get('note')}"
+
+    # Validate day count matches request
+    expected_days = maut_request.get("num_days", 3)
+    assert len(days) == expected_days, f"Expected {expected_days} days, got {len(days)}"
+
+    # Validate per-day invariants
+    for i, day in enumerate(days):
+        assert len(day["stops"]) >= 1, f"Day {i+1} has no stops"
+
+        # Last stop should be hotel
+        last = day["stops"][-1]
+        assert last["role"] == "hotel", f"Day {i+1} last stop is not hotel"
+
+        # Meal count should be valid
+        meals = day["meals"]
+        assert 0 <= meals <= 3, f"Day {i+1} has invalid meal count: {meals}"
+
     print(f"\n✅ MAUT output: {len(maut_output.get('places', []))} POIs")
     print(f"✅ CVRPTW output: {len(cvrptw_output['days'])} days")
     for i, day in enumerate(cvrptw_output["days"]):

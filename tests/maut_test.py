@@ -19,6 +19,9 @@ def test_maut_pipeline():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(maut_output, f, indent=2)
 
+    places = maut_output.get("places", [])
+    meta = maut_output.get("meta", {})
+
     # Assertions
     assert maut_output is not None
     assert isinstance(maut_output, dict)
@@ -26,10 +29,28 @@ def test_maut_pipeline():
     assert "places" in maut_output
     assert "meta" in maut_output
 
-    places = maut_output.get("places", [])
-    meta = maut_output.get("meta", {})
+    assert (
+        maut_output["status"] == "ok"
+    ), f"MAUT failed with status: {maut_output.get('status')}"
 
-    print(f"\n✅ MAUT pipeline completed")
+    assert len(places) > 0, "MAUT returned zero places for maut_test.json"
+    assert isinstance(meta.get("selected_themes", []), list)
+    assert len(meta.get("selected_themes", [])) > 0, "No themes selected"
+    assert meta.get("count_in", 0) >= meta.get(
+        "count_out", 0
+    ), "count_in should be >= count_out"
+
+    # Validate required fields on first POI
+    if places:
+        sample = places[0]
+        for key in ("id", "name", "poi_roles"):
+            assert key in sample, f"MAUT place missing required field '{key}'"
+        assert (
+            "latitude" in sample or "coordinates" in sample
+        ), "POI missing location data"
+
+    # Only available with "pytest -s tests/maut_test.py"
+    print("\n✅ MAUT pipeline completed")
     print(f"   Status: {maut_output['status']}")
     print(f"   POIs returned: {len(places)}")
     print(f"   Selected themes: {meta.get('selected_themes', [])}")

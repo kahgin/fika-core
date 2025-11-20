@@ -190,41 +190,50 @@ def run_full_pipeline(
                 "days": [],
             }
 
+        # Check if CVRPTW returned empty days (failure case)
+        days = cvrptw_output.get("days", [])
+        if not days:
+            return {
+                "status": "error",
+                "error": cvrptw_output.get("note", "CVRPTW returned no days"),
+                "days": [],
+            }
+
         # Step 2: Apply ACO algorithm to refine daily routes
         if use_aco:
-            logger.info(
-                "Applying ACO algorithm to optimize intra-day route sequences..."
-            )
+            logger.info("Applying ACO algorithm to optimize intra-day route sequences...")
             for day in cvrptw_output["days"]:
-                stops = day.get("stops", [])
-                # Keep CVRPTW solution as canonical
-                day["stops_cvrptw"] = stops
+                original_stops = day.get("stops", [])
 
-                if len(stops) > 2:
-                    # Enrich stops with coordinates from MAUT output
-                    enriched_stops = _enrich_stops_with_coords(stops, maut_output)
+                # Enrich CVRPTW solution with coordinates
+                enriched_cvrptw_stops = _enrich_stops_with_coords(original_stops, maut_output)
+                day["stops_cvrptw"] = enriched_cvrptw_stops
+
+                if len(enriched_cvrptw_stops) > 2:
                     optimized_stops = optimize_day_route_with_aco(
-                        enriched_stops, aco_config
+                        enriched_cvrptw_stops, aco_config
                     )
                     day["stops_aco"] = optimized_stops
                     day["optimization_method"] = "cvrptw+aco"
                 else:
-                    day["stops_aco"] = stops
+                    # Too few POIs to bother optimizing; keep CVRPTW order
+                    day["stops_aco"] = enriched_cvrptw_stops
                     day["optimization_method"] = "cvrptw"
 
-                # Calculate distances for both solutions
-                day["total_distance_cvrptw"] = _calculate_day_distance(
-                    day["stops_cvrptw"]
-                )
+                # Distances: both paths use the same distance function and full coords
+                day["total_distance_cvrptw"] = _calculate_day_distance(day["stops_cvrptw"])
                 day["total_distance_aco"] = _calculate_day_distance(day["stops_aco"])
-                day["total_distance"] = day[
-                    "total_distance_aco"
-                ]  # Use ACO distance as primary
+                day["total_distance"] = day["total_distance_aco"]  # primary metric
         else:
+            # CVRPTW only: still enrich stops so distance isn't 0
             for day in cvrptw_output["days"]:
-                day["stops_cvrptw"] = day.get("stops", [])
+                original_stops = day.get("stops", [])
+                enriched_cvrptw_stops = _enrich_stops_with_coords(original_stops, maut_output)
+                day["stops_cvrptw"] = enriched_cvrptw_stops
                 day["optimization_method"] = "cvrptw"
-                day["total_distance"] = _calculate_day_distance(day["stops_cvrptw"])
+                day["total_distance_cvrptw"] = _calculate_day_distance(day["stops_cvrptw"])
+                day["total_distance"] = day["total_distance_cvrptw"]
+
 
         # Step 3: Calculate overall metrics
         total_distance = sum(
@@ -323,6 +332,9 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
     if len(stops) < 2:
         return 0.0
 
+    # Import here to avoid circular dependency
+    from app.services.osrm import osrm_client
+
     total = 0.0
     for i in range(len(stops) - 1):
         lat1 = stops[i].get("latitude") or stops[i].get("coordinates", {}).get("lat")
@@ -335,6 +347,8 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
         )
 
         if all(x is not None for x in [lat1, lon1, lat2, lon2]):
-            total += haversine_distance(lat1, lon1, lat2, lon2)
+            # Use OSRM if available and requested, otherwise Haversine
+            distance = osrm_client.distance(lat1, lon1, lat2, lon2)
+            total += distance
 
     return round(total, 2)

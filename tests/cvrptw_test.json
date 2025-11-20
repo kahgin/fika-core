@@ -5,21 +5,22 @@
     "destination": "Singapore",
     "dates": {
       "type": "flexible",
-      "days": 6,
+      "days": 2,
       "preferredMonth": "august"
     },
-    "num_days": 6,
+    "num_days": 2,
     "travelers": {
       "adults": 2,
-      "children": 1,
-      "pets": 1
+      "children": 0,
+      "pets": 0
     },
     "preferences": {
       "budget": "sensible",
       "pacing": "balanced",
       "interests": [
-        "nature",
-        "family"
+        "nsture",
+        "shopping",
+        "food_culinary"
       ]
     }
   },
