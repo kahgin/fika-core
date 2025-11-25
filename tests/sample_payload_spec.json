@@ -1,0 +1,16 @@
+{
+    "title": "Singapore Test Itinerary - Specific",
+    "destination": "Singapore",
+    "dates": {
+        "type": "specific",
+        "startDate": "2025-06-01",
+        "endDate": "2025-06-01"
+    },
+    "num_days": 1,
+    "travelers": {"adults": 2, "children": 1, "pets": 1},
+    "preferences": {
+        "budget": "luxury",
+        "pacing": "balanced",
+        "interests": ["art_museums", "family", "cultural_history"]
+    }
+}

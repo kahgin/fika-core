@@ -1,35 +1,20 @@
 import os
 import json
 from app.services.maut import run_pipeline
+from app.services.transformers import transform_frontend_payload
+
+
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_flex.json")
 
 def test_maut_pipeline():
     """Test MAUT pipeline execution"""
-    frontend_payload = {
-        "title": "Singapore Test Trip",
-        "destination": "Singapore",
-        "dates": {
-            "type": "flexible",
-            "days": 5,
-            "preferredMonth": ""
-        },
-        "travelers": {
-            "adults": 2,
-            "children": 1,
-            "pets": 0
-        },
-        "preferences": {
-            "budget": "sensible",
-            "pacing": "balanced",
-            "interests": [
-                "religious_sites",
-                "adventure",
-                "art_museums"
-            ]
-        }
-    }
+    # Load test input
+    with open(TEST_PATH, "r", encoding="utf-8") as f:
+        frontend_payload = json.load(f)
 
     # Run pipeline
-    maut_output = run_pipeline(frontend_payload)
+    maut_request = transform_frontend_payload(frontend_payload)
+    maut_output = run_pipeline(maut_request)
 
     # Save output
     output_path = os.path.join(os.path.dirname(__file__), "maut_output.json")
@@ -46,25 +31,25 @@ def test_maut_pipeline():
     assert "places" in maut_output
     assert "meta" in maut_output
 
-    assert (
-        maut_output["status"] == "ok"
-    ), f"MAUT failed with status: {maut_output.get('status')}"
+    assert maut_output["status"] == "ok", (
+        f"MAUT failed with status: {maut_output.get('status')}"
+    )
 
     assert len(places) > 0, "MAUT returned zero places for maut_test.json"
     assert isinstance(meta.get("selected_themes", []), list)
     assert len(meta.get("selected_themes", [])) > 0, "No themes selected"
-    assert meta.get("count_in", 0) >= meta.get(
-        "count_out", 0
-    ), "count_in should be >= count_out"
+    assert meta.get("count_in", 0) >= meta.get("count_out", 0), (
+        "count_in should be >= count_out"
+    )
 
     # Validate required fields on first POI
     if places:
         sample = places[0]
         for key in ("id", "name", "poi_roles"):
             assert key in sample, f"MAUT place missing required field '{key}'"
-        assert (
-            "latitude" in sample or "coordinates" in sample
-        ), "POI missing location data"
+        assert "latitude" in sample or "coordinates" in sample, (
+            "POI missing location data"
+        )
 
     # Only available with "pytest -s tests/maut_test.py"
     print("\n✅ MAUT pipeline completed")

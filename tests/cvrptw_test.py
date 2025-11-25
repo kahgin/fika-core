@@ -3,17 +3,17 @@ import json
 from app.services.maut import run_pipeline
 from app.services.cvrptw import run_cvrptw
 
-TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload.json")
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 
 
 def test_cvrptw_with_maut():
     """Test CVRPTW with MAUT output"""
-    # Load MAUT test input
+    # Load test input
     with open(TEST_PATH, "r", encoding="utf-8") as f:
-        maut_request = json.load(f)
+        frontend_payload = json.load(f)
 
     # Run MAUT pipeline
-    maut_output = run_pipeline(maut_request)
+    maut_output = run_pipeline(frontend_payload)
 
     # Save MAUT output
     maut_output_path = os.path.join(os.path.dirname(__file__), "maut_output.json")
@@ -47,7 +47,7 @@ def test_cvrptw_with_maut():
     assert len(days) > 0, f"CVRPTW returned no days: {cvrptw_output.get('note')}"
 
     # Validate day count matches request
-    expected_days = maut_request.get("num_days", 3)
+    expected_days = frontend_payload.get("num_days", 3)
     assert len(days) == expected_days, f"Expected {expected_days} days, got {len(days)}"
 
     # Validate per-day invariants

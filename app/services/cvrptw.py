@@ -9,10 +9,11 @@ from app.services.osrm import osrm_client
 
 # Configuration
 
+
 PACE_DAY_BUDGET_MIN = {
-    "relaxed": 9 * 60,   # 09:00–18:00
-    "balanced": 11 * 60, # 09:00–20:00
-    "packed": 13 * 60,   # 09:00–22:00
+    "relaxed": 9 * 60,  # 09:00–18:00
+    "balanced": 11 * 60,  # 09:00–20:00
+    "packed": 13 * 60,  # 09:00–22:00
 }
 
 SERVICE_TIME = {
@@ -23,21 +24,21 @@ SERVICE_TIME = {
 
 # Default time windows when open_hours is missing (minutes from midnight)
 DEFAULT_ROLE_WINDOWS = {
-    "attraction": (9 * 60, 19 * 60),   # 09:00–19:00
-    "meal": (10 * 60, 22 * 60),       # 10:00–22:00
-    "accommodation": (0, 24 * 60),    # 24h for stay
-    "depot": (0, 24 * 60),            # hotel depot
+    "attraction": (9 * 60, 19 * 60),  # 09:00–19:00
+    "meal": (10 * 60, 22 * 60),  # 10:00–22:00
+    "accommodation": (0, 24 * 60),  # 24h for stay
+    "depot": (0, 24 * 60),  # hotel depot
 }
 
 # Global “good” meal windows (used also in ACS)
-LUNCH_WIN = (12 * 60, 14 * 60)   # 12:00–14:00
+LUNCH_WIN = (12 * 60, 14 * 60)  # 12:00–14:00
 DINNER_WIN = (18 * 60, 21 * 60)  # 18:00–21:00
 
 # Extra windows for hard “meals around meal time” in OR-Tools version
 BREAKFAST_WIN = (7 * 60, 10 * 60)  # 07:00–10:00
 
 # How far around these windows we still allow meals (hard constraint)
-MEAL_HARD_TOL = 90   # minutes; meal must start within ±90 min of some meal window
+MEAL_HARD_TOL = 90  # minutes; meal must start within ±90 min of some meal window
 
 # Penalties. Values are in “minute-cost” units on top of travel+service time.
 # These are deliberately large so that:
@@ -49,6 +50,7 @@ DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI (non-mandatory)
 
 
 # Data Structures
+
 
 @dataclass
 class DaySpec:
@@ -74,6 +76,7 @@ class Node:
 
 
 # Helper Functions
+
 
 def parse_time_range_label(label: str) -> Optional[Tuple[int, int]]:
     """Parse time range like '10 am-9 pm' to (600, 1260)."""
@@ -216,6 +219,7 @@ def _restrict_meal_windows(
 
 
 # Build Problem from MAUT Output
+
 
 def build_problem(
     maut_output: dict,
@@ -435,6 +439,7 @@ def _add_poi_node(
 
 # OR-Tools Solver
 
+
 def solve_cvrptw(
     day_specs: List[DaySpec],
     nodes: List[Node],
@@ -639,6 +644,7 @@ def solve_cvrptw(
 
 
 # Main Entry Point
+
 
 def run_cvrptw(
     maut_output: dict,

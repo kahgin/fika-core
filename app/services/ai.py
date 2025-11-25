@@ -3,7 +3,8 @@ from app.core.config import settings
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-DEFAULT_MODEL = "o3-mini"   # cheap + great performance
+DEFAULT_MODEL = "o3-mini"
+
 
 async def ask_openai(prompt: str, max_tokens: int = 300) -> str:
     resp = client.chat.completions.create(

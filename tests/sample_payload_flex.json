@@ -1,5 +1,5 @@
 {
-    "title": "Test Trip",
+    "title": "Singapore Test Itinerary - Flexible",
     "destination": "Singapore",
     "dates": {
         "type": "flexible",
@@ -19,5 +19,10 @@
             "adventure",
             "art_museums"
         ]
+    },
+    "dietary_restrictions": "vegan",
+    "flags": {
+        "wheelchair_accessible": true,
+        "is_muslim": true
     }
 }

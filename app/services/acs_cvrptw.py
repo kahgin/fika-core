@@ -141,7 +141,7 @@ def _simulate_day_route(
         # Hard cap on meals per day
         if n.role == "meal" and meals_count >= meals_max:
             continue
-        
+
         # Identify food-like stops: meal OR POI with theme food_culinary
         is_food_theme = bool(n.themes and "food_culinary" in n.themes)
         is_food_like = (n.role == "meal") or is_food_theme

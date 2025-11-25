@@ -6,6 +6,7 @@ from app.services.maut import run_pipeline
 from app.services.pipeline import run_full_pipeline
 from app.utils.validators import assert_itinerary_valid
 
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 
 def test_compare_ortools_vs_acs():
     """
@@ -16,22 +17,9 @@ def test_compare_ortools_vs_acs():
       - Use the same hotel, dates, pacing, and candidate POIs.
       - Are validated with the same validator.
     """
-    frontend_payload = {
-        "title": "Singapore Comparison Itinerary",
-        "destination": "Singapore",
-        "dates": {
-            "type": "specific",
-            "startDate": "2025-06-01",
-            "endDate": "2025-06-01",
-        },
-        "num_days": 1,
-        "travelers": {"adults": 2, "children": 0, "pets": 0},
-        "preferences": {
-            "budget": "luxury",
-            "pacing": "balanced",
-            "interests": ["art_museums", "food_culinary", "cultural_history"],
-        },
-    }
+    # Load test input
+    with open(TEST_PATH, "r", encoding="utf-8") as f:
+        frontend_payload = json.load(f)
 
     maut_request = transform_frontend_payload(frontend_payload)
     maut_output = run_pipeline(maut_request)
