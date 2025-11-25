@@ -2,17 +2,34 @@ import os
 import json
 from app.services.maut import run_pipeline
 
-MAUT_TEST_PATH = os.path.join(os.path.dirname(__file__), "maut_test.json")
-
-
 def test_maut_pipeline():
     """Test MAUT pipeline execution"""
-    # Load test input
-    with open(MAUT_TEST_PATH, "r", encoding="utf-8") as f:
-        maut_request = json.load(f)
+    frontend_payload = {
+        "title": "Singapore Test Trip",
+        "destination": "Singapore",
+        "dates": {
+            "type": "flexible",
+            "days": 5,
+            "preferredMonth": ""
+        },
+        "travelers": {
+            "adults": 2,
+            "children": 1,
+            "pets": 0
+        },
+        "preferences": {
+            "budget": "sensible",
+            "pacing": "balanced",
+            "interests": [
+                "religious_sites",
+                "adventure",
+                "art_museums"
+            ]
+        }
+    }
 
     # Run pipeline
-    maut_output = run_pipeline(maut_request)
+    maut_output = run_pipeline(frontend_payload)
 
     # Save output
     output_path = os.path.join(os.path.dirname(__file__), "maut_output.json")

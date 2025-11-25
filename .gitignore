@@ -10,4 +10,4 @@ build/
 *.egg-info
 
 storage/*
-tests/*_output.json
+tests/*output.json

@@ -33,9 +33,9 @@ def test_ant_colony_optimization():
     # Validate path structure
     n = len(cities)
     assert best_path is not None, "ACO returned None path"
-    assert (
-        len(best_path) == n
-    ), f"ACO path length mismatch: expected {n}, got {len(best_path)}"
+    assert len(best_path) == n, (
+        f"ACO path length mismatch: expected {n}, got {len(best_path)}"
+    )
     assert len(set(best_path)) == n, "ACO path has duplicate nodes"
     assert all(0 <= idx < n for idx in best_path), "ACO path index out of bounds"
 
@@ -48,9 +48,9 @@ def test_ant_colony_optimization():
 
     naive_path = list(range(n))
     naive_distance = route_length(naive_path, dist_matrix)
-    assert (
-        best_distance <= naive_distance * 1.05
-    ), f"ACO distance {best_distance:.2f} worse than naive {naive_distance:.2f}"
+    assert best_distance <= naive_distance * 1.05, (
+        f"ACO distance {best_distance:.2f} worse than naive {naive_distance:.2f}"
+    )
 
     print(f"✅ ACO path valid: {n} unique cities")
     print(

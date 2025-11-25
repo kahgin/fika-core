@@ -114,6 +114,8 @@ def create_itinerary(payload: dict):
 
         # 4. Extract hotel information if exist (still on testing mode)
         places = maut_output.get("places", [])
+
+        hotel = None
         accommodations = [
             p for p in places if "accommodation" in p.get("poi_roles", [])
         ]

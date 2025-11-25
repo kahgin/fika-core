@@ -3,13 +3,13 @@ import json
 from app.services.maut import run_pipeline
 from app.services.cvrptw import run_cvrptw
 
-MAUT_TEST_PATH = os.path.join(os.path.dirname(__file__), "maut_test.json")
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload.json")
 
 
 def test_cvrptw_with_maut():
     """Test CVRPTW with MAUT output"""
     # Load MAUT test input
-    with open(MAUT_TEST_PATH, "r", encoding="utf-8") as f:
+    with open(TEST_PATH, "r", encoding="utf-8") as f:
         maut_request = json.load(f)
 
     # Run MAUT pipeline
@@ -52,15 +52,15 @@ def test_cvrptw_with_maut():
 
     # Validate per-day invariants
     for i, day in enumerate(days):
-        assert len(day["stops"]) >= 1, f"Day {i+1} has no stops"
+        assert len(day["stops"]) >= 1, f"Day {i + 1} has no stops"
 
         # Last stop should be hotel
         last = day["stops"][-1]
-        assert last["role"] == "hotel", f"Day {i+1} last stop is not hotel"
+        assert last["role"] == "hotel", f"Day {i + 1} last stop is not hotel"
 
         # Meal count should be valid
         meals = day["meals"]
-        assert 0 <= meals <= 3, f"Day {i+1} has invalid meal count: {meals}"
+        assert 0 <= meals <= 3, f"Day {i + 1} has invalid meal count: {meals}"
 
     print(f"\n✅ MAUT output: {len(maut_output.get('places', []))} POIs")
     print(f"✅ CVRPTW output: {len(cvrptw_output['days'])} days")
