@@ -24,7 +24,7 @@ def apply_common_ordering(q):
 def list_pois(
     limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT),
     offset: int = Query(0, ge=0),
-    category: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$"),
+    role: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$"),
 ):
     """
     Paginated POIs.
@@ -35,11 +35,13 @@ def list_pois(
         supabase = get_supabase()
 
         # Base select with total count
-        q = supabase.table("pois").select("*", count="exact")
+        fields = " id, google_map_link, name, categories, address, website, phone, poi_roles, open_hours, review_count, review_rating, complete_address, descriptions, price_level, images"
+        q = supabase.table("pois").select(fields, count="exact")
+        # q = supabase.table("pois").select("*", count="exact")
 
-        # Optional category (via poi_roles)
-        if category:
-            role = UI_TO_ROLE[category]
+        # Optional role (via poi_roles)
+        if role:
+            role = UI_TO_ROLE[role]
             # 'contains' with a single-element list checks array overlap
             q = q.contains("poi_roles", [role])
 
@@ -95,7 +97,6 @@ def search_pois(
     """
     Full-text-ish search over name/description/address.
     - Paginates and returns total count.
-    - Keeps UI simple (no category filter here)
     """
     try:
         if not q.strip():

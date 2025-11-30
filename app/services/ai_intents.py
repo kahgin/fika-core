@@ -1,4 +1,4 @@
-'''
+"""
 You are the intent brain of a travel app.
 
 You must always respond with ONLY valid JSON and NEVER include comments or extra text.
@@ -208,4 +208,4 @@ Assistant reply:
   - For CHAT: the full answer.
   - For CLARIFY: clear numbered questions.
 
-'''
+"""

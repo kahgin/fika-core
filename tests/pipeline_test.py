@@ -11,7 +11,7 @@ TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 def test_full_pipeline_user_path():
     """
     Production pipeline test:
-    MAUT → ACS-CVRPTW (no ACO) → validation.
+    MAUT → ACS-CVRPTW → validation.
     """
     # Load test input
     with open(TEST_PATH, "r", encoding="utf-8") as f:
@@ -43,16 +43,21 @@ def test_full_pipeline_user_path():
         "lon": coords.get("lng") or selected_hotel.get("longitude"),
     }
 
-    # Run production pipeline: ACS-CVRPTW, no ACO
+    # Run production pipeline: ACS-CVRPTW
     cvrptw_output = run_full_pipeline(
         maut_output=maut_output,
         hotel=hotel,
         pacing=maut_request["pacing"],
         mandatory=None,
         time_limit_sec=20,
-        use_aco=False,
         solver="acs",
     )
+
+    # Save output for manual inspection
+    out_dir = os.path.dirname(__file__)
+    out_path = os.path.join(out_dir, "pipeline_one_output.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(cvrptw_output, f, indent=2)
 
     assert cvrptw_output is not None
     assert cvrptw_output.get("status") == "success", cvrptw_output.get("error", "")
@@ -66,9 +71,3 @@ def test_full_pipeline_user_path():
         pacing=maut_request["pacing"],
         allow_warnings=True,
     )
-
-    # Save output for manual inspection
-    out_dir = os.path.dirname(__file__)
-    out_path = os.path.join(out_dir, "pipeline_one_output.json")
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(cvrptw_output, f, indent=2)

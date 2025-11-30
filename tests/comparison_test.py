@@ -44,16 +44,16 @@ def test_compare_ortools_vs_acs():
         "lon": coords.get("lng") or selected_hotel.get("longitude"),
     }
 
-    # OR-Tools baseline (no ACO)
+    # OR-Tools baseline
     ortools_output = run_full_pipeline(
         maut_output=maut_output,
         hotel=hotel,
         pacing=maut_request["pacing"],
         mandatory=None,
         time_limit_sec=20,
-        use_aco=False,
         solver="ortools",
     )
+
     assert ortools_output.get("status") == "success", ortools_output.get("error", "")
     assert_itinerary_valid(
         cvrptw_output=ortools_output,
@@ -69,7 +69,6 @@ def test_compare_ortools_vs_acs():
         pacing=maut_request["pacing"],
         mandatory=None,
         time_limit_sec=20,
-        use_aco=False,  # ACS already does routing; no ACO here
         solver="acs",
     )
     assert acs_output.get("status") == "success", acs_output.get("error", "")

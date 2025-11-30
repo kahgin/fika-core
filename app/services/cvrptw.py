@@ -237,17 +237,32 @@ def build_problem(
     meta = maut_output.get("meta", {})
     dates = meta.get("dates") or {}
 
-    # num_days can be in meta or at root level
-    num_days = meta.get("num_days") or maut_output.get("num_days")
+    # Get num_days from meta (calculated by transformers.py)
+    num_days = meta.get("num_days")
     if not num_days or num_days <= 0:
-        num_days = 3
+        # Fallback: try to calculate from dates if available
+        if (
+            dates.get("type") == "specific"
+            and dates.get("startDate")
+            and dates.get("endDate")
+        ):
+            try:
+                start_date = dt.date.fromisoformat(dates["startDate"])
+                end_date = dt.date.fromisoformat(dates["endDate"])
+                num_days = (end_date - start_date).days + 1
+            except Exception:
+                num_days = 3
+        elif dates.get("type") == "flexible" and dates.get("days"):
+            num_days = int(dates["days"])
+        else:
+            num_days = 3
 
-    # Parse dates
+    # Parse start date for day specs
     if dates.get("type") == "specific" and dates.get("startDate"):
-        start = dt.date.fromisoformat(dates["startDate"])
-        if dates.get("endDate"):
-            end = dt.date.fromisoformat(dates["endDate"])
-            num_days = (end - start).days + 1
+        try:
+            start = dt.date.fromisoformat(dates["startDate"])
+        except Exception:
+            start = dt.date.today()
     else:
         start = dt.date.today()
 

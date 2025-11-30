@@ -24,9 +24,20 @@ class POI(BaseModel):
     priceLevel: Optional[int] = None
 
 
+class DatesFlexible(BaseModel):
+    type: str = "flexible"
+    days: int
+    preferredMonth: Optional[str] = None
+
+
+class DatesSpecific(BaseModel):
+    type: str = "specific"
+    startDate: str
+    endDate: str
+
+
 class ItineraryRequest(BaseModel):
     destination: str
-    num_days: int
     dates: Dict[str, Any] = {}
     travelers: Dict[str, Any] = {}
     preferences: Dict[str, Any] = {}

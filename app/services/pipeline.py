@@ -1,119 +1,13 @@
 from __future__ import annotations
 
 from typing import Dict, List, Any, Optional
-import numpy as np
+from datetime import date, timedelta
 
 from app.services.cvrptw import run_cvrptw, build_problem
-from app.services.ant_colony_opt import AntColonyOptimizer, ACOConfig
 from app.services.acs_cvrptw import run_acs_cvrptw, ACSConfig
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-# Basic distance (used only inside ACO for its internal matrix)
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate haversine distance in km between two coordinates."""
-    from math import radians, sin, cos, sqrt, atan2
-
-    R = 6371.0  # Earth radius in km
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    )
-    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
-
-
-# ACO refinement (TSP on a single day)
-def optimize_day_route_with_aco(
-    stops: List[Dict[str, Any]],
-    config: Optional[ACOConfig] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Optimize the order of stops within a single day using Ant Colony Optimization.
-
-    Assumptions:
-    - All stops are already feasible w.r.t. CVRPTW constraints.
-    - This only reorders POIs to reduce travel distance.
-    - Distance inside ACO uses haversine; final reporting uses OSRM.
-    """
-    if len(stops) <= 2:
-        return stops
-
-    # Separate depot (hotel) from POIs
-    depot_stops = [s for s in stops if s.get("role") in ("hotel", "depot")]
-    poi_stops = [s for s in stops if s.get("role") not in ("hotel", "depot")]
-
-    if len(poi_stops) <= 1:
-        return stops
-
-    # Extract coordinates for POI stops
-    coordinates: List[List[float]] = []
-    for stop in poi_stops:
-        lat = stop.get("latitude") or stop.get("coordinates", {}).get("lat")
-        lon = stop.get("longitude") or stop.get("coordinates", {}).get("lng")
-        if lat is None or lon is None:
-            logger.warning(
-                "Stop %s missing coordinates, skipping ACO", stop.get("name")
-            )
-            return stops
-        coordinates.append([lat, lon])
-
-    coords_array = np.array(coordinates, dtype=np.float64)
-
-    # Build distance matrix (geometric; OSRM used later for actual km)
-    n = len(coords_array)
-    dist_matrix = np.zeros((n, n), dtype=np.float64)
-    for i in range(n):
-        for j in range(i + 1, n):
-            dist = haversine_distance(
-                coords_array[i][0],
-                coords_array[i][1],
-                coords_array[j][0],
-                coords_array[j][1],
-            )
-            dist_matrix[i, j] = dist
-            dist_matrix[j, i] = dist
-
-    # Run ACO
-    aco_cfg = config or ACOConfig(
-        n_ants=20,
-        n_iterations=50,
-        alpha=1.0,
-        beta=2.0,
-        evaporation_rate=0.5,
-        n_best=5,
-    )
-    aco = AntColonyOptimizer(dist_matrix, aco_cfg)
-    best_path, best_distance = aco.optimize()
-    logger.info(
-        "ACO optimized route: %d POI stops, distance=%.2fkm (haversine)",
-        len(poi_stops),
-        best_distance,
-    )
-
-    # Reorder stops according to ACO solution
-    optimized_pois = [poi_stops[i] for i in best_path]
-
-    # Reconstruct full day: depot → optimized POIs → depot
-    result: List[Dict[str, Any]] = []
-    if depot_stops:
-        result.append(depot_stops[0])  # start at hotel
-
-    result.extend(optimized_pois)
-
-    if len(depot_stops) > 1:
-        result.append(depot_stops[-1])  # explicit end hotel
-    elif depot_stops:
-        # If only one depot in original, add same as return
-        result.append(depot_stops[0])
-
-    return result
-
-
-# Pipeline
 
 
 def run_full_pipeline(
@@ -121,9 +15,7 @@ def run_full_pipeline(
     hotel: Optional[Dict[str, Any]] = None,
     pacing: str = "balanced",
     mandatory: Optional[Dict[str, Dict]] = None,
-    time_limit_sec: int = 15,
-    use_aco: bool = True,
-    aco_config: Optional[ACOConfig] = None,
+    time_limit_sec: int = 20,
     solver: str = "ortools",  # "ortools" | "acs"
 ) -> Dict[str, Any]:
     """
@@ -133,12 +25,9 @@ def run_full_pipeline(
     1) Build CVRPTW problem from MAUT output (build_problem in cvrptw).
     2a) If solver == "ortools": solve CVRPTW with OR-Tools (run_cvrptw).
     2b) If solver == "acs":    solve CVRPTW with ACS-CVRPTW (run_acs_cvrptw).
-    3) Optional ACO refinement on each day (TSP reordering), only for OR-Tools.
 
-    - OR-Tools and ACS-CVRPTW both use OSRM-derived travel matrices
+    - Both solver uses the same OSRM-derived travel matrices
       for scheduling (with haversine fallback inside osrm_client).
-    - ACO uses haversine internally but final distances are computed
-      with OSRM for all variants so comparison is on the same metric.
     """
     try:
         # Hotel selection
@@ -159,11 +48,6 @@ def run_full_pipeline(
                     "error": "No hotel provided and no hotel selected by MAUT",
                     "days": [],
                 }
-
-        # ACO refinement is only defined on the OR-Tools CVRPTW solver path
-        if solver == "acs" and use_aco:
-            logger.info("Solver is 'acs'; disabling ACO refinement (not supported).")
-            use_aco = False
 
         # Step 1: Solve CVRPTW
         if solver == "acs":
@@ -210,54 +94,22 @@ def run_full_pipeline(
                 "days": [],
             }
 
-        # Step 2: Enrich + optional ACO refinement
-        if solver == "ortools" and use_aco:
-            logger.info(
-                "Applying ACO algorithm to optimize intra-day route sequences..."
-            )
-            for day in days:
-                original_stops = day.get("stops", [])
+        # Step 2: Enrich stops with coordinates and compute OSRM distance
+        method_tag = "acs_cvrptw" if solver == "acs" else "cvrptw"
 
-                # Enrich OR-Tools stops with coordinates
-                enriched_cvrptw_stops = _enrich_stops_with_coords(
-                    original_stops, maut_output
-                )
-                day["stops_cvrptw"] = enriched_cvrptw_stops
+        for day in days:
+            original_stops = day.get("stops", [])
+            enriched_stops = _enrich_stops_with_coords(original_stops, maut_output)
 
-                if len(enriched_cvrptw_stops) > 2:
-                    optimized_stops = optimize_day_route_with_aco(
-                        enriched_cvrptw_stops, aco_config
-                    )
-                    day["stops_aco"] = optimized_stops
-                    day["stops"] = optimized_stops  # final schedule for frontend
-                    day["optimization_method"] = "cvrptw+aco"
-                else:
-                    day["stops_aco"] = enriched_cvrptw_stops
-                    day["stops"] = enriched_cvrptw_stops
-                    day["optimization_method"] = "cvrptw"
+            # This is the only stops array the frontend sees
+            day["stops"] = enriched_stops
+            day["optimization_method"] = method_tag
+            day["total_distance"] = _calculate_day_distance(enriched_stops)
 
-                day["total_distance_cvrptw"] = _calculate_day_distance(
-                    day["stops_cvrptw"]
-                )
-                day["total_distance_aco"] = _calculate_day_distance(day["stops_aco"])
-                day["total_distance"] = day["total_distance_aco"]
-        else:
-            # No ACO refinement; still enrich for consistent OSRM distance
-            method_tag = "acs_cvrptw" if solver == "acs" else "cvrptw"
-            for day in days:
-                original_stops = day.get("stops", [])
-                enriched_cvrptw_stops = _enrich_stops_with_coords(
-                    original_stops, maut_output
-                )
-                day["stops_cvrptw"] = enriched_cvrptw_stops
-                day["stops"] = enriched_cvrptw_stops
-                day["optimization_method"] = method_tag
-                day["total_distance_cvrptw"] = _calculate_day_distance(
-                    day["stops_cvrptw"]
-                )
-                day["total_distance"] = day["total_distance_cvrptw"]
+        # Step 3: Add weekdays to days
+        _add_weekdays_to_days(days, maut_output)
 
-        # Step 3: Global metrics
+        # Step 4: Global metrics
         total_distance = sum(day.get("total_distance", 0.0) for day in days)
         total_stops = sum(len(day.get("stops", [])) for day in days)
 
@@ -267,7 +119,6 @@ def run_full_pipeline(
             "meta": {
                 "total_distance": round(total_distance, 2),
                 "total_stops": total_stops,
-                "optimization_applied": use_aco,
                 "pacing": pacing,
                 "solver": solver,
             },
@@ -364,3 +215,41 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
             total += osrm_client.distance(lat1, lon1, lat2, lon2)
 
     return round(total, 2)
+
+
+def _add_weekdays_to_days(
+    days: List[Dict[str, Any]], maut_output: Dict[str, Any]
+) -> None:
+    """
+    Add weekday field to each day based on dates.
+
+    For specific dates: calculates actual weekday from date
+    For flexible dates: uses "Day 1", "Day 2", etc.
+    """
+    meta = maut_output.get("meta", {})
+    dates_info = meta.get("dates", {})
+    date_type = dates_info.get("type")
+
+    if date_type == "specific":
+        # Parse start date and calculate weekdays
+        start_date_str = dates_info.get("startDate")
+        if start_date_str:
+            try:
+                start_date = date.fromisoformat(start_date_str.split("T")[0])
+                for idx, day in enumerate(days):
+                    current_date = start_date + timedelta(days=idx)
+                    day["weekday"] = current_date.strftime(
+                        "%A"
+                    )  # Monday, Tuesday, etc.
+            except (ValueError, AttributeError):
+                # Fallback to Day N if date parsing fails
+                for idx, day in enumerate(days):
+                    day["weekday"] = f"Day {idx + 1}"
+        else:
+            # No start date, use Day N
+            for idx, day in enumerate(days):
+                day["weekday"] = f"Day {idx + 1}"
+    else:
+        # Flexible dates: use Day N
+        for idx, day in enumerate(days):
+            day["weekday"] = f"Day {idx + 1}"

@@ -3,10 +3,10 @@
     "destination": "Singapore",
     "dates": {
         "type": "specific",
-        "startDate": "2025-06-01",
-        "endDate": "2025-06-01"
+        "startDate": "2026-03-01",
+        "endDate": "2026-03-05"
     },
-    "num_days": 1,
+    "num_days": 5,
     "travelers": {"adults": 2, "children": 1, "pets": 1},
     "preferences": {
         "budget": "luxury",

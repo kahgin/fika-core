@@ -447,7 +447,7 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
         best_hotel_row = accom_rows[0]
         selected_hotel_poi = to_poi(best_hotel_row)
 
-    # 8) Build response (CVRPTW/ACO will compute route_order, total_distance, total_time)
+    # 8) Build response
     resp = ItineraryResponse(
         status="ok",
         places=pois,

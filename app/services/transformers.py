@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import date
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -32,45 +32,34 @@ def derive_flags_from_travelers(travelers: Dict[str, Any]) -> Dict[str, bool]:
 
 def calculate_num_days(payload: Dict[str, Any]) -> int:
     """
-    Calculate trip duration from dates or use provided num_days.
+    Calculate trip duration from dates object (1-10 days).
 
-    Priority:
-    1. payload.num_days (if provided)
-    2. dates.days (for flexible dates from frontend)
-    3. Calculate from dates.startDate and dates.endDate (for specific dates)
-    4. Default to 3 days
-
-    Args:
-        payload: Frontend payload with dates and/or num_days
-
-    Returns:
-        Number of days for the trip (minimum 1)
+    Handles flexible (days field) and specific (startDate/endDate) date types.
+    Uses datetime for automatic leap year and month boundary handling.
     """
-    # Check if num_days already provided
-    if payload.get("num_days"):
-        return max(1, int(payload["num_days"]))
 
-    # Try to get from dates object
     dates = payload.get("dates", {})
-    if isinstance(dates, dict):
-        # For flexible dates: dates.days
-        if dates.get("days"):
-            return max(1, int(dates["days"]))
+    if not isinstance(dates, dict):
+        return 3
 
-        # For specific dates: calculate from startDate and endDate
-        if dates.get("type") == "specific":
-            try:
-                start = dates.get("startDate")
-                end = dates.get("endDate")
-                if start and end:
-                    start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-                    end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                    diff_days = (end_dt - start_dt).days + 1
-                    return max(1, diff_days)
-            except Exception as e:
-                logger.warning(f"Failed to calculate num_days from dates: {e}")
+    date_type = dates.get("type")
 
-    # Default fallback
+    # Flexible dates: use days field directly
+    if date_type == "flexible":
+        try:
+            return max(1, min(10, int(dates.get("days", 3))))
+        except (ValueError, TypeError):
+            return 3
+
+    # Specific dates: calculate from startDate to endDate (inclusive)
+    if date_type == "specific":
+        try:
+            start = date.fromisoformat(dates["startDate"].split("T")[0])
+            end = date.fromisoformat(dates["endDate"].split("T")[0])
+            return max(1, min(10, (end - start).days + 1))
+        except (KeyError, ValueError, AttributeError):
+            return 3
+
     return 3
 
 
