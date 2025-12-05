@@ -20,7 +20,7 @@
             "art_museums"
         ]
     },
-    "dietary_restrictions": "vegan",
+    "dietary_restrictions": ["vegan"],
     "flags": {
         "wheelchair_accessible": true,
         "is_muslim": true

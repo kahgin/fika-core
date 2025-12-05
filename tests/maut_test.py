@@ -4,7 +4,8 @@ from app.services.maut import run_pipeline
 from app.services.transformers import transform_frontend_payload
 
 
-TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_flex.json")
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
+
 
 def test_maut_pipeline():
     """Test MAUT pipeline execution"""
@@ -47,9 +48,7 @@ def test_maut_pipeline():
         sample = places[0]
         for key in ("id", "name", "poi_roles"):
             assert key in sample, f"MAUT place missing required field '{key}'"
-        assert "latitude" in sample or "coordinates" in sample, (
-            "POI missing location data"
-        )
+        assert "coordinates" in sample, "POI missing location data"
 
     # Only available with "pytest -s tests/maut_test.py"
     print("\n✅ MAUT pipeline completed")

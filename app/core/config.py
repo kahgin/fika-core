@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     GOOGLE_MAPS_API_KEY: str
     OPENAI_API_KEY: str
-    OSRM_URL: str = "http://localhost:5000"  # http://osrm:5000
+    OSRM_URL: str
 
     USE_OSRM: bool = True
     OSRM_TIMEOUT: int = 5

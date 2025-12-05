@@ -7,29 +7,6 @@ logger = get_logger(__name__)
 # Frontend → Backend Transformation
 
 
-def derive_flags_from_travelers(travelers: Dict[str, Any]) -> Dict[str, bool]:
-    """
-    Derive boolean flags from traveler counts.
-
-    Logic:
-    - children >= 1 → has_child (triggers kids_friendly scoring)
-    - pets >= 1 → has_pets (triggers pets_friendly scoring)
-
-    Args:
-        travelers: Dict with adults, children, pets counts
-
-    Returns:
-        Dict of boolean flags for MAUT scoring
-    """
-    children = travelers.get("children", 0) or 0
-    pets = travelers.get("pets", 0) or 0
-
-    return {
-        "has_child": children >= 1,
-        "has_pets": pets >= 1,
-    }
-
-
 def calculate_num_days(payload: Dict[str, Any]) -> int:
     """
     Calculate trip duration from dates object (1-10 days).
@@ -70,7 +47,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     Transformations:
     - Extract and validate destination
     - Calculate num_days from dates if needed
-    - Derive flags from travelers (children → has_child, pets → has_pets)
+    - Derive flags from travelers
     - Map preferences to internal format
     - Merge explicit flags with derived flags
 
@@ -79,49 +56,34 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns:
         Internal MAUT request dict with normalized fields
-
-    Example:
-        Input:
-        {
-            "destination": "Singapore",
-            "dates": {"type": "specific", "startDate": "2024-01-01", "endDate": "2024-01-03"},
-            "travelers": {"adults": 2, "children": 1, "pets": 0},
-            "preferences": {"budget": "sensible", "pacing": "balanced", "interests": ["shopping", "food_culinary"]}
-        }
-
-        Output:
-        {
-            "destination": "Singapore",
-            "num_days": 3,
-            "budget_tier": "sensible",
-            "pacing": "balanced",
-            "interest_themes": ["shopping", "food_culinary"],
-            "flags": {
-                "has_child": True,
-                "has_pets": False,
-                "wheelchair_accessible": False,
-                "is_muslim": False,
-                "exclude_nightlife": False
-            },
-            ...
-        }
     """
-    travelers = payload.get("travelers", {})
     preferences = payload.get("preferences", {})
     explicit_flags = payload.get("flags", {})
-
-    # Derive flags from travelers
-    derived_flags = derive_flags_from_travelers(travelers)
+    dietary_restrictions = payload.get("dietary_restrictions", [])
+    excluded_themes = payload.get("excluded_themes", [])
 
     # Merge explicit flags with derived flags (explicit takes precedence)
     flags = {
-        **derived_flags,
         "wheelchair_accessible": bool(
             explicit_flags.get("wheelchair_accessible", False)
         ),
         "is_muslim": bool(explicit_flags.get("is_muslim", False)),
-        "exclude_nightlife": bool(explicit_flags.get("exclude_nightlife", False)),
+        "kids_friendly": bool(explicit_flags.get("kids_friendly", False)),
+        "pets_friendly": bool(explicit_flags.get("pets_friendly", False)),
     }
+
+    if explicit_flags.get("is_muslim", False):
+        # Only add "halal" if it's not already in dietary restrictions
+        # and "halal" explicitly set to false
+        halal_explicitly_false = any(
+            isinstance(item, dict) and item.get("halal") is False
+            for item in dietary_restrictions
+        )
+        if "halal" not in dietary_restrictions and not halal_explicitly_false:
+            dietary_restrictions.append("halal")
+        # Only add "nightlife" if it's not already in excluded themes
+        if "nightlife" not in excluded_themes:
+            excluded_themes.append("nightlife")
 
     # Build internal request
     return {
@@ -130,7 +92,8 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "budget_tier": preferences.get("budget", "sensible"),
         "pacing": preferences.get("pacing", "balanced"),
         "interest_themes": preferences.get("interests", []),
-        "dietary_restrictions": payload.get("dietary_restrictions", []),
+        "excluded_themes": excluded_themes,
+        "dietary_restrictions": dietary_restrictions,
         "flags": flags,
         "seed_lon": payload.get("seed_lon"),
         "seed_lat": payload.get("seed_lat"),
@@ -163,8 +126,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     coords = None
     if poi.get("coordinates"):
         coords = poi["coordinates"]
-    elif poi.get("latitude") is not None and poi.get("longitude") is not None:
-        coords = {"lat": float(poi["latitude"]), "lng": float(poi["longitude"])}
 
     # Get category (first from categories array or single category field)
     category = None
@@ -190,8 +151,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "location": location,
         "images": poi.get("images", []),
         "description": poi.get("description") or poi.get("descriptions"),
-        # "latitude": coords["lat"] if coords else None,
-        # "longitude": coords["lng"] if coords else None,
         "coordinates": coords,
         "website": poi.get("website"),
         "googleMapsUrl": poi.get("googleMapsUrl") or poi.get("google_map_link"),
@@ -200,6 +159,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
         "roles": poi.get("poi_roles", []),
+        "themes": poi.get("images", []),
     }
 
 

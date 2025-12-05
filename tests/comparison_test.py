@@ -40,8 +40,8 @@ def test_compare_ortools_vs_acs():
     hotel = {
         "id": selected_hotel["id"],
         "name": selected_hotel["name"],
-        "lat": coords.get("lat") or selected_hotel.get("latitude"),
-        "lon": coords.get("lng") or selected_hotel.get("longitude"),
+        "lat": coords.get("lat"),
+        "lon": coords.get("lng"),
     }
 
     # OR-Tools baseline

@@ -38,8 +38,8 @@ def run_full_pipeline(
                 hotel = {
                     "id": selected_hotel["id"],
                     "name": selected_hotel["name"],
-                    "lat": coords.get("lat") or selected_hotel.get("latitude"),
-                    "lon": coords.get("lng") or selected_hotel.get("longitude"),
+                    "lat": coords.get("lat"),
+                    "lon": coords.get("lng"),
                 }
                 logger.info("Using hotel from MAUT: %s", hotel["name"])
             else:
@@ -166,11 +166,6 @@ def _enrich_stops_with_coords(
                 "latitude": coords["lat"],
                 "longitude": coords["lng"],
             }
-        elif poi.get("latitude") is not None and poi.get("longitude") is not None:
-            poi_lookup[poi_id] = {
-                "latitude": poi["latitude"],
-                "longitude": poi["longitude"],
-            }
 
     enriched: List[Dict[str, Any]] = []
     for stop in stops:
@@ -202,14 +197,10 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
 
     total = 0.0
     for i in range(len(stops) - 1):
-        lat1 = stops[i].get("latitude") or stops[i].get("coordinates", {}).get("lat")
-        lon1 = stops[i].get("longitude") or stops[i].get("coordinates", {}).get("lng")
-        lat2 = stops[i + 1].get("latitude") or stops[i + 1].get("coordinates", {}).get(
-            "lat"
-        )
-        lon2 = stops[i + 1].get("longitude") or stops[i + 1].get("coordinates", {}).get(
-            "lng"
-        )
+        lat1 = stops[i].get("coordinates", {}).get("lat")
+        lon1 = stops[i].get("coordinates", {}).get("lng")
+        lat2 = stops[i + 1].get("coordinates", {}).get("lat")
+        lon2 = stops[i + 1].get("coordinates", {}).get("lng")
 
         if all(x is not None for x in (lat1, lon1, lat2, lon2)):
             total += osrm_client.distance(lat1, lon1, lat2, lon2)

@@ -381,9 +381,6 @@ def _add_poi_node(
     if coords:
         lat = coords.get("lat")
         lon = coords.get("lng")
-    else:
-        lat = poi.get("latitude")
-        lon = poi.get("longitude")
 
     if lat is None or lon is None:
         return

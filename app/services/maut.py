@@ -14,12 +14,12 @@ _sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 # Config
 
-BUDGET_TARGET = {"tight": 1.0, "sensible": 2.0, "upscale": 3.0, "luxury": 4.0}
+# BUDGET_TARGET = {"tight": 1.0, "sensible": 2.0, "upscale": 3.0, "luxury": 4.0}
 
 BASE_WEIGHTS = {
-    "interest": 0.3,
-    "cost": 0.2,
-    "popularity": 0.1,
+    "interest": 0.4,
+    # "cost": 0.2,
+    "popularity": 0.2,
     "child": 0.1,
     "dietary": 0.1,
     "pet": 0.1,
@@ -67,12 +67,12 @@ def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     return 0.7 * r + 0.3 * rc
 
 
-def budget_alignment(price_level: Optional[float], budget_tier: str) -> float:
-    if price_level is None:
-        return 1.0
-    target = BUDGET_TARGET.get(budget_tier, 4.0)
-    dist = abs(float(price_level) - target)
-    return max(0.0, 1.0 - (dist / 3.0))
+# def budget_alignment(price_level: Optional[float], budget_tier: str) -> float:
+#     if price_level is None:
+#         return 1.0
+#     target = BUDGET_TARGET.get(budget_tier, 4.0)
+#     dist = abs(float(price_level) - target)
+#     return max(0.0, 1.0 - (dist / 3.0))
 
 
 def any_accessible(p: Row) -> bool:
@@ -104,7 +104,7 @@ def role_keep_counts(num_days: int) -> Dict[str, int]:
 
 
 def applicable_dims(req: Dict[str, Any], poi_roles: List[str]) -> Set[str]:
-    dims: Set[str] = {"interest", "cost", "popularity"}
+    dims: Set[str] = {"interest", "popularity"}  # "cost"
     flags = req.get("flags", {})
     if flags.get("has_child"):
         dims.add("child")
@@ -160,9 +160,6 @@ def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Ro
             req.get("flags", {}).get("wheelchair_accessible", False)
         ),
         "p_excluded_themes": req.get("excluded_themes") or None,
-        "p_exclude_nightlife": bool(
-            req.get("flags", {}).get("exclude_nightlife", False)
-        ),
         "p_seed_lon": req.get("seed_lon"),
         "p_seed_lat": req.get("seed_lat"),
     }
@@ -202,12 +199,11 @@ def score_row(req: Dict[str, Any], row: Row, selected_themes: List[str]) -> floa
         if ("interest" in W and is_attraction)
         else 0.0
     )
-
-    s_cost = (
-        budget_alignment(row.get("price_level"), req.get("budget_tier"))
-        if "cost" in W
-        else 0.0
-    )
+    # s_cost = (
+    #     budget_alignment(row.get("price_level"), req.get("budget_tier"))
+    #     if "cost" in W
+    #     else 0.0
+    # )
     s_pop = (
         popularity_score(row.get("review_rating"), row.get("review_count"))
         if "popularity" in W
@@ -232,7 +228,7 @@ def score_row(req: Dict[str, Any], row: Row, selected_themes: List[str]) -> floa
 
     return float(
         W.get("interest", 0) * s_interest
-        + W.get("cost", 0) * s_cost
+        # + W.get("cost", 0) * s_cost
         + W.get("popularity", 0) * s_pop
         + W.get("child", 0) * s_child
         + W.get("dietary", 0) * s_diet
@@ -387,8 +383,6 @@ def to_poi(row: Row) -> POI:
         coordinates=Coordinates(
             lat=float(row["latitude"]), lng=float(row["longitude"])
         ),
-        latitude=float(row["latitude"]),
-        longitude=float(row["longitude"]),
         openHours=row.get("open_hours"),
         priceLevel=(
             int(row["price_level"]) if row.get("price_level") is not None else None

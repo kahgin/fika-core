@@ -95,7 +95,7 @@ def create_itinerary(payload: dict):
         is_valid, error_msg = validate_create_itinerary_payload(payload)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_msg)
-        
+
         print(payload)
 
         # 2. Transform frontend → MAUT request
@@ -114,31 +114,113 @@ def create_itinerary(payload: dict):
         maut_output["meta"]["dates"] = payload.get("dates", {})
         maut_output["meta"]["num_days"] = maut_request["num_days"]
 
-        # 4. Extract hotel information if exist (still on testing mode)
+        # 4. Extract hotel information from payload or MAUT output
         places = maut_output.get("places", [])
-
+        
+        # Check if hotels are provided in payload
+        hotels_from_payload = payload.get("hotels", [])
         hotel = None
-        accommodations = [
-            p for p in places if "accommodation" in p.get("poi_roles", [])
-        ]
-
-        if accommodations:
-            hotel_poi = accommodations[0]
-            coords = hotel_poi.get("coordinates") or {}
+        
+        if hotels_from_payload:
+            # Use first hotel from payload
+            first_hotel = hotels_from_payload[0]
             hotel = {
-                "id": hotel_poi["id"],
-                "name": hotel_poi["name"],
-                "lat": coords.get("lat") or hotel_poi.get("latitude"),
-                "lon": coords.get("lng") or hotel_poi.get("longitude"),
+                "id": first_hotel.get("poi_id"),
+                "name": first_hotel.get("poi_name", "Hotel"),
+                "lat": first_hotel.get("latitude"),
+                "lon": first_hotel.get("longitude"),
             }
-            logger.info(f"Using accommodation from MAUT: {hotel['name']}")
+            logger.info(f"Using hotel from payload: {hotel['name']}")
+        else:
+            # Fallback to MAUT-selected accommodation
+            accommodations = [
+                p for p in places if "accommodation" in p.get("poi_roles", [])
+            ]
+            if accommodations:
+                hotel_poi = accommodations[0]
+                coords = hotel_poi.get("coordinates") or {}
+                hotel = {
+                    "id": hotel_poi["id"],
+                    "name": hotel_poi["name"],
+                    "lat": coords.get("lat"),
+                    "lon": coords.get("lng"),
+                }
+                logger.info(f"Using accommodation from MAUT: {hotel['name']}")
 
-        # 5. Run full pipeline
+        # 5. Process mandatory POIs and hotels from payload and add to places
+        mandatory_pois_from_payload = payload.get("mandatory_pois", [])
+        mandatory = None
+        
+        # Add hotels to places if provided
+        if hotels_from_payload:
+            for hotel_data in hotels_from_payload:
+                hotel_poi = {
+                    "id": hotel_data.get("poi_id"),
+                    "name": hotel_data.get("poi_name", "Hotel"),
+                    "coordinates": {
+                        "lat": hotel_data.get("latitude"),
+                        "lng": hotel_data.get("longitude"),
+                    },
+                    "poi_roles": [hotel_data.get("role", "accommodation")],
+                    "themes": hotel_data.get("themes", []),
+                    "open_hours": hotel_data.get("open_hours"),
+                    "images": hotel_data.get("images", []),
+                }
+                # Add to places if not already present
+                if not any(p.get("id") == hotel_poi["id"] for p in places):
+                    places.append(hotel_poi)
+                    logger.info(f"Added hotel {hotel_poi['name']} to places")
+        
+        if mandatory_pois_from_payload:
+            # Build mandatory dict for pipeline
+            mandatory = {}
+            for poi in mandatory_pois_from_payload:
+                poi_id = poi.get("poi_id")
+                if poi_id:
+                    mandatory[poi_id] = {
+                        "poi_id": poi_id,
+                        "latitude": poi.get("latitude"),
+                        "longitude": poi.get("longitude"),
+                        "date": poi.get("date"),
+                        "day": poi.get("day"),
+                        "time_type": poi.get("time_type", "any_time"),
+                        "start_time": poi.get("start_time"),
+                        "end_time": poi.get("end_time"),
+                        "themes": poi.get("themes", []),
+                        "role": poi.get("role"),
+                        "open_hours": poi.get("open_hours"),
+                        "images": poi.get("images", []),
+                    }
+                    
+                    # Also add to places list for frontend display
+                    mandatory_poi = {
+                        "id": poi_id,
+                        "name": poi.get("poi_name", "POI"),
+                        "coordinates": {
+                            "lat": poi.get("latitude"),
+                            "lng": poi.get("longitude"),
+                        },
+                        "poi_roles": [poi.get("role", "attraction")],
+                        "themes": poi.get("themes", []),
+                        "open_hours": poi.get("open_hours"),
+                        "images": poi.get("images", []),
+                    }
+                    # Add to places if not already present
+                    if not any(p.get("id") == mandatory_poi["id"] for p in places):
+                        places.append(mandatory_poi)
+                        logger.info(f"Added mandatory POI {mandatory_poi['name']} to places")
+            
+            logger.info(f"Processing {len(mandatory)} mandatory POIs from payload")
+        
+        # Update maut_output with enriched places
+        maut_output["places"] = places
+
+        # 6. Run full pipeline
         pipeline_output = run_full_pipeline(
             maut_output=maut_output,
             hotel=hotel,
             pacing=maut_request.get("pacing", "balanced"),
-            mandatory=None,
+            mandatory=mandatory,
             time_limit_sec=20,
             solver="acs",
         )
@@ -156,7 +238,7 @@ def create_itinerary(payload: dict):
             logger.warning("Pipeline failed, falling back to MAUT output")
             plan = transform_response_to_frontend(maut_output)
             plan["pipeline_error"] = pipeline_output.get("error")
-        
+
         # 5. Build response
         result = {
             "itin_id": itin_id,
@@ -629,7 +711,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
             if new_days > current_days:
                 # Append empty days
                 for _ in range(new_days - current_days):
-                    days_list.append({"dates":{},"stops": []})
+                    days_list.append({"dates": {}, "stops": []})
                 logger.info(
                     f"Extended itinerary {itin_id} days: {current_days} -> {new_days}"
                 )

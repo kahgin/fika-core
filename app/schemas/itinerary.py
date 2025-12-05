@@ -18,8 +18,6 @@ class POI(BaseModel):
     reviewCount: Optional[int] = None
     images: List[str] = []
     coordinates: Optional[Coordinates] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
     openHours: Optional[Dict[str, Any]] = None
     priceLevel: Optional[int] = None
 

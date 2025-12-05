@@ -245,7 +245,7 @@ requires-dist = [
     { name = "openai", specifier = ">=2.8.1" },
     { name = "ortools", specifier = ">=9.14.0" },
     { name = "pandas", specifier = ">=2.3.3" },
-    { name = "pydantic-settings", specifier = ">=2.11.0" },
+    { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "supabase", specifier = ">=2.24.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.38.0" },
 ]
@@ -253,7 +253,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=9.0.1" },
-    { name = "ruff", specifier = ">=0.14.6" },
+    { name = "ruff", specifier = ">=0.14.7" },
 ]
 
 [[package]]
