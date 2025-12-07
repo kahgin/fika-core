@@ -31,11 +31,11 @@ DEFAULT_ROLE_WINDOWS = {
 }
 
 # Global “good” meal windows (used also in ACS)
+BREAKFAST_WIN = (7 * 60, 10 * 60)  # 07:00–10:00
 LUNCH_WIN = (12 * 60, 14 * 60)  # 12:00–14:00
 DINNER_WIN = (18 * 60, 21 * 60)  # 18:00–21:00
 
 # Extra windows for hard “meals around meal time” in OR-Tools version
-BREAKFAST_WIN = (7 * 60, 10 * 60)  # 07:00–10:00
 
 # How far around these windows we still allow meals (hard constraint)
 MEAL_HARD_TOL = 90  # minutes; meal must start within ±90 min of some meal window
@@ -46,6 +46,9 @@ MEAL_HARD_TOL = 90  # minutes; meal must start within ±90 min of some meal wind
 # - Back-to-back same-theme transitions are strongly discouraged.
 PENALTY_MEAL_TO_MEAL = 5000
 PENALTY_SAME_THEME = 500
+PENALTY_THEME_LIMIT = (
+    10000  # Very high penalty for exceeding 2 attractions per theme per day
+)
 DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI (non-mandatory)
 
 
@@ -377,6 +380,8 @@ def _add_poi_node(
     theme = pick_theme(poi.get("themes", []), sel_themes)
 
     # Extract coordinates
+    lat = None
+    lon = None
     coords = poi.get("coordinates")
     if coords:
         lat = coords.get("lat")
@@ -607,6 +612,7 @@ def solve_cvrptw(
     for v, d in enumerate(day_specs):
         idx = routing.Start(v)
         day_plan = {"date": d.date.isoformat(), "stops": [], "meals": 0}
+        theme_count: Dict[str, int] = {}  # Track theme counts for this day
 
         depot_node = nodes[0]
 
@@ -616,21 +622,33 @@ def solve_cvrptw(
             tmin = solution.Min(time_dim.CumulVar(idx))
 
             if n.role != "depot":
-                day_plan["stops"].append(
-                    {
-                        "poi_id": n.poi_id,
-                        "name": n.name,
-                        "role": n.role,
-                        "themes": n.themes if n.role == "attraction" else [],
-                        "arrival": fmt(tmin),
-                        "start_service": fmt(tmin),
-                        "depart": fmt(tmin + n.service),
-                        "latitude": n.lat,
-                        "longitude": n.lon,
-                    }
-                )
-                if n.role == "meal":
-                    day_plan["meals"] += 1
+                # Check theme limit for attractions - only check first theme
+                skip_poi = False
+                if n.role == "attraction" and n.themes and len(n.themes) > 0:
+                    first_theme = n.themes[0]
+                    current_count = theme_count.get(first_theme, 0)
+                    if current_count >= 2:
+                        # Skip this POI as it would exceed the theme limit
+                        skip_poi = True
+                    else:
+                        theme_count[first_theme] = current_count + 1
+
+                if not skip_poi:
+                    day_plan["stops"].append(
+                        {
+                            "poi_id": n.poi_id,
+                            "name": n.name,
+                            "role": n.role,
+                            "themes": n.themes if n.role == "attraction" else [],
+                            "arrival": fmt(tmin),
+                            "start_service": fmt(tmin),
+                            "depart": fmt(tmin + n.service),
+                            "latitude": n.lat,
+                            "longitude": n.lon,
+                        }
+                    )
+                    if n.role == "meal":
+                        day_plan["meals"] += 1
 
             idx = solution.Value(routing.NextVar(idx))
 

@@ -4,13 +4,12 @@
     "dates": {
         "type": "specific",
         "startDate": "2026-03-01",
-        "endDate": "2026-03-01"
+        "endDate": "2026-03-03"
     },
-    "num_days": 1,
+    "num_days": 3,
     "travelers": {"adults": 2, "children": 1, "pets": 1},
     "preferences": {
-        "budget": "luxury",
         "pacing": "balanced",
-        "interests": ["art_museums", "family", "cultural_history"]
+        "interests": ["relax", "family", "food_culinary"]
     }
 }

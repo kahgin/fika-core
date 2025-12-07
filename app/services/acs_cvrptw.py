@@ -3,9 +3,9 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple, Optional, Set, Any
 
-from app.services.cvrptw import DaySpec, Node, LUNCH_WIN, DINNER_WIN
+from app.services.cvrptw import DaySpec, Node, BREAKFAST_WIN, LUNCH_WIN, DINNER_WIN
 
 # Penalties
 MEAL_SHORTFALL_PENALTY = 60 * 10  # 10 hours (in "minute-cost" units) per missing meal
@@ -25,6 +25,13 @@ class ACSConfig:
     q: float = 100.0  # pheromone deposit factor
     seed: Optional[int] = None  # for reproducibility
 
+    meals_max: int = 3  # allow up to this many meals per day
+    meal_shortfall_penalty: float = MEAL_SHORTFALL_PENALTY
+    mandatory_miss_penalty: float = MANDATORY_MISS_PENALTY
+
+    # small epsilon to avoid division by zero in heuristic
+    distance_epsilon: float = 1e-6
+
 
 @dataclass(slots=True)
 class DayRoute:
@@ -36,6 +43,7 @@ class DayRoute:
     total_cost: float
     total_distance: float
     visited_base_ids: Set[str]
+    infeasible: bool = False
 
 
 def _fmt_time(t: int) -> str:
@@ -77,8 +85,8 @@ def _simulate_day_route(
     order: List[int],  # sequence of node indices (excluding depot)
     day_index: int,
     meals_min: int,
-    meals_max: int,
     mandatory_for_day: Set[str],
+    cfg: ACSConfig,
 ) -> Tuple[float, float, List[Dict], Set[str], int]:
     """
     Given a permutation of POI node indices, build a feasible schedule for that day.
@@ -90,7 +98,7 @@ def _simulate_day_route(
     - Ability to return to depot before day end.
     - Hard cap on meals per day (meals_max).
     - No consecutive meals.
-    - No 3-poi runs with the same primary theme.
+    - No more than 2 attraction POIs with the same theme per day.
     - Mealtime appropriateness (hard/soft rules via meal windows).
     - Per-day penalty if mandatory POIs for this day are not visited.
 
@@ -108,14 +116,11 @@ def _simulate_day_route(
     food_streak = 0
     total_travel_min = 0
     last_role: str = "depot"
-    last_themes: List[Optional[str]] = []
+    theme_count_per_day: Dict[str, int] = {}  # Track theme counts for attractions
     extra_penalty_total = 0.0
 
     # Meal-window config (independent of LUNCH/DINNER preference logic)
-    breakfast = (7 * 60, 10 * 60)
-    lunch = (12 * 60, 14 * 60)
-    dinner = (18 * 60, 21 * 60)
-    MEAL_WINDOWS = [breakfast, lunch, dinner]
+    MEAL_WINDOWS = [BREAKFAST_WIN, LUNCH_WIN, DINNER_WIN]
     SOFT_TOL = 30  # allow ±30 min
     HARD_TOL = 90  # max allowed deviation
 
@@ -128,18 +133,17 @@ def _simulate_day_route(
 
         primary_theme = _primary_theme(n)
 
-        # Hard constraint: no 3 same themes in a row
-        if (
-            primary_theme is not None
-            and len(last_themes) >= 2
-            and last_themes[-1] == primary_theme
-            and last_themes[-2] == primary_theme
-        ):
-            # Would create theme A-A-A
-            continue
+        # Hard constraint: no more than 2 attraction POIs with the same primary theme per day
+        # Only check the first theme in the list
+        if n.role == "attraction" and n.themes and len(n.themes) > 0:
+            first_theme = n.themes[0]
+            current_count = theme_count_per_day.get(first_theme, 0)
+            if current_count >= 2:
+                # Already have 2 attractions with this first theme today
+                continue
 
         # Hard cap on meals per day
-        if n.role == "meal" and meals_count >= meals_max:
+        if n.role == "meal" and meals_count >= cfg.meals_max:
             continue
 
         # Identify food-like stops: meal OR POI with theme food_culinary
@@ -244,10 +248,11 @@ def _simulate_day_route(
             meals_count += 1
         last_role = n.role
 
-        if primary_theme is not None:
-            last_themes.append(primary_theme)
-            if len(last_themes) > 2:
-                last_themes.pop(0)
+        # Update theme count for attractions
+        if n.role == "attraction" and primary_theme is not None:
+            theme_count_per_day[primary_theme] = (
+                theme_count_per_day.get(primary_theme, 0) + 1
+            )
 
     # After visiting, return to depot
     back_min = travel[current][depot_idx]
@@ -280,19 +285,77 @@ def _simulate_day_route(
     # Meal quota penalties (per day)
     if meals_count < meals_min:
         missing = meals_min - meals_count
-        cost += MEAL_SHORTFALL_PENALTY * missing
+        cost += cfg.meal_shortfall_penalty * missing
 
     # Mandatory POIs for this day: strong penalty if not visited
     if mandatory_for_day:
         visited_mandatory = visited_base_ids & mandatory_for_day
         missed_mandatory = mandatory_for_day - visited_mandatory
         if missed_mandatory:
-            cost += MANDATORY_MISS_PENALTY * len(missed_mandatory)
+            cost += cfg.mandatory_miss_penalty * len(missed_mandatory)
 
     # distance in "km equivalent" (here: hours as proxy)
     distance_km_equiv = total_travel_min / 60.0
 
     return cost, distance_km_equiv, stops, visited_base_ids, meals_count
+
+
+def _two_opt_improve(
+    order: List[int],
+    nodes: List[Node],
+    travel: List[List[int]],
+    day: DaySpec,
+    day_index: int,
+    meals_min: int,
+    mandatory_for_day: Set[str],
+    cfg: ACSConfig,
+    max_iter: int = 50,
+) -> List[int]:
+    """
+    Simple 2-opt local search on the order (global node indices).
+    Returns improved order (or original if no improvement).
+    """
+    best = order[:]
+    best_cost, _, _, _, _ = _simulate_day_route(
+        day=day,
+        nodes=nodes,
+        travel=travel,
+        order=best,
+        day_index=day_index,
+        meals_min=meals_min,
+        mandatory_for_day=mandatory_for_day,
+        cfg=cfg,
+    )
+    if math.isinf(best_cost):
+        return order
+
+    improved = True
+    it = 0
+    while improved and it < max_iter:
+        improved = False
+        it += 1
+        n = len(best)
+        for i in range(0, n - 2):
+            for j in range(i + 2, n):
+                new_order = best[: i + 1] + best[i + 1 : j + 1][::-1] + best[j + 1 :]
+                cost, _, _, _, _ = _simulate_day_route(
+                    day=day,
+                    nodes=nodes,
+                    travel=travel,
+                    order=new_order,
+                    day_index=day_index,
+                    meals_min=meals_min,
+                    mandatory_for_day=mandatory_for_day,
+                    cfg=cfg,
+                )
+                if cost < best_cost:
+                    best = new_order
+                    best_cost = cost
+                    improved = True
+                    break
+            if improved:
+                break
+    return best
 
 
 def _acs_optimize_day(
@@ -330,9 +393,10 @@ def _acs_optimize_day(
                 }
             ],
             meals=0,
-            total_cost=0.0,
+            total_cost=float("inf"),
             total_distance=0.0,
             visited_base_ids=set(),
+            infeasible=True,
         )
 
     # Build a local index [0..M-1] for ACS over the subset
@@ -354,7 +418,7 @@ def _acs_optimize_day(
     for i in range(m):
         for j in range(m):
             d = distances[i][j]
-            heuristic[i][j] = 1.0 / d if d > 0 else 0.0
+            heuristic[i][j] = 1.0 / (d + cfg.distance_epsilon) if d >= 0 else 0.0
 
     best_cost = float("inf")
     best_order: List[int] = []
@@ -406,8 +470,8 @@ def _acs_optimize_day(
                 order=day_order_indices,
                 day_index=day_index,
                 meals_min=meals_required,
-                meals_max=3,
                 mandatory_for_day=mandatory_for_day,
+                cfg=cfg,
             )
 
             solutions.append((cost, tour_local, dist_eq, visited_ids, meals))
@@ -461,6 +525,18 @@ def _acs_optimize_day(
             visited_base_ids=set(),
         )
 
+    # after best_order is set
+    best_order = _two_opt_improve(
+        order=best_order,
+        nodes=nodes,
+        travel=travel,
+        day=day,
+        day_index=day_index,
+        meals_min=meals_required,
+        mandatory_for_day=mandatory_for_day,
+        cfg=cfg,
+    )
+
     cost, dist_eq, stops, visited_ids, meals = _simulate_day_route(
         day=day,
         nodes=nodes,
@@ -468,8 +544,8 @@ def _acs_optimize_day(
         order=best_order,
         day_index=day_index,
         meals_min=meals_required,
-        meals_max=3,
         mandatory_for_day=mandatory_for_day,
+        cfg=cfg,
     )
 
     return DayRoute(
@@ -489,7 +565,7 @@ def run_acs_cvrptw(
     meals_required: int = 3,
     mandatory: Optional[Dict[str, Dict]] = None,
     cfg: Optional[ACSConfig] = None,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     ACS-based CVRPTW solver (multi-day) that:
 
@@ -517,6 +593,7 @@ def run_acs_cvrptw(
     visited_global: Set[str] = set()
     result_days: List[Dict] = []
     total_distance = 0.0
+    meta: Dict[str, Any] = {}  # Initialize meta early for infeasible_days tracking
 
     for day in day_specs:
         day_index = day.day_index
@@ -552,6 +629,9 @@ def run_acs_cvrptw(
             cfg=cfg,
         )
 
+        if day_route.infeasible:
+            meta.setdefault("infeasible_days", []).append(day_route.date)
+
         # Update global visited
         visited_global.update(day_route.visited_base_ids)
         total_distance += day_route.total_distance
@@ -566,10 +646,12 @@ def run_acs_cvrptw(
 
     # Mandatory POI meta: which mandatory POIs were missed globally
     missed_mandatory = mandatory_base_ids - visited_global
-    meta = {
-        "total_distance": round(total_distance, 2),
-        "total_stops": sum(len(d["stops"]) for d in result_days),
-    }
+    meta.update(
+        {
+            "total_distance": round(total_distance, 2),
+            "total_stops": sum(len(d["stops"]) for d in result_days),
+        }
+    )
     if missed_mandatory:
         meta["missed_mandatory"] = list(missed_mandatory)
         meta["note"] = (

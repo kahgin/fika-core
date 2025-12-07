@@ -8,6 +8,7 @@ from app.utils.validators import assert_itinerary_valid
 
 TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 
+
 def test_full_pipeline_user_path():
     """
     Production pipeline test:
@@ -55,7 +56,7 @@ def test_full_pipeline_user_path():
 
     # Save output for manual inspection
     out_dir = os.path.dirname(__file__)
-    out_path = os.path.join(out_dir, "pipeline_one_output.json")
+    out_path = os.path.join(out_dir, "pipeline_output.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(cvrptw_output, f, indent=2)
 

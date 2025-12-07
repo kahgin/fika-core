@@ -98,7 +98,7 @@ def role_keep_counts(num_days: int) -> Dict[str, int]:
     d = max(1, int(num_days or 7))
     return {
         "attraction": min(12 * d, 300),
-        "meal": min(5 * d, 50),
+        "meal": min(8 * d, 50),
         "accommodation": min(d + 5, 15),  # At least d+5 to ensure options
     }
 

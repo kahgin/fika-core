@@ -96,8 +96,6 @@ def create_itinerary(payload: dict):
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_msg)
 
-        print(payload)
-
         # 2. Transform frontend → MAUT request
         maut_request = transform_frontend_payload(payload)
         logger.info(
@@ -116,11 +114,11 @@ def create_itinerary(payload: dict):
 
         # 4. Extract hotel information from payload or MAUT output
         places = maut_output.get("places", [])
-        
+
         # Check if hotels are provided in payload
         hotels_from_payload = payload.get("hotels", [])
         hotel = None
-        
+
         if hotels_from_payload:
             # Use first hotel from payload
             first_hotel = hotels_from_payload[0]
@@ -150,7 +148,7 @@ def create_itinerary(payload: dict):
         # 5. Process mandatory POIs and hotels from payload and add to places
         mandatory_pois_from_payload = payload.get("mandatory_pois", [])
         mandatory = None
-        
+
         # Add hotels to places if provided
         if hotels_from_payload:
             for hotel_data in hotels_from_payload:
@@ -170,7 +168,7 @@ def create_itinerary(payload: dict):
                 if not any(p.get("id") == hotel_poi["id"] for p in places):
                     places.append(hotel_poi)
                     logger.info(f"Added hotel {hotel_poi['name']} to places")
-        
+
         if mandatory_pois_from_payload:
             # Build mandatory dict for pipeline
             mandatory = {}
@@ -191,7 +189,7 @@ def create_itinerary(payload: dict):
                         "open_hours": poi.get("open_hours"),
                         "images": poi.get("images", []),
                     }
-                    
+
                     # Also add to places list for frontend display
                     mandatory_poi = {
                         "id": poi_id,
@@ -208,10 +206,12 @@ def create_itinerary(payload: dict):
                     # Add to places if not already present
                     if not any(p.get("id") == mandatory_poi["id"] for p in places):
                         places.append(mandatory_poi)
-                        logger.info(f"Added mandatory POI {mandatory_poi['name']} to places")
-            
+                        logger.info(
+                            f"Added mandatory POI {mandatory_poi['name']} to places"
+                        )
+
             logger.info(f"Processing {len(mandatory)} mandatory POIs from payload")
-        
+
         # Update maut_output with enriched places
         maut_output["places"] = places
 
@@ -250,6 +250,9 @@ def create_itinerary(payload: dict):
                 "num_days": maut_request["num_days"],
                 "travelers": payload.get("travelers", {}),
                 "preferences": payload.get("preferences", {}),
+                "dietary_restrictions": payload.get("dietary_restrictions"),
+                "hotels": payload.get("hotels", []),
+                "mandatory_pois": payload.get("mandatory_pois", []),
                 "ideas": [],  # User-added POIs
             },
             "plan": plan,

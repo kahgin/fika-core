@@ -6,7 +6,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-MAX_OSRM_NODES = 1600  # Max nodes for OSRM /table requests
+MAX_OSRM_NODES = 1900  # Max nodes for OSRM /table requests
+OSRM_TIMEOUT = 5  # seconds
 
 
 def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -57,8 +58,7 @@ def haversine_matrix(
 class OSRMClient:
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = (base_url or settings.OSRM_URL).rstrip("/")
-        self.timeout = settings.OSRM_TIMEOUT
-        self.use_osrm = settings.USE_OSRM
+        self.timeout = OSRM_TIMEOUT
         self._osrm_available: Optional[bool] = None
 
     # internal
@@ -80,14 +80,6 @@ class OSRMClient:
 
         return self._osrm_available
 
-    def _should_use_osrm(self, override: Optional[bool]) -> bool:
-        """Combine global setting + per-call preference + availability."""
-        if not self.use_osrm:
-            return False
-        if override is False:
-            return False
-        return self._check_osrm_available()
-
     # pairwise API
 
     def route(
@@ -96,12 +88,11 @@ class OSRMClient:
         lon1: float,
         lat2: float,
         lon2: float,
-        use_osrm: Optional[bool] = True,
     ) -> float:
         """
         Travel time in seconds between two points.
         """
-        if self._should_use_osrm(use_osrm):
+        if self._check_osrm_available():
             try:
                 url = (
                     f"{self.base_url}/route/v1/driving/"
@@ -135,12 +126,11 @@ class OSRMClient:
         lon1: float,
         lat2: float,
         lon2: float,
-        use_osrm: Optional[bool] = True,
     ) -> float:
         """
         Travel distance in km between two points.
         """
-        if self._should_use_osrm(use_osrm):
+        if self._check_osrm_available():
             try:
                 url = (
                     f"{self.base_url}/route/v1/driving/"
@@ -175,7 +165,6 @@ class OSRMClient:
     def matrix_minutes(
         self,
         coords: List[Tuple[float, float]],
-        use_osrm: Optional[bool] = True,
         fallback_speed_kmh: float = 25.0,
     ) -> List[List[int]]:
         """
@@ -196,8 +185,8 @@ class OSRMClient:
             )
             return haversine_matrix(coords, fallback_speed_kmh)
 
-        # Try OSRM /table
-        if self._should_use_osrm(use_osrm):
+        # OSRM
+        if self._check_osrm_available():
             try:
                 coord_str = ";".join(f"{lon},{lat}" for (lat, lon) in coords)
                 url = (

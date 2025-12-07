@@ -8,6 +8,7 @@ from app.utils.validators import assert_itinerary_valid
 
 TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 
+
 def test_compare_ortools_vs_acs():
     """
     Compare OR-Tools CVRPTW vs ACS-CVRPTW on the same MAUT output and OSRM matrix.

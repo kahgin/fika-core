@@ -59,7 +59,22 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     preferences = payload.get("preferences", {})
     explicit_flags = payload.get("flags", {})
-    dietary_restrictions = payload.get("dietary_restrictions", [])
+
+    # Handle dietary_restrictions as either string or list
+    dietary_restrictions_raw = payload.get("dietary_restrictions", [])
+    if isinstance(dietary_restrictions_raw, str):
+        dietary_restrictions = (
+            [dietary_restrictions_raw]
+            if dietary_restrictions_raw and dietary_restrictions_raw != "none"
+            else []
+        )
+    else:
+        dietary_restrictions = (
+            dietary_restrictions_raw
+            if isinstance(dietary_restrictions_raw, list)
+            else []
+        )
+
     excluded_themes = payload.get("excluded_themes", [])
 
     # Merge explicit flags with derived flags (explicit takes precedence)
@@ -159,7 +174,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
         "roles": poi.get("poi_roles", []),
-        "themes": poi.get("images", []),
+        "themes": poi.get("themes", []),
     }
 
 

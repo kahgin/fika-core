@@ -12,7 +12,6 @@
         "pets": 0
     },
     "preferences": {
-        "budget": "sensible",
         "pacing": "balanced",
         "interests": [
             "religious_sites",
@@ -20,7 +19,7 @@
             "art_museums"
         ]
     },
-    "dietary_restrictions": ["vegan"],
+    "dietary_restrictions": "vegan",
     "flags": {
         "wheelchair_accessible": true,
         "is_muslim": true

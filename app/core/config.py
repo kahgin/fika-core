@@ -13,9 +13,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OSRM_URL: str
 
-    USE_OSRM: bool = True
-    OSRM_TIMEOUT: int = 5
-
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "https://fikatrip.vercel.app",
