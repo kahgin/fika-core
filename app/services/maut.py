@@ -2,32 +2,23 @@ from __future__ import annotations
 
 import os
 import math
-from dotenv import load_dotenv
 from supabase import create_client
 from typing import Any, Dict, List, Optional, Set, TypedDict
 from app.schemas.itinerary import POI, Coordinates, ItineraryResponse
+from app.utils.logger import get_logger
 
 # Supabase client
 
-load_dotenv()
 _sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+logger = get_logger(__name__)
 
 # Config
 
+BASE_WEIGHTS = {"interest": 0.3, "popularity": 0.1, "child": 0.15, "dietary": 0.15, "pet": 0.15, "access": 0.15 } # "cost": 0.2
 # BUDGET_TARGET = {"tight": 1.0, "sensible": 2.0, "upscale": 3.0, "luxury": 4.0}
 
-BASE_WEIGHTS = {
-    "interest": 0.4,
-    # "cost": 0.2,
-    "popularity": 0.2,
-    "child": 0.1,
-    "dietary": 0.1,
-    "pet": 0.1,
-    "access": 0.1,
-}
-
-
 # Internal DTO
+
 class Row(TypedDict, total=False):
     id: str
     name: str
@@ -55,9 +46,7 @@ class Row(TypedDict, total=False):
     _score: float
     _role: Optional[str]
 
-
 # Helpers
-
 
 def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     r = 0.0 if rating is None else max(0.0, min(1.0, float(rating) / 5.0))
@@ -99,7 +88,7 @@ def role_keep_counts(num_days: int) -> Dict[str, int]:
     return {
         "attraction": min(12 * d, 300),
         "meal": min(8 * d, 50),
-        "accommodation": min(d + 5, 15),  # At least d+5 to ensure options
+        "accommodation": min(d + 5, 15),
     }
 
 
@@ -140,11 +129,20 @@ def interest_match_score(
     # Normalize by number of selected themes
     return matches / len(selected_themes)
 
-
 # Supabase RPC
 
-
-def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Row]:
+def _rpc_fetch(
+    req: Dict[str, Any],
+    selected_themes: List[str],
+    *,
+    include_images: bool = True,
+    kids_only: bool = False,
+    pets_only: bool = False,
+    halal_only: bool = False,
+    vegetarian_only: bool = False,
+    vegan_only: bool = False,
+    wheelchair_only: bool = False,
+) -> List[Row]:
     quotas = role_keep_counts(req.get("num_days", 3))
     params = {
         "p_destination": req["destination"],
@@ -155,10 +153,13 @@ def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Ro
         "p_roles": ["attraction", "meal", "accommodation"],
         "p_min_rating": 2.0,
         "p_min_reviews": 10,
-        "p_halal_only": bool(req.get("flags", {}).get("is_muslim", False)),
-        "p_wheelchair_only": bool(
-            req.get("flags", {}).get("wheelchair_accessible", False)
-        ),
+        "p_halal_only": bool(halal_only),
+        "p_vegetarian_only": bool(vegetarian_only),
+        "p_vegan_only": bool(vegan_only),
+        "p_wheelchair_only": bool(wheelchair_only),
+        "p_kids_friendly_only": bool(kids_only),
+        "p_pets_friendly_only": bool(pets_only),
+        "p_include_images": bool(include_images),
         "p_excluded_themes": req.get("excluded_themes") or None,
         "p_seed_lon": req.get("seed_lon"),
         "p_seed_lat": req.get("seed_lat"),
@@ -167,8 +168,23 @@ def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Ro
     return list(rsp.data or [])
 
 
-# Scoring
+def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Row]:
+    """Initial fetch with strict constraints derived from request."""
+    flags = req.get("flags", {}) or {}
+    dietary = set(req.get("dietary_restrictions") or [])
+    return _rpc_fetch(
+        req,
+        selected_themes,
+        include_images=True,
+        kids_only=bool(flags.get("has_child")),
+        pets_only=bool(flags.get("has_pets")),
+        halal_only=bool("halal" in dietary or flags.get("is_muslim")),
+        vegetarian_only=bool("vegetarian" in dietary),
+        vegan_only=bool("vegan" in dietary),
+        wheelchair_only=bool(flags.get("wheelchair_accessible")),
+    )
 
+# Scoring
 
 def dietary_score(req: Dict[str, Any], poi: Row) -> float:
     prefs = set(req.get("dietary_restrictions") or [])
@@ -258,27 +274,12 @@ def trim_by_role(
 
     for r in scored:
         roles = r.get("poi_roles") or []
-
-        # Meals: any POI that has a meal role
-        if "meal" in roles:
+        primary = roles[0] if roles else (r.get("role_pick") or "attraction")
+        if primary == "meal":
             by_role["meal"].append(r)
-
-        # Pure accommodation only: no attraction/meal role
-        if (
-            "accommodation" in roles
-            and "attraction" not in roles
-            and "meal" not in roles
-        ):
+        elif primary == "accommodation":
             by_role["accommodation"].append(r)
-
-        # Attractions: anything marked as attraction (even if also meal/accommodation)
-        if "attraction" in roles:
-            by_role["attraction"].append(r)
-
-        # If no explicit roles at all, treat as attraction
-        if not roles or (
-            not any(role in roles for role in ["meal", "accommodation", "attraction"])
-        ):
+        else:
             by_role["attraction"].append(r)
 
     # Sort each role by score
@@ -364,16 +365,17 @@ def trim_by_role(
 
     return result
 
-
 # Mapping to API POI
 
-
 def to_poi(row: Row) -> POI:
-    """Convert internal Row to POI schema with all fields for CVRPTW."""
+    """Convert internal Row to POI schema with all fields."""
+    roles = row.get("poi_roles") or []
+    if not roles and row.get("role_pick"):
+        roles = [str(row.get("role_pick"))]
     return POI(
         id=row["id"],
         name=row["name"],
-        poi_roles=row.get("poi_roles") or [],
+        poi_roles=roles,
         category=(row.get("categories") or [None])[0],
         categories=row.get("categories") or [],
         themes=row.get("themes", []),
@@ -389,9 +391,7 @@ def to_poi(row: Row) -> POI:
         ),
     )
 
-
 # Orchestrator
-
 
 def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
     """
@@ -407,41 +407,99 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
     # 1) Derive selected themes (3 themes with fallback)
     selected_themes = derive_selected_themes(payload)
 
-    # 2) Fetch POI candidates from Supabase RPC
-    rows: List[Row] = fetch_candidates(payload, selected_themes)
+    # 2) Fetch POI candidates with potential fallback relaxation
+    flags = payload.get("flags", {}) or {}
+    dietary = set(payload.get("dietary_restrictions") or [])
 
-    # 3) Score each POI using MAUT algorithm
-    scored: List[Row] = []
-    for r in rows:
-        r["_score"] = score_row(payload, r, selected_themes)
-        scored.append(r)
+    quotas = role_keep_counts(payload.get("num_days", 3))
 
-    # 4) Trim by role quotas - returns dict by role with theme balance
-    trimmed_by_role = trim_by_role(scored, payload.get("num_days", 3), selected_themes)
+    # Initial strict toggles
+    t_kids = bool(flags.get("has_child"))
+    t_pets = bool(flags.get("has_pets"))
+    t_halal = bool("halal" in dietary or flags.get("is_muslim"))
+    t_veg = bool("vegetarian" in dietary)
+    t_vegan = bool("vegan" in dietary)
+    t_access = bool(flags.get("wheelchair_accessible"))
 
-    # 5) Flatten and sort all POIs by score for places list
+    constraints_relaxed: List[str] = []
+
+    def _run_round(
+        kids_only: bool, pets_only: bool
+    ) -> tuple[List[Row], Dict[str, List[Row]]]:
+        rows_i: List[Row] = _rpc_fetch(
+            payload,
+            selected_themes,
+            include_images=True,
+            kids_only=kids_only,
+            pets_only=pets_only,
+            halal_only=t_halal,
+            vegetarian_only=t_veg,
+            vegan_only=t_vegan,
+            wheelchair_only=t_access,
+        )
+        for rr in rows_i:
+            rr["_score"] = score_row(payload, rr, selected_themes)
+        trimmed_i = trim_by_role(rows_i, payload.get("num_days", 3), selected_themes)
+        return rows_i, trimmed_i
+
+    # Round 1: strict
+    rows, trimmed_by_role = _run_round(t_kids, t_pets)
+
+    def _meets_quota(tb: Dict[str, List[Row]]) -> bool:
+        return (
+            len(tb.get("attraction", [])) >= quotas["attraction"]
+            and len(tb.get("meal", [])) >= quotas["meal"]
+            and len(tb.get("accommodation", [])) >= quotas["accommodation"]
+        )
+
+    # Relaxation order: pets -> kids (dietary & wheelchair stay as set)
+    if not _meets_quota(trimmed_by_role):
+        if t_pets:
+            logger.info(
+                {
+                    "event": "maut.relaxation",
+                    "action": "relax_pets_friendly_only",
+                    "reason": "quota_underfilled",
+                }
+            )
+            constraints_relaxed.append("pets_friendly_only")
+            rows, trimmed_by_role = _run_round(t_kids, False)
+
+    if not _meets_quota(trimmed_by_role):
+        if t_kids:
+            logger.info(
+                {
+                    "event": "maut.relaxation",
+                    "action": "relax_kids_friendly_only",
+                    "reason": "quota_underfilled",
+                }
+            )
+            constraints_relaxed.append("kids_friendly_only")
+            rows, trimmed_by_role = _run_round(False, False)
+
+    # 3) Flatten and sort all POIs by score for places list
     all_trimmed: List[Row] = []
     for role_pois in trimmed_by_role.values():
         all_trimmed.extend(role_pois)
     all_trimmed.sort(key=lambda x: x["_score"], reverse=True)
 
-    # 6) Map internal Row format to API POI format
+    # 4) Map internal Row format to API POI format
     pois = [to_poi(r) for r in all_trimmed]
 
-    # 7) Also create role-separated POI lists for CVRPTW
+    # 5) Also create role-separated POI lists for CVRPTW
     pois_by_role = {
         role: [to_poi(r) for r in rows_list]
         for role, rows_list in trimmed_by_role.items()
     }
 
-    # 7.1) Select default hotel from accommodations (highest scored)
+    # 6) Select default hotel from accommodations (highest scored)
     accom_rows = trimmed_by_role.get("accommodation", [])
     selected_hotel_poi: Optional[POI] = None
     if accom_rows:
         best_hotel_row = accom_rows[0]
         selected_hotel_poi = to_poi(best_hotel_row)
 
-    # 8) Build response
+    # 7) Build response
     resp = ItineraryResponse(
         status="ok",
         places=pois,
@@ -468,6 +526,7 @@ def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
             "selected_hotel": (
                 selected_hotel_poi.model_dump() if selected_hotel_poi else None
             ),
+            "constraints_relaxed": constraints_relaxed,
         },
     )
     return resp if as_model else resp.model_dump()

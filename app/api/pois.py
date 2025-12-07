@@ -40,10 +40,8 @@ def list_pois(
             fields, count="exact"
         )  # .select("*", count="exact")
 
-        # Optional role (via poi_roles)
         if role:
             role = UI_TO_ROLE[role]
-            # 'contains' with a single-element list checks array overlap
             q = q.contains("poi_roles", [role])
 
         # Ordering + paging
@@ -217,8 +215,8 @@ def search_pois_by_destination(
                     "images": images,
                     "themes": themes,
                     "role": role,
-                    "poi_roles": poi_roles,
-                    "open_hours": poi.get("open_hours"),
+                    "poiRoles": poi_roles,
+                    "openHours": poi.get("open_hours"),
                 }
             )
         return {"status": "success", "data": transformed}

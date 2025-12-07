@@ -29,7 +29,7 @@ Top-level JSON schema (no "params" wrapper):
     "budget": "any" | "tight" | "sensible" | "upscale" | "luxury",
     "pacing": "relaxed" | "balanced" | "packed",
     "interests": string[],
-    "exclude_categories": string[]
+    "exclude_themes": string[]
   },
 
   "dietary_restrictions": "vegan" | "vegetarian" | "halal" | null,
@@ -73,7 +73,7 @@ General rules:
 
 Domain rules:
 - Currently only destinations in Singapore and its planning areas are supported.
-- Valid interest keys (for both interests and exclude_categories) are exactly:
+- Valid interest keys (for both interests and exclude_themes) are exactly:
   [
     "religious_sites",
     "adventure",
@@ -87,7 +87,7 @@ Domain rules:
     "food_culinary"
   ]
   Never use any other interest keys.
-- exclude_categories is the list of these interest keys that the user clearly does NOT want.
+- exclude_themes is the list of these interest keys that the user clearly does NOT want.
 - mandatory_poi is a list of POIs the user explicitly asked to include. Always use "poi_id" as the identifier (not name).
 - For ADD_POI and DELETE_POI, always use "poi_id" as the identifier (not name).
 - For ADD_POI, you must include "poi_id" and may set "day", "start_time", and "end_time" to null if not given.
@@ -145,7 +145,7 @@ Intent-specific behavior:
   - travelers: set adults/children/pets if specified. If not specified but planning is clearly requested, default to adults = 1, children = 0, pets = 0.
   - preferences.budget, preferences.pacing: fill if user gives hints, else null.
   - preferences.interests: subset of valid interests; if nothing clear, you may use [].
-  - preferences.exclude_categories: subset of the same valid interests the user clearly rejects.
+  - preferences.exclude_themes: subset of the same valid interests the user clearly rejects.
   - dietary_restrictions: per rules above.
   - flags: fill based on user signals.
   - mandatory_poi: list of objects with poi_id and optional day/date/start_time/end_time.

@@ -147,7 +147,7 @@ def extract_windows_for_date(
     date: dt.date,
     default_window: Tuple[int, int],
 ) -> List[Tuple[int, int]]:
-    """Extract time windows for a specific date from openHours."""
+    """Extract time windows for a specific date from open_hours."""
     d_start, d_end = default_window
     if not open_hours:
         return [default_window]
@@ -391,7 +391,7 @@ def _add_poi_node(
         return
 
     wbd: Dict[int, List[Tuple[int, int]]] = {}
-    open_hours = poi.get("openHours")
+    open_hours = poi.get("open_hours")
     day_specific = poi.get("_day_specific")
     role_default = DEFAULT_ROLE_WINDOWS.get(role, (9 * 60, 21 * 60))
 
@@ -425,18 +425,57 @@ def _add_poi_node(
             # Closed or unusable on all days
             return
 
-    # Mandatory override: base POI ID and day-specific constraint window
+    # Mandatory override: base POI ID and day/time flexibility handling
     base_id = poi["id"].rsplit("_day", 1)[0]
     is_mand = False
 
     if mandatory and base_id in mandatory:
-        md_spec = mandatory[base_id]
-        dk = int(md_spec["day"]) - 1  # API is 1-based, internal 0-based
-        if day_specific is None or day_specific == dk:
+        md_spec = mandatory[base_id] or {}
+        is_mand = True  # Presence in mandatory list marks it as mandatory
+
+        has_day = "day" in md_spec and md_spec["day"] is not None
+        has_window = (
+            "window" in md_spec
+            and md_spec["window"] is not None
+            and isinstance(md_spec["window"], (list, tuple))
+            and len(md_spec["window"]) == 2
+        )
+
+        if has_day:
+            # Restrict to specific day (API uses 1-based day indexing)
+            dk = int(md_spec["day"]) - 1
+
+            if has_window:
+                # Use provided time window on that day
+                a = minutes(md_spec["window"][0])
+                b = minutes(md_spec["window"][1])
+                wbd = {dk: [(a, b)]}
+            else:
+                # No explicit window → use default/day-derived windows for that day
+                d = day_specs[dk]
+                day_start = max(d.start_min, role_default[0])
+                day_end = min(d.end_min, role_default[1])
+                day_default = (day_start, day_end)
+                windows = extract_windows_for_date(open_hours, d.date, day_default)
+                if role == "meal":
+                    windows = _restrict_meal_windows(windows)
+                if windows:
+                    wbd = {dk: windows}
+                else:
+                    # Explicitly closed/unusable on that day → keep as empty to allow solver to skip
+                    wbd = {dk: []}
+        elif has_window:
+            # No specific day, but a time window is provided → apply to current day-specific copy
             a = minutes(md_spec["window"][0])
             b = minutes(md_spec["window"][1])
-            wbd = {dk: [(a, b)]}
-            is_mand = True
+            if day_specific is not None:
+                wbd = {day_specific: [(a, b)]}
+            else:
+                # Fallback: apply across all days
+                wbd = {d.day_index: [(a, b)] for d in day_specs}
+        else:
+            # Fully flexible mandatory (no day/time) → keep existing availability; only mark as mandatory
+            pass
 
     nodes.append(
         Node(
@@ -463,6 +502,7 @@ def solve_cvrptw(
     travel: List[List[int]],
     meals_required: int = 2,
     time_limit_sec: int = 15,
+    slack_wait_min: int = 120,
 ) -> dict:
     """
     Solve CVRPTW using OR-Tools.
@@ -512,7 +552,7 @@ def solve_cvrptw(
     # Time dimension
     routing.AddDimension(
         t_idx,
-        120,  # waiting/slack
+        slack_wait_min,  # waiting/slack
         max(d.end_min for d in day_specs),
         False,
         "Time",
@@ -688,7 +728,7 @@ def run_cvrptw(
 
     Uses the same DaySpec/Node/travel model as ACS-CVRPTW, with:
     - OSRM-based travel times.
-    - Per-day time windows derived from openHours and pacing.
+    - Per-day time windows derived from open_hours and pacing.
     - Meal windows restricted to meal-time bands (hard).
     - Soft penalties approximating "no consecutive meals" and "no theme repetition".
     """
@@ -731,12 +771,24 @@ def run_cvrptw(
             else 0
         )
 
-        return solve_cvrptw(
+        result = solve_cvrptw(
             day_specs,
             nodes,
             travel,
             meals_required=meals_required,
             time_limit_sec=time_limit_sec,
+            slack_wait_min=120,
         )
+        # Fallback: relax constraints if infeasible (no days)
+        if not result.get("days"):
+            result = solve_cvrptw(
+                day_specs,
+                nodes,
+                travel,
+                meals_required=0,
+                time_limit_sec=max(10, time_limit_sec),
+                slack_wait_min=300,
+            )
+        return result
     except Exception as e:
         return {"days": [], "note": f"Exception in run_cvrptw: {str(e)}"}

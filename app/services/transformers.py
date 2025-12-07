@@ -58,7 +58,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         Internal MAUT request dict with normalized fields
     """
     preferences = payload.get("preferences", {})
-    explicit_flags = payload.get("flags", {})
+    raw_flags = payload.get("flags", {})
 
     # Handle dietary_restrictions as either string or list
     dietary_restrictions_raw = payload.get("dietary_restrictions", [])
@@ -75,44 +75,51 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             else []
         )
 
-    excluded_themes = payload.get("excluded_themes", [])
+    # Flags normalization for is_muslim
+    user_excluded = payload.get("excluded_themes")
+    if isinstance(user_excluded, list):
+        excluded_themes = list(dict.fromkeys(user_excluded))
+        if raw_flags.get("is_muslim") and "nightlife" not in excluded_themes:
+            excluded_themes.append("nightlife")
+    else:
+        excluded_themes = ["nightlife"] if raw_flags.get("is_muslim") else []
 
-    # Merge explicit flags with derived flags (explicit takes precedence)
-    flags = {
-        "wheelchair_accessible": bool(
-            explicit_flags.get("wheelchair_accessible", False)
-        ),
-        "is_muslim": bool(explicit_flags.get("is_muslim", False)),
-        "kids_friendly": bool(explicit_flags.get("kids_friendly", False)),
-        "pets_friendly": bool(explicit_flags.get("pets_friendly", False)),
-    }
-
-    if explicit_flags.get("is_muslim", False):
-        # Only add "halal" if it's not already in dietary restrictions
-        # and "halal" explicitly set to false
+    if raw_flags.get("is_muslim"):
         halal_explicitly_false = any(
             isinstance(item, dict) and item.get("halal") is False
             for item in dietary_restrictions
         )
         if "halal" not in dietary_restrictions and not halal_explicitly_false:
             dietary_restrictions.append("halal")
-        # Only add "nightlife" if it's not already in excluded themes
-        if "nightlife" not in excluded_themes:
-            excluded_themes.append("nightlife")
+
+    # Compute base destination (multi-destination: pick first city)
+    base_destination = payload.get("destination")
+    if isinstance(payload.get("destinations"), list) and payload.get("destinations"):
+        cities = [
+            d.get("city") or d.get("name") or d.get("destination")
+            for d in payload.get("destinations")
+            if (d.get("city") or d.get("name") or d.get("destination"))
+        ]
+        if cities:
+            base_destination = cities[0]
+            logger.info(
+                f"Multi-destination request: cities={cities}, base_destination={base_destination}"
+            )
+    if not base_destination:
+        base_destination = "Singapore"
 
     # Build internal request
     return {
-        "destination": payload.get("destination", "Singapore"),
+        "destination": base_destination,
         "num_days": calculate_num_days(payload),
         "budget_tier": preferences.get("budget", "sensible"),
         "pacing": preferences.get("pacing", "balanced"),
         "interest_themes": preferences.get("interests", []),
         "excluded_themes": excluded_themes,
         "dietary_restrictions": dietary_restrictions,
-        "flags": flags,
+        "flags": raw_flags,
         "seed_lon": payload.get("seed_lon"),
         "seed_lat": payload.get("seed_lat"),
-        "excluded_themes": payload.get("excluded_themes"),
     }
 
 
@@ -142,7 +149,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     if poi.get("coordinates"):
         coords = poi["coordinates"]
 
-    # Get category (first from categories array or single category field)
+    # Get category
     category = None
     if poi.get("categories") and len(poi["categories"]) > 0:
         category = poi["categories"][0]
@@ -165,6 +172,9 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "reviewCount": poi.get("review_count") or poi.get("reviewCount"),
         "location": location,
         "images": poi.get("images", []),
+        "roles": poi.get("poi_roles", []),
+        "poiRoles": poi.get("poi_roles", []),
+        "themes": poi.get("themes", []),
         "description": poi.get("description") or poi.get("descriptions"),
         "coordinates": coords,
         "website": poi.get("website"),
@@ -173,8 +183,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "phone": poi.get("phone"),
         "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
-        "roles": poi.get("poi_roles", []),
-        "themes": poi.get("themes", []),
     }
 
 
@@ -216,22 +224,45 @@ def validate_create_itinerary_payload(
     """
     Validate frontend payload before processing.
 
-    Required fields:
-    - destination (non-empty string)
+    Accepts either:
+    - destinations: list[{city: str, days?: int}]
+    - OR legacy destination: non-empty string
 
-    Args:
-        payload: Frontend CreateItineraryPayload
-
-    Returns:
-        Tuple of (is_valid, error_message)
+    Returns a clear error message listing invalid fields.
     """
-    if not payload.get("destination"):
-        return False, "Destination is required"
+    errors: list[str] = []
 
-    if not isinstance(payload.get("destination"), str):
-        return False, "Destination must be a string"
+    dest_list = (
+        payload.get("destinations")
+        if isinstance(payload.get("destinations"), list)
+        else None
+    )
+    if dest_list is not None and len(dest_list) > 0:
+        for idx, d in enumerate(dest_list):
+            city = d.get("city") or d.get("name") or d.get("destination")
+            if not city or not isinstance(city, str) or not city.strip():
+                errors.append(
+                    f"destinations[{idx}].city is required and must be a non-empty string"
+                )
+            if d.get("days") is not None:
+                try:
+                    iv = int(d.get("days"))
+                    if iv <= 0:
+                        errors.append(f"destinations[{idx}].days must be > 0")
+                except Exception:
+                    errors.append(f"destinations[{idx}].days must be an integer")
+    else:
+        # Legacy single destination path
+        if "destination" not in payload:
+            errors.append("destination is required when destinations is not provided")
+        elif not isinstance(payload.get("destination"), str):
+            errors.append("destination must be a string")
+        elif not payload.get("destination", "").strip():
+            errors.append("destination cannot be empty")
 
-    if not payload["destination"].strip():
-        return False, "Destination cannot be empty"
+    if errors:
+        msg = "Invalid itinerary payload: " + "; ".join(errors)
+        logger.warning(msg)
+        return False, msg
 
     return True, None

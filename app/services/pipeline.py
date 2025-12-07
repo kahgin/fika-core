@@ -586,6 +586,63 @@ def run_full_pipeline(
                 "meta": {"request_id": request_id},
             }
 
+        # Derive user-provided hotels by city from user_input or meta.hotels
+        user_hotels_by_city: Optional[Dict[str, Dict[str, Any]]] = None
+        if user_input and isinstance(user_input.get("user_hotels_by_city"), dict):
+            user_hotels_by_city = user_input.get("user_hotels_by_city")
+        else:
+            meta_hotels = (maut_output.get("meta", {}) or {}).get("hotels") or []
+            if isinstance(meta_hotels, list) and meta_hotels:
+                # Infer city for each user hotel by nearest POI that has a city/admin name
+                def _city_name(p: Dict[str, Any]) -> Optional[str]:
+                    ca = p.get("complete_address") or {}
+                    return (
+                        ca.get("city") or p.get("area_name") or p.get("planning_area")
+                    )
+
+                place_cities: List[Tuple[str, float, float]] = []
+                for p in places:
+                    cname = _city_name(p)
+                    if not cname:
+                        continue
+                    coords = p.get("coordinates") or {}
+                    plat = coords.get("lat")
+                    plon = coords.get("lng")
+                    if plat is None or plon is None:
+                        continue
+                    place_cities.append((cname, float(plat), float(plon)))
+
+                if place_cities:
+                    user_hotels_by_city = {}
+                    for h in meta_hotels:
+                        hlat = h.get("latitude") or (h.get("coordinates") or {}).get(
+                            "lat"
+                        )
+                        hlon = h.get("longitude") or (h.get("coordinates") or {}).get(
+                            "lng"
+                        )
+                        if hlat is None or hlon is None:
+                            continue
+                        # Find nearest city centroid among POIs
+                        best_city = None
+                        best_d = None
+                        for cname, plat, plon in place_cities:
+                            d = (plat - float(hlat)) ** 2 + (plon - float(hlon)) ** 2
+                            if best_d is None or d < best_d:
+                                best_d = d
+                                best_city = cname
+                        if best_city:
+                            user_hotels_by_city[best_city] = {
+                                "id": h.get("id")
+                                or h.get("poi_id")
+                                or f"user_hotel_{best_city}",
+                                "name": h.get("name")
+                                or h.get("poi_name", "User Hotel"),
+                                "lat": float(hlat),
+                                "lon": float(hlon),
+                                "source": "user",
+                            }
+
         # Process each city
         all_days: List[Dict[str, Any]] = []
         failed_cities: List[str] = []
@@ -601,9 +658,9 @@ def run_full_pipeline(
             # Update meta with num_days for this city
             maut_city["meta"]["num_days"] = allocated_days
 
-            # Select hotel
+            # Select hotel (prefer user-provided for this city when available)
             hotel_city = select_hotel_for_city(
-                maut_city, allocated_days, None, request_id
+                maut_city, allocated_days, user_hotels_by_city, request_id
             )
 
             if hotel_city.get("status") == "error":
@@ -697,7 +754,7 @@ def run_full_pipeline(
 
                 all_days.extend(city_days)
 
-            except Exception as e:
+            except Exception:
                 logger.exception(f"Solver failed for city {city_name}")
                 failed_cities.append(city_name)
                 continue

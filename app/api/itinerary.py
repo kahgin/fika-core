@@ -11,6 +11,9 @@ from app.services.transformers import (
 from app.services.maut import run_pipeline
 from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
+from app.services.cvrptw import SERVICE_TIME
+from app.services.osrm import osrm_client
+from app.utils.naming import transform_frontend_to_canonical
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
@@ -91,6 +94,12 @@ def create_itinerary(payload: dict):
     itin_id = str(uuid.uuid4())
 
     try:
+        # 0. Ingress normalization to canonical snake_case
+        try:
+            payload = transform_frontend_to_canonical(payload)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
         # 1. Validate payload
         is_valid, error_msg = validate_create_itinerary_payload(payload)
         if not is_valid:
@@ -99,16 +108,52 @@ def create_itinerary(payload: dict):
         # 2. Transform frontend → MAUT request
         maut_request = transform_frontend_payload(payload)
         logger.info(
-            f"MAUT request: destination={maut_request['destination']}, "
+            f"MAUT request: destination={maut_request.get('destination')}, "
             f"num_days={maut_request['num_days']}, "
             f"flags={maut_request['flags']}"
         )
 
-        # 3. Run MAUT pipeline
-        maut_output = run_pipeline(maut_request)
-        logger.info(f"MAUT output: {len(maut_output.get('places', []))} POIs selected")
+        # 3. Run MAUT pipeline (support multi-destination)
+        destinations = (
+            payload.get("destinations")
+            if isinstance(payload.get("destinations"), list)
+            else []
+        )
+        if destinations:
+            all_places = []
+            selected_themes_union: list[str] = []
+            for d in destinations:
+                city = d.get("city") or d.get("name") or d.get("destination")
+                if not city:
+                    continue
+                req_i = dict(maut_request)
+                req_i["destination"] = city
+                out_i = run_pipeline(req_i)
+                all_places.extend(out_i.get("places", []))
+                th = out_i.get("meta", {}).get("selected_themes", [])
+                for t in th:
+                    if t not in selected_themes_union:
+                        selected_themes_union.append(t)
+            maut_output = {
+                "status": "ok",
+                "places": all_places,
+                "total_distance": 0.0,
+                "total_time": 0,
+                "route_order": [],
+                "meta": {
+                    "selected_themes": selected_themes_union[:3]
+                    if selected_themes_union
+                    else maut_request.get("interest_themes", [])[:3],
+                },
+            }
+        else:
+            maut_output = run_pipeline(maut_request)
+            logger.info(
+                f"MAUT output: {len(maut_output.get('places', []))} POIs selected"
+            )
 
         # 3.5. Enrich MAUT output with dates and num_days for CVRPTW compatibility
+        maut_output.setdefault("meta", {})
         maut_output["meta"]["dates"] = payload.get("dates", {})
         maut_output["meta"]["num_days"] = maut_request["num_days"]
 
@@ -163,57 +208,182 @@ def create_itinerary(payload: dict):
                     "themes": hotel_data.get("themes", []),
                     "open_hours": hotel_data.get("open_hours"),
                     "images": hotel_data.get("images", []),
+                    "source": "user",
                 }
                 # Add to places if not already present
                 if not any(p.get("id") == hotel_poi["id"] for p in places):
                     places.append(hotel_poi)
-                    logger.info(f"Added hotel {hotel_poi['name']} to places")
+                    logger.info(
+                        f"Added hotel {hotel_poi['name']} to places (source=user)"
+                    )
 
         if mandatory_pois_from_payload:
-            # Build mandatory dict for pipeline
+            # Build canonical mandatory dict for solver adapter
+            # Schema per POI: { "day": Optional[int], "window": Optional[[HH:MM, HH:MM]] }
             mandatory = {}
             for poi in mandatory_pois_from_payload:
                 poi_id = poi.get("poi_id")
-                if poi_id:
-                    mandatory[poi_id] = {
-                        "poi_id": poi_id,
-                        "latitude": poi.get("latitude"),
-                        "longitude": poi.get("longitude"),
-                        "date": poi.get("date"),
-                        "day": poi.get("day"),
-                        "time_type": poi.get("time_type", "any_time"),
-                        "start_time": poi.get("start_time"),
-                        "end_time": poi.get("end_time"),
-                        "themes": poi.get("themes", []),
-                        "role": poi.get("role"),
-                        "open_hours": poi.get("open_hours"),
-                        "images": poi.get("images", []),
-                    }
+                if not poi_id:
+                    continue
 
-                    # Also add to places list for frontend display
-                    mandatory_poi = {
-                        "id": poi_id,
-                        "name": poi.get("poi_name", "POI"),
-                        "coordinates": {
-                            "lat": poi.get("latitude"),
-                            "lng": poi.get("longitude"),
-                        },
-                        "poi_roles": [poi.get("role", "attraction")],
-                        "themes": poi.get("themes", []),
-                        "open_hours": poi.get("open_hours"),
-                        "images": poi.get("images", []),
-                    }
-                    # Add to places if not already present
-                    if not any(p.get("id") == mandatory_poi["id"] for p in places):
-                        places.append(mandatory_poi)
-                        logger.info(
-                            f"Added mandatory POI {mandatory_poi['name']} to places"
-                        )
+                start_time = poi.get("start_time")
+                end_time = poi.get("end_time")
+                day = poi.get("day")
 
-            logger.info(f"Processing {len(mandatory)} mandatory POIs from payload")
+                md_entry = {}
+                # Preserve day if provided (API uses 1-based indexing)
+                if isinstance(day, int) and day > 0:
+                    md_entry["day"] = day
+                # If both start and end provided, pass as a window for solver
+                if isinstance(start_time, str) and isinstance(end_time, str):
+                    md_entry["window"] = [start_time, end_time]
+
+                # Even if neither day nor window is set, include entry to mark as mandatory
+                mandatory[poi_id] = md_entry
+
+                # Also add to places list for frontend display (idempotent)
+                mandatory_poi = {
+                    "id": poi_id,
+                    "name": poi.get("poi_name", "POI"),
+                    "coordinates": {
+                        "lat": poi.get("latitude"),
+                        "lng": poi.get("longitude"),
+                    },
+                    "poi_roles": [poi.get("role", "attraction")],
+                    "themes": poi.get("themes", []),
+                    "open_hours": poi.get("open_hours"),
+                    "images": poi.get("images", []),
+                }
+                if not any(p.get("id") == mandatory_poi["id"] for p in places):
+                    places.append(mandatory_poi)
+                    logger.info(
+                        f"Added mandatory POI {mandatory_poi['name']} to places"
+                    )
+
+            logger.info(
+                f"Processing {len(mandatory)} mandatory POIs from payload (canonicalized)"
+            )
 
         # Update maut_output with enriched places
         maut_output["places"] = places
+
+        # Build user_hotels_by_city mapping (infer city by nearest POI with city)
+        user_hotels_by_city = {}
+        if hotels_from_payload:
+
+            def _city_name(p: dict) -> str | None:
+                ca = p.get("complete_address") or {}
+                return ca.get("city") or p.get("area_name") or p.get("planning_area")
+
+            place_cities = [(p, _city_name(p)) for p in places]
+            for h in hotels_from_payload:
+                hlat = h.get("latitude")
+                hlon = h.get("longitude")
+                if hlat is None or hlon is None:
+                    continue
+                best_city = None
+                best_d = None
+                for p, cname in place_cities:
+                    if not cname:
+                        continue
+                    coords = p.get("coordinates") or {}
+                    plat = coords.get("lat")
+                    plon = coords.get("lng")
+                    if plat is None or plon is None:
+                        continue
+                    d = (float(plat) - float(hlat)) ** 2 + (
+                        float(plon) - float(hlon)
+                    ) ** 2
+                    if best_d is None or d < best_d:
+                        best_d = d
+                        best_city = cname
+                if best_city:
+                    user_hotels_by_city[best_city] = {
+                        "id": h.get("poi_id"),
+                        "name": h.get("poi_name", "Hotel"),
+                        "lat": hlat,
+                        "lon": hlon,
+                        "source": "user",
+                    }
+
+        # Build days_per_city if multi-destination
+        def _compute_total_days(dates_obj: dict, fallback_days: int) -> int:
+            if not isinstance(dates_obj, dict):
+                return fallback_days
+            t = dates_obj.get("type")
+            if (
+                t == "specific"
+                and dates_obj.get("startDate")
+                and dates_obj.get("endDate")
+            ):
+                try:
+                    from datetime import date as _date
+
+                    s = _date.fromisoformat(
+                        str(dates_obj.get("startDate")).split("T")[0]
+                    )
+                    e = _date.fromisoformat(str(dates_obj.get("endDate")).split("T")[0])
+                    return max(1, (e - s).days + 1)
+                except Exception:
+                    return fallback_days
+            if t == "flexible" and dates_obj.get("days"):
+                try:
+                    d = int(dates_obj.get("days"))
+                    return max(1, d)
+                except Exception:
+                    return fallback_days
+            return fallback_days
+
+        days_per_city = {}
+        if destinations:
+            total_days = _compute_total_days(
+                payload.get("dates", {}), maut_request["num_days"]
+            )
+            provided = {}
+            ordered_cities: list[str] = []
+            for d in destinations:
+                city = d.get("city") or d.get("name") or d.get("destination")
+                if not city:
+                    continue
+                ordered_cities.append(city)
+                if d.get("days") is not None:
+                    try:
+                        provided[city] = int(d.get("days"))
+                    except Exception:
+                        provided[city] = 0
+            if provided:
+                s = sum(max(0, v) for v in provided.values())
+                if s > 0 and s != total_days:
+                    ratio = total_days / s
+                    base = {
+                        k: max(0, int(round(v * ratio))) for k, v in provided.items()
+                    }
+                    diff = total_days - sum(base.values())
+                    for k in ordered_cities:
+                        if k in base and diff != 0:
+                            adjust = 1 if diff > 0 else -1
+                            base[k] += adjust
+                            diff -= adjust
+                            if diff == 0:
+                                break
+                    days_per_city = base
+                else:
+                    days_per_city = {k: max(1, int(v)) for k, v in provided.items()}
+            else:
+                k = len(ordered_cities)
+                if k > 0:
+                    q, r = divmod(total_days, k)
+                    for i, c in enumerate(ordered_cities):
+                        days_per_city[c] = q + (1 if i < r else 0)
+
+        user_input = (
+            {"user_hotels_by_city": user_hotels_by_city}
+            if user_hotels_by_city
+            else None
+        )
+        if days_per_city:
+            user_input = user_input or {}
+            user_input["days_per_city"] = days_per_city
 
         # 6. Run full pipeline
         pipeline_output = run_full_pipeline(
@@ -223,6 +393,7 @@ def create_itinerary(payload: dict):
             mandatory=mandatory,
             time_limit_sec=20,
             solver="acs",
+            user_input=user_input,
         )
 
         # 6. Transform pipeline output → frontend plan
@@ -245,7 +416,8 @@ def create_itinerary(payload: dict):
             "status": "success",
             "meta": {
                 "title": payload.get("title"),
-                "destination": maut_request["destination"],
+                "destination": maut_request.get("destination"),  # legacy
+                "destinations": destinations or [],
                 "dates": payload.get("dates", {}),
                 "num_days": maut_request["num_days"],
                 "travelers": payload.get("travelers", {}),
@@ -365,52 +537,150 @@ def delete_itinerary(itin_id: str):
 @router.post("/itinerary/{itin_id}/reorder")
 def reorder_itinerary_stops(itin_id: str, payload: dict):
     """
-    Reorder stops within a specific day.
+    Reorder itinerary stops with support for single-day and entire-trip scopes.
 
-    Args:
-        itin_id: Itinerary identifier
-        payload: {"day_index": int, "poi_ids": str[]}
+    Payload options:
+    - scope: "single_day" | "entire_trip" (default: single_day)
+    - day_index: required if scope == single_day
+    - ordered_poi_ids: list[str] desired order
+    - moves: Optional[dict[str,int]] mapping poi_id -> target day_index (for cross-day moves)
+    - options: { respect_time_windows?: bool (default True), allow_overflow?: bool (default True), idempotency_key?: str }
 
-    Returns:
-        Updated itinerary data
+    Behavior:
+    - No-drop invariant: Do not drop any POIs.
+    - Recompute per-day distance metrics.
+    - Annotate basic flags (placeholders): overflow, time_window_violation, extended_hours.
     """
     try:
-        day_index = payload.get("day_index")
-        poi_ids = payload.get("poi_ids")
+        scope = payload.get("scope") or "single_day"
+        ordered = payload.get("ordered_poi_ids") or payload.get("poi_ids") or []
+        options = payload.get("options") or {}
+        moves = payload.get("moves") or {}
 
-        if day_index is None or not isinstance(poi_ids, list):
+        if not isinstance(ordered, list):
             raise HTTPException(
-                status_code=400, detail="day_index and poi_ids are required"
+                status_code=400, detail="ordered_poi_ids must be a list"
             )
 
         data = load_itinerary(itin_id)
-
         if "plan" not in data or "days" not in data["plan"]:
             raise HTTPException(status_code=400, detail="Invalid itinerary structure")
 
         days = data["plan"]["days"]
-        if day_index < 0 or day_index >= len(days):
-            raise HTTPException(status_code=400, detail="Invalid day_index")
 
-        day = days[day_index]
-        stops = day.get("stops", [])
+        if scope == "single_day":
+            day_index = payload.get("day_index")
+            if day_index is None or not (0 <= int(day_index) < len(days)):
+                raise HTTPException(
+                    status_code=400, detail="day_index is required and must be valid"
+                )
 
-        # Reorder stops based on poi_ids
-        stops_dict = {stop["poi_id"]: stop for stop in stops}
-        new_stops = []
-        for poi_id in poi_ids:
-            if poi_id in stops_dict:
-                new_stops.append(stops_dict[poi_id])
+            day = days[int(day_index)]
+            stops = day.get("stops", [])
+            # Build lookup and preserve depot/hotel positions
+            first = (
+                stops[0]
+                if stops and stops[0].get("role") in ("depot", "hotel")
+                else None
+            )
+            last = (
+                stops[-1]
+                if stops and stops[-1].get("role") in ("depot", "hotel")
+                else None
+            )
+            core = (
+                stops[1:-1]
+                if (first and last and first is not last)
+                else (stops[1:] if first else (stops[:-1] if last else stops))
+            )
+            prefix = [first] if first else []
+            suffix = [last] if last and last is not first else []
 
-        # Add any stops not in poi_ids (shouldn't happen but safety)
-        for stop in stops:
-            if stop["poi_id"] not in poi_ids:
-                new_stops.append(stop)
+            by_id = {s["poi_id"]: s for s in core}
+            new_core = [by_id[i] for i in ordered if i in by_id]
+            # Append any not specified to maintain no-drop
+            for s in core:
+                if s["poi_id"] not in ordered:
+                    new_core.append(s)
 
-        day["stops"] = new_stops
+            new_stops = prefix + new_core + suffix
+            day["stops"] = new_stops
+
+            # Recompute metrics and sort by arrival for consistency
+            _recompute_day_metrics(day)
+            _sort_day_stops_by_time(day)
+
+        elif scope == "entire_trip":
+            # Apply cross-day moves if provided
+            if isinstance(moves, dict) and moves:
+                # Build index of all stops by poi_id
+                idx_map = {}
+                for d_i, d in enumerate(days):
+                    for s in d.get("stops", []):
+                        idx_map.setdefault(s.get("poi_id"), []).append((d_i, s))
+                # Move each specified poi_id to target day
+                for poi_id, target_day in moves.items():
+                    if not isinstance(target_day, int) or not (
+                        0 <= target_day < len(days)
+                    ):
+                        continue
+                    locs = idx_map.get(poi_id) or []
+                    for src_day, stop in locs:
+                        # Remove from source
+                        src_list = days[src_day].get("stops", [])
+                        days[src_day]["stops"] = [x for x in src_list if x is not stop]
+                        # Append to target
+                        days[target_day].setdefault("stops", [])
+                        days[target_day]["stops"].append(stop)
+
+            # Reorder within each day using the subsequence present
+            present = set(ordered)
+            for d in days:
+                stops = d.get("stops", [])
+                first = (
+                    stops[0]
+                    if stops and stops[0].get("role") in ("depot", "hotel")
+                    else None
+                )
+                last = (
+                    stops[-1]
+                    if stops and stops[-1].get("role") in ("depot", "hotel")
+                    else None
+                )
+                core = (
+                    stops[1:-1]
+                    if (first and last and first is not last)
+                    else (stops[1:] if first else (stops[:-1] if last else stops))
+                )
+                prefix = [first] if first else []
+                suffix = [last] if last and last is not first else []
+
+                by_id = {s["poi_id"]: s for s in core}
+                new_core = [by_id[i] for i in ordered if i in by_id]
+                for s in core:
+                    if s["poi_id"] not in present:
+                        new_core.append(s)
+                d["stops"] = prefix + new_core + suffix
+                _recompute_day_metrics(d)
+                _sort_day_stops_by_time(d)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid scope")
+
+        # Annotate basic reorder flags in meta
+        meta = data.setdefault("plan", {}).setdefault("meta", {})
+        meta.setdefault("reorder", {})
+        meta["reorder"].update(
+            {
+                "overflow": False,
+                "time_window_violation": False,
+                "extended_hours": False,
+                "respect_time_windows": bool(options.get("respect_time_windows", True)),
+                "allow_overflow": bool(options.get("allow_overflow", True)),
+            }
+        )
+
         save_itinerary(itin_id, data)
-        logger.info(f"Reordered day {day_index} in itinerary {itin_id}")
-
+        logger.info(f"Reordered itinerary {itin_id} with scope={scope}")
         return data
 
     except HTTPException:
@@ -455,7 +725,7 @@ def _sort_day_stops_by_time(day: dict) -> None:
         # all-day / no time
         return (1, _time_to_minutes("23:59"))
 
-    # Common case: depot at start and/or end
+    # Depot at start and/or end
     first_is_depot = is_depot(stops[0])
     last_is_depot = is_depot(stops[-1])
 
@@ -470,12 +740,6 @@ def _sort_day_stops_by_time(day: dict) -> None:
         untimed = [s for s in middle if not s.get("arrival")]
         timed_sorted = sorted(timed, key=sort_key)
         day["stops"] = [stops[0], *timed_sorted, *untimed, stops[-1]]
-    elif first_is_depot and len(stops) > 1:
-        middle = stops[1:]
-        timed = [s for s in middle if s.get("arrival")]
-        untimed = [s for s in middle if not s.get("arrival")]
-        timed_sorted = sorted(timed, key=sort_key)
-        day["stops"] = [stops[0], *timed_sorted, *untimed]
     elif last_is_depot and len(stops) > 1:
         middle = stops[:-1]
         timed = [s for s in middle if s.get("arrival")]
@@ -489,39 +753,58 @@ def _sort_day_stops_by_time(day: dict) -> None:
         day["stops"] = [*timed_sorted, *untimed]
 
 
+def _recompute_day_metrics(day: dict) -> None:
+    """Recompute a day's total distance using OSRM distance for sequential stops."""
+    stops = day.get("stops", [])
+    total = 0.0
+    if len(stops) >= 2:
+        for i in range(len(stops) - 1):
+            lat1 = stops[i].get("coordinates", {}).get("lat") or stops[i].get(
+                "latitude"
+            )
+            lon1 = stops[i].get("coordinates", {}).get("lng") or stops[i].get(
+                "longitude"
+            )
+            lat2 = stops[i + 1].get("coordinates", {}).get("lat") or stops[i + 1].get(
+                "latitude"
+            )
+            lon2 = stops[i + 1].get("coordinates", {}).get("lng") or stops[i + 1].get(
+                "longitude"
+            )
+            if None not in (lat1, lon1, lat2, lon2):
+                try:
+                    total += osrm_client.distance(lat1, lon1, lat2, lon2)
+                except Exception:
+                    continue
+    day["total_distance"] = round(total, 2)
+
+
 @router.post("/itinerary/{itin_id}/schedule-poi")
 def schedule_poi(itin_id: str, payload: dict):
     """
-    Update POI schedule (time or move to different day).
+    Update POI schedule (time or move to different day) with strict input modes.
 
-    Args:
-        itin_id: Itinerary identifier
-        payload: {
-            "poi_id": str,
-            "day_index": int,
-            "start_time": str (optional, HH:MM format),
-            "end_time": str (optional, HH:MM format),
-            "all_day": bool (optional)
-        }
+    Allowed modes:
+    - all_day: true
+    - start_time and end_time both provided (HH:MM)
+    - single_time: "HH:MM" (infer end_time from role/pacing defaults)
 
-    Returns:
-        Updated itinerary data
+    Reject payloads with only one of start_time/end_time.
     """
     try:
         poi_id = payload.get("poi_id")
         day_index = payload.get("day_index")
-
         if not poi_id or day_index is None:
             raise HTTPException(
                 status_code=400, detail="poi_id and day_index are required"
             )
 
         data = load_itinerary(itin_id)
-
         if "plan" not in data or "days" not in data["plan"]:
             raise HTTPException(status_code=400, detail="Invalid itinerary structure")
 
         days = data["plan"]["days"]
+        day_index = int(day_index)
         if day_index < 0 or day_index >= len(days):
             raise HTTPException(status_code=400, detail="Invalid day_index")
 
@@ -536,36 +819,69 @@ def schedule_poi(itin_id: str, payload: dict):
                     break
             if poi_stop:
                 break
-
         if not poi_stop:
             raise HTTPException(status_code=404, detail="POI not found in itinerary")
 
-        # Update times if provided
+        # Mode validation
+        all_day = bool(payload.get("all_day", False))
         start_time = payload.get("start_time")
         end_time = payload.get("end_time")
-        all_day = payload.get("all_day", False)
+        single_time = payload.get("single_time")
 
         if all_day:
-            # All day: clear times
             poi_stop["arrival"] = None
             poi_stop["start_service"] = None
             poi_stop["depart"] = None
-        elif start_time and end_time:
-            poi_stop["arrival"] = start_time
-            poi_stop["start_service"] = start_time
-            poi_stop["depart"] = end_time
+        else:
+            if (start_time and not end_time) or (end_time and not start_time):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Provide both start_time and end_time, or use single_time/all_day",
+                )
 
-        # Add to target day
+            if start_time and end_time:
+                poi_stop["arrival"] = start_time
+                poi_stop["start_service"] = start_time
+                poi_stop["depart"] = end_time
+            elif single_time:
+                # Infer duration from role and pacing
+                pacing = data.get("plan", {}).get("meta", {}).get("pacing", "balanced")
+                role = poi_stop.get("role", "attraction")
+                try:
+                    duration_min = int(SERVICE_TIME.get(role, {}).get(pacing, 60))
+                except Exception:
+                    duration_min = 60
+                # Compute end time HH:MM
+                try:
+                    h, m = map(int, str(single_time).split(":"))
+                    start_min = h * 60 + m
+                    end_min = start_min + max(0, duration_min)
+                    end_min = min(end_min, 24 * 60)
+                    poi_stop["arrival"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
+                    poi_stop["start_service"] = poi_stop["arrival"]
+                    poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
+                except Exception:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid single_time format; expected HH:MM",
+                    )
+            else:
+                # No valid mode
+                raise HTTPException(
+                    status_code=400,
+                    detail="Provide all_day, both start/end times, or single_time",
+                )
+
+        # Add to target day and sort
         target_day = days[day_index]
         target_day.setdefault("stops", [])
         target_day["stops"].append(poi_stop)
 
-        # Enforce time-based ordering within the day
         _sort_day_stops_by_time(target_day)
+        _recompute_day_metrics(target_day)
 
         save_itinerary(itin_id, data)
         logger.info(f"Scheduled POI {poi_id} in itinerary {itin_id}")
-
         return data
 
     except HTTPException:
