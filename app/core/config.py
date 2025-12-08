@@ -13,12 +13,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OSRM_URL: str
 
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "https://4.218.15.39",
-        "http://4.218.15.39:80",
-        "http://fika.koreacentral.cloudapp.azure.com",
-    ]
+    CORS_ORIGINS: list[str] = ["*"]
 
     DEFAULT_LIMIT: int = 12
     MAX_LIMIT: int = 90

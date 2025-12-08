@@ -762,6 +762,79 @@ def validate_global_rules(
     return {"ok": ok, "errors": errors}
 
 
+def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
+    """Normalize a city name for matching (lowercase, strip whitespace, handle common variants)."""
+    if not raw:
+        return None
+    name = str(raw).strip().lower()
+    # Handle common variants
+    if "," in name:
+        name = name.split(",")[0].strip()
+    return name
+
+
+def _filter_mandatory_for_city(
+    mandatory: Optional[Dict[str, Dict]],
+    city_name: str,
+    places: List[Dict[str, Any]],
+) -> Optional[Dict[str, Dict]]:
+    """
+    Filter mandatory POIs for a specific city.
+    
+    Matches mandatory POIs to city by:
+    1. poi_destination field in mandatory spec
+    2. area_name of the POI in places list
+    
+    Args:
+        mandatory: Full mandatory dict {poi_id: spec}
+        city_name: Target city name
+        places: POIs in the city (to lookup area_name)
+    
+    Returns:
+        Filtered mandatory dict for this city only
+    """
+    if not mandatory:
+        return None
+    
+    city_norm = _normalize_city_name(city_name)
+    if not city_norm:
+        return mandatory  # Can't filter, return all
+    
+    # Build lookup of poi_id -> area_name from places
+    poi_area_lookup: Dict[str, str] = {}
+    for poi in places:
+        poi_id = poi.get("id")
+        area = poi.get("area_name")
+        if poi_id and area:
+            poi_area_lookup[poi_id] = area
+    
+    filtered: Dict[str, Dict] = {}
+    for poi_id, spec in mandatory.items():
+        spec = spec or {}
+        
+        # Check poi_destination in spec
+        poi_dest = spec.get("poi_destination")
+        if poi_dest:
+            dest_norm = _normalize_city_name(poi_dest)
+            if dest_norm and (dest_norm in city_norm or city_norm in dest_norm):
+                filtered[poi_id] = spec
+                continue
+        
+        # Check area_name from places lookup
+        poi_area = poi_area_lookup.get(poi_id)
+        if poi_area:
+            area_norm = _normalize_city_name(poi_area)
+            if area_norm and (area_norm in city_norm or city_norm in area_norm):
+                filtered[poi_id] = spec
+                continue
+        
+        # If no destination info, include in all cities (fallback)
+        if not poi_dest and not poi_area:
+            filtered[poi_id] = spec
+    
+    return filtered if filtered else None
+
+
 def run_full_pipeline(
     maut_output: Dict[str, Any],
     hotel: Optional[Dict[str, Any]] = None,
@@ -777,6 +850,7 @@ def run_full_pipeline(
     Stages:
     1) Segment POIs by city
     2) For each city: allocate days, select hotel, build problem, solve
+       - Mandatory POIs are filtered by city based on poi_destination
     3) Merge city outputs chronologically
     4) Validate global rules
     5) Enrich and return
@@ -785,7 +859,7 @@ def run_full_pipeline(
         maut_output: MAUT output with places and meta
         hotel: Optional explicit hotel (legacy single-city support)
         pacing: "relaxed" | "balanced" | "packed"
-        mandatory: Optional mandatory POI constraints
+        mandatory: Optional mandatory POI constraints {poi_id: {day, window, time_type, poi_destination}}
         time_limit_sec: Solver time limit
         solver: "ortools" | "acs"
         user_input: Optional user preferences
@@ -1023,6 +1097,11 @@ def run_full_pipeline(
                 continue
 
             try:
+                # Filter mandatory POIs for this city
+                city_mandatory = _filter_mandatory_for_city(
+                    mandatory, area_name, maut_city.get("places", [])
+                )
+                
                 if solver == "acs":
                     selected_themes = maut_city.get("meta", {}).get(
                         "selected_themes", []
@@ -1032,7 +1111,7 @@ def run_full_pipeline(
                         hotel_city,
                         pacing=pacing,
                         selected_themes=selected_themes,
-                        mandatory=mandatory,
+                        mandatory=city_mandatory,
                     )
                     _log_event(
                         "build_problem.call",
@@ -1049,7 +1128,7 @@ def run_full_pipeline(
                         nodes=nodes,
                         travel=travel,
                         meals_required=3,
-                        mandatory=mandatory,
+                        mandatory=city_mandatory,
                         cfg=VRPConfig(),
                     )
                     _log_event(
@@ -1067,7 +1146,7 @@ def run_full_pipeline(
                         maut_output=maut_city,
                         hotel=hotel_city,
                         pacing=pacing,
-                        mandatory=mandatory,
+                        mandatory=city_mandatory,
                         time_limit_sec=time_limit_sec,
                     )
                     _log_event(

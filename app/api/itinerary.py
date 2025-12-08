@@ -244,7 +244,13 @@ def create_itinerary(payload: dict):
                 day = poi.get("day")
                 date_str = poi.get("date")
 
+                # Get poi_destination (normalize it like destination names)
+                poi_dest_raw = poi.get("poi_destination")
+                poi_destination = _normalize_destination_name(poi_dest_raw) if poi_dest_raw else None
+
                 md_entry = {"time_type": time_type}
+                if poi_destination:
+                    md_entry["poi_destination"] = poi_destination
 
                 # Handle day/date based on dates mode
                 if is_specific_dates and date_str:
