@@ -27,6 +27,7 @@ class POI(BaseModel):
     id: str
     name: str
     poi_roles: List[str] = []
+    area_name: Optional[str] = None
     category: Optional[str] = None
     categories: Optional[List[str]] = None
     themes: Optional[List[str]] = None
@@ -43,26 +44,27 @@ class POI(BaseModel):
 
 
 class DatesFlexible(BaseModel):
-    """Flexible dates (days count)."""
+    """Flexible dates (days count). Canonical snake_case."""
 
     type: str = "flexible"
     days: int
-    preferredMonth: Optional[str] = None  # kept as-is if used externally
+    preferred_month: Optional[str] = None
 
 
 class DatesSpecific(BaseModel):
-    """Specific date range (inclusive)."""
+    """Specific date range (inclusive). Canonical snake_case."""
 
     type: str = "specific"
-    startDate: str
-    endDate: str
+    start_date: str
+    end_date: str
 
 
 class DestinationSpec(BaseModel):
-    """User-specified destination entry for multi-dest requests."""
+    """User-specified destination entry for multi-dest requests (canonical)."""
 
-    dest: str
+    city: str
     days: Optional[int] = None
+    dates: Optional[Dict[str, Any]] = None
 
 
 class ItineraryRequest(BaseModel):
@@ -96,14 +98,19 @@ class ItineraryResponse(BaseModel):
 class MandatoryPoiSpec(BaseModel):
     """Mandatory POI spec (shared by API → Solver adapter and CVRPTW).
 
+    time_type: 'specific' | 'all_day' | 'any_time' (default: any_time)
     day: 1-based day index; optional
-    window: [start_hh:mm, end_hh:mm]; optional
-    Presence in the mapping marks a POI as mandatory even if both fields are None.
+    window: [start_hh:mm, end_hh:mm]; optional (for time_type='specific')
+    all_day: bool; optional (for time_type='all_day')
+    
+    Presence in the mapping marks a POI as mandatory even if all fields are None/default.
     """
 
     poi_id: str
+    time_type: str = "any_time"
     day: Optional[int] = None
     window: Optional[Tuple[str, str]] = None
+    all_day: Optional[bool] = None
 
 
 class UserHotel(BaseModel):

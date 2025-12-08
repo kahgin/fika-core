@@ -254,8 +254,8 @@ class TestBuildProblemEdgeCases:
                 "num_days": 2,
                 "dates": {
                     "type": "specific",
-                    "startDate": "2025-01-15",
-                    "endDate": "2025-01-16",
+                    "start_date": "2025-01-15",
+                    "end_date": "2025-01-16",
                 },
             },
         }

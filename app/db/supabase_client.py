@@ -1,32 +1,44 @@
+from typing import Optional
 from supabase import create_client, Client
+
 from app.core.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-supabase: Client = None
-
-
-def init_supabase():
-    global supabase
-    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-        try:
-            supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            logger.info("Supabase client initialized successfully")
-            return supabase
-        except Exception as e:
-            logger.error(f"Failed to initialize Supabase: {e}")
-            return None
-    else:
-        logger.error("SUPABASE_URL or SUPABASE_KEY not set")
-        return None
-
-
-# Initialize Supabase client
-supabase = init_supabase()
+# Module-level singleton
+_supabase_client: Optional[Client] = None
 
 
 def get_supabase() -> Client:
-    if supabase is None:
-        raise Exception("Supabase not connected")
-    return supabase
+    """Get or initialize Supabase client"""
+    global _supabase_client
+
+    if _supabase_client is not None:
+        return _supabase_client
+
+    # Validate settings
+    if not settings.SUPABASE_URL:
+        raise ValueError("SUPABASE_URL is not configured")
+    if not settings.SUPABASE_KEY:
+        raise ValueError("SUPABASE_KEY is not configured")
+
+    try:
+        _supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        logger.info("Supabase client initialized successfully")
+        return _supabase_client
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase: {e}")
+        raise
+
+
+# Optional helper functions
+def reset_supabase():
+    """Reset client (useful for testing)"""
+    global _supabase_client
+    _supabase_client = None
+
+
+def is_initialized() -> bool:
+    """Check if Supabase client is initialized"""
+    return _supabase_client is not None

@@ -63,7 +63,7 @@ def test_full_pipeline_user_path():
     assert cvrptw_output is not None
     assert cvrptw_output.get("status") == "success", cvrptw_output.get("error", "")
     days = cvrptw_output.get("days", [])
-    assert len(days) == frontend_payload["num_days"]
+    assert len(days) == maut_request["num_days"]
 
     # Validate itinerary strictly (no warnings allowed)
     assert_itinerary_valid(

@@ -1,228 +1,245 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+
 from app.services.osrm import osrm_client
-
-# Configuration
-
-
-PACE_DAY_BUDGET_MIN = {
-    "relaxed": 9 * 60,  # 09:00–18:00
-    "balanced": 11 * 60,  # 09:00–20:00
-    "packed": 13 * 60,  # 09:00–22:00
-}
-
-SERVICE_TIME = {
-    "attraction": {"relaxed": 120, "balanced": 90, "packed": 60},
-    "meal": {"relaxed": 75, "balanced": 60, "packed": 45},
-    "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
-}
-
-# Default time windows when open_hours is missing (minutes from midnight)
-DEFAULT_ROLE_WINDOWS = {
-    "attraction": (9 * 60, 19 * 60),  # 09:00–19:00
-    "meal": (10 * 60, 22 * 60),  # 10:00–22:00
-    "accommodation": (0, 24 * 60),  # 24h for stay
-    "depot": (0, 24 * 60),  # hotel depot
-}
-
-# Global “good” meal windows (used also in ACS)
-BREAKFAST_WIN = (7 * 60, 10 * 60)  # 07:00–10:00
-LUNCH_WIN = (12 * 60, 14 * 60)  # 12:00–14:00
-DINNER_WIN = (18 * 60, 21 * 60)  # 18:00–21:00
-
-# Extra windows for hard “meals around meal time” in OR-Tools version
-
-# How far around these windows we still allow meals (hard constraint)
-MEAL_HARD_TOL = 90  # minutes; meal must start within ±90 min of some meal window
-
-# Penalties. Values are in “minute-cost” units on top of travel+service time.
-# These are deliberately large so that:
-# - Consecutive meals almost never appear in optimal solutions.
-# - Back-to-back same-theme transitions are strongly discouraged.
-PENALTY_MEAL_TO_MEAL = 5000
-PENALTY_SAME_THEME = 500
-PENALTY_THEME_LIMIT = (
-    10000  # Very high penalty for exceeding 2 attractions per theme per day
+from app.services.vrp_model import DaySpec, Node, vrp_config
+from app.services.vrp_utils import (
+    extract_windows_for_date,
+    restrict_meal_windows,
+    format_time_minutes,
 )
-DROP_PENALTY_BASE = 2000  # Base penalty for dropping a POI (non-mandatory)
 
 
-# Data Structures
+def _get_primary_theme(themes: Optional[List[str]]) -> Optional[str]:
+    """Return the first theme from a list, if available."""
+    return themes[0] if themes else None
 
 
-@dataclass
-class DaySpec:
-    day_index: int
-    date: dt.date
-    start_min: int
-    end_min: int
-    depot_id: str
+def _create_day_specs(
+    maut_output: dict, hotel: Dict[str, float], pacing: str
+) -> List[DaySpec]:
+    """Create a list of DaySpec objects based on the trip duration and pacing."""
+    meta = maut_output.get("meta", {})
+    dates = meta.get("dates", {})
+    num_days = meta.get("num_days", 1)
+
+    start_date = dt.date.today()
+    if dates.get("type") == "specific":
+        start_raw = dates.get("start_date")
+        if start_raw:
+            try:
+                start_date = dt.date.fromisoformat(str(start_raw).split("T")[0])
+            except (ValueError, TypeError):
+                pass
+
+    day_specs = []
+    start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
+    budget_min = vrp_config.pace_day_budget_min.get(pacing, 11 * 60)
+    end_min = start_min + budget_min
+
+    for k in range(num_days):
+        day_specs.append(
+            DaySpec(
+                day_index=k,
+                date=start_date + dt.timedelta(days=k),
+                start_min=start_min,
+                end_min=end_min,
+                depot_id=str(hotel["id"]),
+            )
+        )
+    return day_specs
 
 
-@dataclass
-class Node:
-    idx: int
-    poi_id: str
-    name: str
-    role: str
-    lat: float
-    lon: float
-    service: int
-    themes: Optional[List[str]]
-    windows_by_day: Dict[int, List[Tuple[int, int]]]
-    is_mandatory: bool = False
+def _create_nodes(
+    maut_output: dict,
+    day_specs: List[DaySpec],
+    hotel: Dict[str, float],
+    pacing: str,
+    selected_themes: Optional[List[str]] = None,
+    mandatory: Optional[Dict[str, Dict]] = None,
+) -> List[Node]:
+    """Create a list of all nodes (depot and POIs) for the VRP."""
+    nodes: List[Node] = []
+    idx = 0
+
+    # Depot node (index 0)
+    nodes.append(
+        Node(
+            idx=idx,
+            poi_id=str(hotel["id"]),
+            name=str(hotel["name"]),
+            role="depot",
+            lat=float(hotel["lat"]),
+            lon=float(hotel["lon"]),
+            service=0,
+            themes=None,
+            windows_by_day={d.day_index: [(d.start_min, d.end_min)] for d in day_specs},
+        )
+    )
+    idx += 1
+
+    # POI nodes
+    places = maut_output.get("places", [])
+    for poi in places:
+        roles = poi.get("poi_roles", [])
+        role = "attraction"  # Default role
+        if "meal" in roles:
+            role = "meal"
+        elif "accommodation" in roles:
+            # Skip accommodations as they are handled as depots
+            continue
+
+        # Filter attractions by selected themes if provided
+        if role == "attraction" and selected_themes:
+            poi_themes = poi.get("themes") or []
+            if not any(t in poi_themes for t in selected_themes):
+                continue
+
+        # Each POI can be visited on any day, so create a version for each day
+        for day_idx in range(len(day_specs)):
+            poi_copy = poi.copy()
+            poi_copy["id"] = f"{poi['id']}_day{day_idx}"
+            poi_copy["_day_specific"] = day_idx
+            new_node = _create_poi_node(
+                poi=poi_copy,
+                role=role,
+                idx=idx,
+                day_specs=day_specs,
+                pacing=pacing,
+                mandatory=mandatory,
+            )
+            if new_node:
+                nodes.append(new_node)
+                idx += 1
+
+    return nodes
 
 
-# Helper Functions
-
-
-def parse_time_range_label(label: str) -> Optional[Tuple[int, int]]:
-    """Parse time range like '10 am-9 pm' to (600, 1260)."""
-    s = label.strip()
-    if "closed" in s.lower() or "open 24 hours" in s.lower():
-        return None if "closed" in s.lower() else (0, 24 * 60)
-
-    try:
-        left, right = [x.strip() for x in s.split("-")]
-
-        def to_min(x: str) -> int:
-            x = x.lower().replace(" ", "")
-            ampm = "am" if "am" in x else "pm"
-            hhmm = x.replace("am", "").replace("pm", "")
-            if ":" in hhmm:
-                h, m = hhmm.split(":")
-                h, m = int(h), int(m)
-            else:
-                h, m = int(hhmm), 0
-            if ampm == "am":
-                if h == 12:
-                    h = 0
-            else:
-                if h != 12:
-                    h += 12
-            return h * 60 + m
-
-        a, b = to_min(left), to_min(right)
-        if b <= a:
-            # Handle cases like 8am–2am (next day) by capping at midnight
-            b = 24 * 60
-        return (a, b)
-    except Exception:
+def _create_poi_node(
+    poi: Dict,
+    role: str,
+    idx: int,
+    day_specs: List[DaySpec],
+    pacing: str,
+    mandatory: Optional[Dict[str, Dict]],
+) -> Optional[Node]:
+    """Create a single Node object for a POI, handling its schedule and constraints.
+    
+    Handles mandatory POI time_type modes:
+    - 'specific': Use provided start_time/end_time window
+    - 'all_day': Block entire day (day start to end)
+    - 'any_time': Use role-based default windows (fallback)
+    """
+    coords = poi.get("coordinates")
+    if not coords or coords.get("lat") is None or coords.get("lng") is None:
         return None
 
+    service_times = vrp_config.service_time_min.get(role, {})
+    service = service_times.get(pacing, 90)
 
-def weekday_name(d: dt.date) -> str:
-    """Return weekday name like 'Monday'."""
-    return d.strftime("%A")
+    wbd: Dict[int, List[Tuple[int, int]]] = {}
+    open_hours = poi.get("open_hours")
+    day_specific = poi.get("_day_specific")
+    role_default = vrp_config.default_role_windows.get(role, (9 * 60, 21 * 60))
 
+    # Check if this POI is mandatory and get its constraints
+    base_id = str(poi["id"]).rsplit("_day", 1)[0]
+    is_mand = False
+    md_spec: Dict = {}
+    
+    if mandatory and base_id in mandatory:
+        is_mand = True
+        md_spec = mandatory[base_id] or {}
+    
+    # Get mandatory constraints
+    day_constraint = md_spec.get("day")
+    time_type = md_spec.get("time_type", "any_time")
+    is_all_day = md_spec.get("all_day", False) or time_type == "all_day"
+    window_constraint = md_spec.get("window")
 
-def minutes(hhmm: str) -> int:
-    """Convert 'HH:MM' to minutes from midnight."""
-    h, m = map(int, hhmm.split(":"))
-    return h * 60 + m
+    # If mandatory with day constraint, only create node for that specific day
+    if is_mand and day_constraint is not None:
+        target_day = int(day_constraint) - 1  # API uses 1-based indexing
+        if day_specific != target_day:
+            return None  # This node copy is for the wrong day
 
-
-def pick_theme(themes: List[str], selected_themes: List[str]) -> Optional[str]:
-    """Pick first matching theme from POI themes."""
-    cat_s = " ".join(themes or []).lower()
-    for t in selected_themes:
-        if t.replace("_", " ") in cat_s:
-            return t
-    return None
-
-
-def day_span(pacing: str) -> Tuple[int, int]:
-    """Return (start_min, end_min) for a day based on pacing."""
-    horizon = PACE_DAY_BUDGET_MIN.get(pacing, PACE_DAY_BUDGET_MIN["balanced"])
-    return (9 * 60, 9 * 60 + horizon)
-
-
-def extract_windows_for_date(
-    open_hours: Optional[Dict[str, List[str]]],
-    date: dt.date,
-    default_window: Tuple[int, int],
-) -> List[Tuple[int, int]]:
-    """Extract time windows for a specific date from open_hours."""
-    d_start, d_end = default_window
-    if not open_hours:
-        return [default_window]
-
-    wn = weekday_name(date)
-    raw = open_hours.get(wn)
-    if not raw:
-        return [default_window]
-
-    out: List[Tuple[int, int]] = []
-    closed_explicit = False
-    for lab in raw:
-        if "closed" in lab.lower():
-            closed_explicit = True
-            continue
-        rng = parse_time_range_label(lab)
-        if not rng:
-            continue
-        a, b = rng
-        a1, b1 = max(a, d_start), min(b, d_end)
-        if a1 <= b1:
-            out.append((a1, b1))
-
-    if out:
-        return out
-    if closed_explicit:
-        return []
-    return [default_window]
-
-
-def _restrict_meal_windows(
-    windows: List[Tuple[int, int]],
-) -> List[Tuple[int, int]]:
-    """
-    Restrict meal POI windows to be close to breakfast/lunch/dinner windows.
-
-    This makes "meal at meal time" a hard constraint in OR-Tools by shrinking
-    the allowed time windows for meal nodes, similar to what ACS enforces
-    dynamically in its simulation with soft/hard tolerances.
-    """
-    if not windows:
-        return []
-
-    meal_windows = [BREAKFAST_WIN, LUNCH_WIN, DINNER_WIN]
-    allowed: List[Tuple[int, int]] = []
-
-    for w_start, w_end in windows:
-        for m_start, m_end in meal_windows:
-            # Expand meal window by MEAL_HARD_TOL on both sides
-            ms = m_start - MEAL_HARD_TOL
-            me = m_end + MEAL_HARD_TOL
-            a = max(w_start, ms)
-            b = min(w_end, me)
-            if a < b:
-                allowed.append((a, b))
-
-    if not allowed:
-        return []
-
-    # Merge overlapping intervals
-    allowed.sort()
-    merged: List[Tuple[int, int]] = []
-    cur_start, cur_end = allowed[0]
-    for a, b in allowed[1:]:
-        if a <= cur_end:
-            cur_end = max(cur_end, b)
+    if day_specific is not None:
+        d = day_specs[day_specific]
+        
+        if is_mand and is_all_day:
+            # All-day: block entire day window, use full day budget
+            wbd[day_specific] = [(d.start_min, d.end_min)]
+            # Set service time to fill the day (minus buffer for travel)
+            service = max(service, d.end_min - d.start_min - 60)
+        elif is_mand and window_constraint:
+            # Specific time window from user
+            try:
+                start_parts = window_constraint[0].split(":")
+                end_parts = window_constraint[1].split(":")
+                start = int(start_parts[0]) * 60 + int(start_parts[1]) if len(start_parts) > 1 else int(start_parts[0]) * 60
+                end = int(end_parts[0]) * 60 + int(end_parts[1]) if len(end_parts) > 1 else int(end_parts[0]) * 60
+                wbd[day_specific] = [(start, end)]
+                # Adjust service time to fit within window
+                service = min(service, end - start)
+            except (ValueError, IndexError):
+                # Invalid format, fall back to role defaults
+                day_default = (
+                    max(d.start_min, role_default[0]),
+                    min(d.end_min, role_default[1]),
+                )
+                windows = extract_windows_for_date(open_hours, d.date, day_default)
+                if role == "meal":
+                    windows = restrict_meal_windows(windows)
+                if windows:
+                    wbd[day_specific] = windows
         else:
-            merged.append((cur_start, cur_end))
-            cur_start, cur_end = a, b
-    merged.append((cur_start, cur_end))
-    return merged
+            # any_time or no constraint: use role-based defaults
+            day_default = (
+                max(d.start_min, role_default[0]),
+                min(d.end_min, role_default[1]),
+            )
+            windows = extract_windows_for_date(open_hours, d.date, day_default)
+            if role == "meal":
+                windows = restrict_meal_windows(windows)
+            if windows:
+                wbd[day_specific] = windows
+        
+        if not wbd:
+            return None  # Not visitable on its specific day
+    else:
+        # This branch is less likely if _create_nodes creates day-specific copies
+        for d in day_specs:
+            day_default = (
+                max(d.start_min, role_default[0]),
+                min(d.end_min, role_default[1]),
+            )
+            windows = extract_windows_for_date(open_hours, d.date, day_default)
+            if role == "meal":
+                windows = restrict_meal_windows(windows)
+            if windows:
+                wbd[d.day_index] = windows
+        if not wbd:
+            return None  # Not visitable on any day
+
+    return Node(
+        idx=idx,
+        poi_id=str(poi["id"]),
+        name=str(poi.get("name")),
+        role=role,
+        themes=poi.get("themes", []),
+        lat=float(coords["lat"]),
+        lon=float(coords["lng"]),
+        service=service,
+        windows_by_day=wbd,
+        is_mandatory=is_mand,
+    )
 
 
 # Build Problem from MAUT Output
-
 
 def build_problem(
     maut_output: dict,
@@ -232,265 +249,20 @@ def build_problem(
     mandatory: Optional[Dict[str, Dict]] = None,
 ) -> Tuple[List[DaySpec], List[Node], List[List[int]]]:
     """
-    Convert MAUT output to CVRPTW problem.
-
-    Returns:
-        (day_specs, nodes, travel_matrix_minutes)
+    Convert MAUT output to the VRP problem format (DaySpecs, Nodes, Travel Matrix).
+    This function is now a simplified entry point that delegates to helpers.
     """
-    meta = maut_output.get("meta", {})
-    dates = meta.get("dates") or {}
+    day_specs = _create_day_specs(maut_output, hotel, pacing)
+    nodes = _create_nodes(maut_output, day_specs, hotel, pacing, selected_themes, mandatory)
 
-    # Get num_days from meta (calculated by transformers.py)
-    num_days = meta.get("num_days")
-    if not num_days or num_days <= 0:
-        # Fallback: try to calculate from dates if available
-        if dates.get("type") == "specific" and dates.get("start_date") and dates.get("end_date"):
-            try:
-                start_date = dt.date.fromisoformat(str(dates["start_date"]))
-                end_date = dt.date.fromisoformat(str(dates["end_date"]))
-                num_days = (end_date - start_date).days + 1
-            except Exception:
-                num_days = 3
-        elif dates.get("type") == "flexible" and dates.get("days"):
-            num_days = int(dates["days"])
-        else:
-            num_days = 3
-
-    # Parse start date for day specs
-    if dates.get("type") == "specific" and dates.get("start_date"):
-        try:
-            start = dt.date.fromisoformat(str(dates["start_date"]))
-        except Exception:
-            start = dt.date.today()
-    else:
-        start = dt.date.today()
-
-    # Day specs based on pacing
-    day_specs: List[DaySpec] = []
-    d_start, d_end = day_span(pacing)
-    for k in range(num_days):
-        day_specs.append(
-            DaySpec(
-                day_index=k,
-                date=start + dt.timedelta(days=k),
-                start_min=d_start,
-                end_min=d_end,
-                depot_id=hotel["id"],
-            )
-        )
-
-    # Build nodes
-    nodes: List[Node] = []
-    idx = 0
-
-    # Depot node
-    depot = Node(
-        idx=idx,
-        poi_id=hotel["id"],
-        name=hotel["name"],
-        role="depot",
-        lat=float(hotel["lat"]),
-        lon=float(hotel["lon"]),
-        service=0,
-        themes=None,
-        windows_by_day={d.day_index: [(d.start_min, d.end_min)] for d in day_specs},
-    )
-    nodes.append(depot)
-    idx += 1
-
-    # POI nodes
-    sel_themes = maut_output.get("meta", {}).get("selected_themes", []) or []
-    pois_by_role = meta.get("pois_by_role", {})
-
-    if pois_by_role:
-        # Structured by role
-        for role in ["meal", "attraction", "accommodation"]:
-            role_pois = pois_by_role.get(role, [])
-            if role == "accommodation":
-                # hotel depot already covers stay
-                continue
-
-            for poi in role_pois:
-                for day_idx in range(num_days):
-                    poi_copy = poi.copy()
-                    poi_copy["id"] = f"{poi['id']}_day{day_idx}"
-                    poi_copy["_day_specific"] = day_idx
-                    _add_poi_node(
-                        poi_copy,
-                        role,
-                        nodes,
-                        idx,
-                        day_specs,
-                        pacing,
-                        sel_themes,
-                        mandatory,
-                    )
-                    idx += 1
-    else:
-        # Flat places list
-        places = maut_output.get("places", [])
-        for poi in places:
-            roles = poi.get("poi_roles", [])
-            if "meal" in roles:
-                role = "meal"
-            elif "accommodation" in roles:
-                role = "accommodation"
-            else:
-                role = "attraction"
-
-            for day_idx in range(num_days):
-                poi_copy = poi.copy()
-                poi_copy["id"] = f"{poi['id']}_day{day_idx}"
-                poi_copy["_day_specific"] = day_idx
-                _add_poi_node(
-                    poi_copy,
-                    role,
-                    nodes,
-                    idx,
-                    day_specs,
-                    pacing,
-                    sel_themes,
-                    mandatory,
-                )
-                idx += 1
-
-    # Travel matrix in minutes from OSRM (same for OR-Tools and ACS)
+    # Create the travel matrix using OSRM
     coords = [(n.lat, n.lon) for n in nodes]
-    travel = osrm_client.matrix_minutes(coords)
+    travel_matrix = osrm_client.matrix_minutes(coords)
 
-    return day_specs, nodes, travel
-
-
-def _add_poi_node(
-    poi: Dict,
-    role: str,
-    nodes: List[Node],
-    idx: int,
-    day_specs: List[DaySpec],
-    pacing: str,
-    sel_themes: List[str],
-    mandatory: Optional[Dict[str, Dict]],
-) -> None:
-    """Helper to add a POI node to the nodes list."""
-    service = SERVICE_TIME[role][pacing]
-    theme = pick_theme(poi.get("themes", []), sel_themes)
-
-    # Extract coordinates
-    lat = None
-    lon = None
-    coords = poi.get("coordinates")
-    if coords:
-        lat = coords.get("lat")
-        lon = coords.get("lng")
-
-    if lat is None or lon is None:
-        return
-
-    wbd: Dict[int, List[Tuple[int, int]]] = {}
-    open_hours = poi.get("open_hours")
-    day_specific = poi.get("_day_specific")
-    role_default = DEFAULT_ROLE_WINDOWS.get(role, (9 * 60, 21 * 60))
-
-    if day_specific is not None:
-        # Only available on one specific day
-        d = day_specs[day_specific]
-        day_start = max(d.start_min, role_default[0])
-        day_end = min(d.end_min, role_default[1])
-        day_default = (day_start, day_end)
-
-        windows = extract_windows_for_date(open_hours, d.date, day_default)
-        if role == "meal":
-            windows = _restrict_meal_windows(windows)
-        if not windows:
-            return
-        wbd[day_specific] = windows
-    else:
-        # Available on multiple days; derive windows per day
-        for d in day_specs:
-            day_start = max(d.start_min, role_default[0])
-            day_end = min(d.end_min, role_default[1])
-            day_default = (day_start, day_end)
-
-            windows = extract_windows_for_date(open_hours, d.date, day_default)
-            if role == "meal":
-                windows = _restrict_meal_windows(windows)
-            if windows:
-                wbd[d.day_index] = windows
-
-        if not wbd:
-            # Closed or unusable on all days
-            return
-
-    # Mandatory override: base POI ID and day/time flexibility handling
-    base_id = poi["id"].rsplit("_day", 1)[0]
-    is_mand = False
-
-    if mandatory and base_id in mandatory:
-        md_spec = mandatory[base_id] or {}
-        is_mand = True  # Presence in mandatory list marks it as mandatory
-
-        has_day = "day" in md_spec and md_spec["day"] is not None
-        has_window = (
-            "window" in md_spec
-            and md_spec["window"] is not None
-            and isinstance(md_spec["window"], (list, tuple))
-            and len(md_spec["window"]) == 2
-        )
-
-        if has_day:
-            # Restrict to specific day (API uses 1-based day indexing)
-            dk = int(md_spec["day"]) - 1
-
-            if has_window:
-                # Use provided time window on that day
-                a = minutes(md_spec["window"][0])
-                b = minutes(md_spec["window"][1])
-                wbd = {dk: [(a, b)]}
-            else:
-                # No explicit window → use default/day-derived windows for that day
-                d = day_specs[dk]
-                day_start = max(d.start_min, role_default[0])
-                day_end = min(d.end_min, role_default[1])
-                day_default = (day_start, day_end)
-                windows = extract_windows_for_date(open_hours, d.date, day_default)
-                if role == "meal":
-                    windows = _restrict_meal_windows(windows)
-                if windows:
-                    wbd = {dk: windows}
-                else:
-                    # Explicitly closed/unusable on that day → keep as empty to allow solver to skip
-                    wbd = {dk: []}
-        elif has_window:
-            # No specific day, but a time window is provided → apply to current day-specific copy
-            a = minutes(md_spec["window"][0])
-            b = minutes(md_spec["window"][1])
-            if day_specific is not None:
-                wbd = {day_specific: [(a, b)]}
-            else:
-                # Fallback: apply across all days
-                wbd = {d.day_index: [(a, b)] for d in day_specs}
-        else:
-            # Fully flexible mandatory (no day/time) → keep existing availability; only mark as mandatory
-            pass
-
-    nodes.append(
-        Node(
-            idx=idx,
-            poi_id=poi["id"],
-            name=poi["name"],
-            role=role,
-            themes=poi.get("themes", []),
-            lat=float(lat),
-            lon=float(lon),
-            service=service,
-            windows_by_day=wbd,
-            is_mandatory=is_mand,
-        )
-    )
+    return day_specs, nodes, travel_matrix
 
 
 # OR-Tools Solver
-
 
 def solve_cvrptw(
     day_specs: List[DaySpec],
@@ -522,25 +294,23 @@ def solve_cvrptw(
     manager = pywrapcp.RoutingIndexManager(N, V, 0)
     routing = pywrapcp.RoutingModel(manager)
 
-    # Transit callback with penalties similar to ACS rules
+    # Transit callback with penalties
     def transit_cb(from_index, to_index):
         i, j = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
-        base = travel[i][j] + nodes[i].service
-        bonus = 0
+        base_travel_cost = travel[i][j] + nodes[i].service
+        penalty = 0
 
-        # Strong cost for meal → meal (approximate "no consecutive meals")
+        # Penalize consecutive meals
         if nodes[i].role == "meal" and nodes[j].role == "meal":
-            bonus += PENALTY_MEAL_TO_MEAL
+            penalty += vrp_config.penalty_meal_to_meal
 
-        # Penalize same-theme transitions (approximate "no three similar in a row")
-        if (
-            nodes[i].themes
-            and nodes[j].themes
-            and nodes[i].themes[0] == nodes[j].themes[0]
-        ):
-            bonus += PENALTY_SAME_THEME
+        # Penalize consecutive POIs with the same primary theme
+        theme_i = _get_primary_theme(nodes[i].themes)
+        theme_j = _get_primary_theme(nodes[j].themes)
+        if theme_i and theme_j and theme_i == theme_j:
+            penalty += vrp_config.penalty_same_theme
 
-        return base + bonus
+        return base_travel_cost + penalty
 
     t_idx = routing.RegisterTransitCallback(transit_cb)
     routing.SetArcCostEvaluatorOfAllVehicles(t_idx)
@@ -588,12 +358,14 @@ def solve_cvrptw(
             by_poi.setdefault(base_id, []).append(i)
 
     for poi_id, idxs in by_poi.items():
-        any_mand = any(nodes[i].is_mandatory for i in idxs)
-        penalty = 10_000_000 if any_mand else DROP_PENALTY_BASE
+        is_mand = any(nodes[i].is_mandatory for i in idxs)
+        penalty = (
+            vrp_config.mandatory_miss_penalty
+            if is_mand
+            else vrp_config.drop_poi_penalty
+        )
         routing.AddDisjunction(
-            [manager.NodeToIndex(i) for i in idxs],
-            penalty,
-            1,  # at most 1 visit among copies
+            [manager.NodeToIndex(i) for i in idxs], penalty, 1
         )
 
     # Meals dimension (min/max meals per day, cap 3)
@@ -603,26 +375,52 @@ def solve_cvrptw(
 
     meal_idx = routing.RegisterTransitCallback(meal_cb)
     routing.AddDimension(
-        meal_idx,
-        0,
-        3,  # max 3 meals per day
-        True,
-        "Meals",
+        meal_idx, 0, 3, True, "Meals"  # Max 3 meals per day
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
+    # Theme dimension to enforce max 2 attractions with same theme per day
+    unique_themes = list(
+        set(
+            _get_primary_theme(n.themes)
+            for n in nodes
+            if n.role == "attraction" and _get_primary_theme(n.themes)
+        )
+    )
+
+    for theme in unique_themes:
+
+        def theme_cb(from_index, to_index):
+            j = manager.IndexToNode(to_index)
+            node_j = nodes[j]
+            if (
+                node_j.role == "attraction"
+                and _get_primary_theme(node_j.themes) == theme
+            ):
+                return 1
+            return 0
+
+        theme_transit_idx = routing.RegisterTransitCallback(theme_cb)
+        routing.AddDimension(
+            theme_transit_idx,
+            0,  # No slack
+            vrp_config.acs_max_theme_per_day,  # Max 2 per day
+            True,  # Start cumul to zero
+            f"theme_{theme}",
+        )
+
+    # Set meal requirements per day
     if meals_required > 0:
         for v in range(V):
-            available_meals = sum(
+            # Count available meal nodes for the specific day
+            available_meals_today = sum(
                 1
                 for n in nodes
-                if n.role == "meal"
-                and (len(n.windows_by_day) > 1 or v in n.windows_by_day)
+                if n.role == "meal" and v in n.windows_by_day
             )
-            req_min = min(meals_required, available_meals)
-            req_max = min(3, available_meals)
-            if req_min > 0:
-                meal_dim.CumulVar(routing.End(v)).SetRange(req_min, req_max)
+            req = min(meals_required, available_meals_today)
+            if req > 0:
+                meal_dim.CumulVar(routing.End(v)).SetRange(req, 3)
 
     # Search parameters
     params = pywrapcp.DefaultRoutingSearchParameters()
@@ -642,75 +440,71 @@ def solve_cvrptw(
     if not solution:
         return {"days": [], "note": "No feasible solution"}
 
-    def fmt(t: int) -> str:
-        return f"{t // 60:02d}:{t % 60:02d}"
-
+    total_distance = 0
     for v, d in enumerate(day_specs):
         idx = routing.Start(v)
         day_plan = {"date": d.date.isoformat(), "stops": [], "meals": 0}
-        theme_count: Dict[str, int] = {}  # Track theme counts for this day
-
         depot_node = nodes[0]
 
-        while not routing.IsEnd(idx):
-            ni = manager.IndexToNode(idx)
-            n = nodes[ni]
-            tmin = solution.Min(time_dim.CumulVar(idx))
-
-            if n.role != "depot":
-                # Check theme limit for attractions - only check first theme
-                skip_poi = False
-                if n.role == "attraction" and n.themes and len(n.themes) > 0:
-                    first_theme = n.themes[0]
-                    current_count = theme_count.get(first_theme, 0)
-                    if current_count >= 2:
-                        # Skip this POI as it would exceed the theme limit
-                        skip_poi = True
-                    else:
-                        theme_count[first_theme] = current_count + 1
-
-                if not skip_poi:
-                    day_plan["stops"].append(
-                        {
-                            "poi_id": n.poi_id,
-                            "name": n.name,
-                            "role": n.role,
-                            "themes": n.themes if n.role == "attraction" else [],
-                            "arrival": fmt(tmin),
-                            "start_service": fmt(tmin),
-                            "depart": fmt(tmin + n.service),
-                            "latitude": n.lat,
-                            "longitude": n.lon,
-                        }
-                    )
-                    if n.role == "meal":
-                        day_plan["meals"] += 1
-
-            idx = solution.Value(routing.NextVar(idx))
-
-        end_idx = routing.End(v)
-        end_time = solution.Min(time_dim.CumulVar(end_idx))
+        # Add depot start
         day_plan["stops"].append(
             {
                 "poi_id": depot_node.poi_id,
                 "name": depot_node.name,
                 "role": depot_node.role,
-                "themes": [],
-                "arrival": fmt(end_time),
-                "start_service": fmt(end_time),
-                "depart": fmt(end_time),
-                "latitude": depot_node.lat,
-                "longitude": depot_node.lon,
+                "arrival": format_time_minutes(d.start_min),
+                "start_service": format_time_minutes(d.start_min),
+                "depart": format_time_minutes(d.start_min),
+            }
+        )
+
+        while not routing.IsEnd(idx):
+            ni = manager.IndexToNode(idx)
+            if ni != 0:  # Skip the depot start, which is handled already
+                n = nodes[ni]
+                tvar = time_dim.CumulVar(idx)
+                arrival_time = solution.Min(tvar)
+                service_start = solution.Min(tvar)
+                depart_time = service_start + n.service
+
+                day_plan["stops"].append(
+                    {
+                        "poi_id": n.poi_id,
+                        "name": n.name,
+                        "role": n.role,
+                        "themes": n.themes or [],
+                        "arrival": format_time_minutes(arrival_time),
+                        "start_service": format_time_minutes(service_start),
+                        "depart": format_time_minutes(depart_time),
+                    }
+                )
+                if n.role == "meal":
+                    day_plan["meals"] += 1
+
+            prev_idx = idx
+            idx = solution.Value(routing.NextVar(idx))
+            total_distance += routing.GetArcCostForVehicle(prev_idx, idx, v)
+
+        # Add depot end
+        end_time = solution.Min(time_dim.CumulVar(routing.End(v)))
+        day_plan["stops"].append(
+            {
+                "poi_id": depot_node.poi_id,
+                "name": depot_node.name,
+                "role": depot_node.role,
+                "arrival": format_time_minutes(end_time),
+                "start_service": format_time_minutes(end_time),
+                "depart": format_time_minutes(end_time),
             }
         )
 
         result["days"].append(day_plan)
 
+    result["meta"] = {"total_distance": round(total_distance / 60, 2)}
     return result
 
 
 # Main Entry Point
-
 
 def run_cvrptw(
     maut_output: dict,
@@ -722,20 +516,12 @@ def run_cvrptw(
     """
     Run CVRPTW on MAUT output using OR-Tools.
 
-    Uses the same DaySpec/Node/travel model as ACS-CVRPTW, with:
-    - OSRM-based travel times.
-    - Per-day time windows derived from open_hours and pacing.
-    - Meal windows restricted to meal-time bands (hard).
-    - Soft penalties approximating "no consecutive meals" and "no theme repetition".
+    This version uses the shared VRP model and configuration, enforcing constraints
+    like meal times and theme repetition through the OR-Tools routing model.
     """
     try:
-        selected_themes = maut_output.get("meta", {}).get("selected_themes", []) or []
         day_specs, nodes, travel = build_problem(
-            maut_output,
-            hotel,
-            pacing=pacing,
-            selected_themes=selected_themes,
-            mandatory=mandatory,
+            maut_output, hotel, pacing=pacing, mandatory=mandatory
         )
 
         if not day_specs:
@@ -749,20 +535,14 @@ def run_cvrptw(
             }
 
         if len(nodes) <= 1:
-            pr = maut_output.get("meta", {}).get("pois_by_role", {})
             return {
                 "days": [],
-                "note": (
-                    "Only depot node. "
-                    f"pois_by_role keys: {list(pr.keys())}, "
-                    f"meal count: {len(pr.get('meal', []))}, "
-                    f"attraction count: {len(pr.get('attraction', []))}"
-                ),
+                "note": "Only depot node available.",
             }
 
         meal_nodes = sum(1 for n in nodes if n.role == "meal")
         meals_required = (
-            min(2, meal_nodes // len(day_specs))
+            min(3, meal_nodes // len(day_specs))
             if meal_nodes > 0 and len(day_specs) > 0
             else 0
         )

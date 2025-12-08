@@ -28,11 +28,11 @@ def calculate_num_days(payload: Dict[str, Any]) -> int:
         except (ValueError, TypeError):
             return 3
 
-    # Specific dates: calculate from startDate to endDate (inclusive)
+    # Specific dates: calculate from start_date to end_date (inclusive)
     if date_type == "specific":
         try:
-            raw_start = dates.get("startDate") or dates.get("start_date")
-            raw_end = dates.get("endDate") or dates.get("end_date")
+            raw_start = dates.get("start_date")
+            raw_end = dates.get("end_date")
             start = date.fromisoformat(str(raw_start).split("T")[0])
             end = date.fromisoformat(str(raw_end).split("T")[0])
             return max(1, min(10, (end - start).days + 1))
@@ -97,11 +97,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     # Compute base destination (multi-destination: pick first city)
     base_destination = payload.get("destination")
     if isinstance(payload.get("destinations"), list) and payload.get("destinations"):
-        cities = [
-            d.get("city") or d.get("name") or d.get("destination")
-            for d in payload.get("destinations")
-            if (d.get("city") or d.get("name") or d.get("destination"))
-        ]
+        cities = [d.get("city") for d in payload.get("destinations") if d.get("city")]
         if cities:
             base_destination = cities[0]
             logger.info(
@@ -215,56 +211,3 @@ def transform_response_to_frontend(
         "route_order": output.get("route_order", []),
         "meta": output.get("meta", {}),
     }
-
-
-# Validation Helpers
-
-
-def validate_create_itinerary_payload(
-    payload: Dict[str, Any],
-) -> tuple[bool, Optional[str]]:
-    """
-    Validate frontend payload before processing.
-
-    Accepts either:
-    - destinations: list[{city: str, days?: int}]
-    - OR legacy destination: non-empty string
-
-    Returns a clear error message listing invalid fields.
-    """
-    errors: list[str] = []
-
-    dest_list = (
-        payload.get("destinations")
-        if isinstance(payload.get("destinations"), list)
-        else None
-    )
-    if dest_list is not None and len(dest_list) > 0:
-        for idx, d in enumerate(dest_list):
-            city = d.get("city") or d.get("name") or d.get("destination")
-            if not city or not isinstance(city, str) or not city.strip():
-                errors.append(
-                    f"destinations[{idx}].city is required and must be a non-empty string"
-                )
-            if d.get("days") is not None:
-                try:
-                    iv = int(d.get("days"))
-                    if iv <= 0:
-                        errors.append(f"destinations[{idx}].days must be > 0")
-                except Exception:
-                    errors.append(f"destinations[{idx}].days must be an integer")
-    else:
-        # Legacy single destination path
-        if "destination" not in payload:
-            errors.append("destination is required when destinations is not provided")
-        elif not isinstance(payload.get("destination"), str):
-            errors.append("destination must be a string")
-        elif not payload.get("destination", "").strip():
-            errors.append("destination cannot be empty")
-
-    if errors:
-        msg = "Invalid itinerary payload: " + "; ".join(errors)
-        logger.warning(msg)
-        return False, msg
-
-    return True, None

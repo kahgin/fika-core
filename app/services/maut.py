@@ -1,23 +1,28 @@
 from __future__ import annotations
 
-import os
 import math
-from supabase import create_client
 from typing import Any, Dict, List, Optional, Set, TypedDict
 from app.schemas.itinerary import POI, Coordinates, ItineraryResponse
 from app.utils.logger import get_logger
+from app.db.supabase_client import get_supabase
 
-# Supabase client
-
-_sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 logger = get_logger(__name__)
 
 # Config
 
-BASE_WEIGHTS = {"interest": 0.3, "popularity": 0.1, "child": 0.15, "dietary": 0.15, "pet": 0.15, "access": 0.15 } # "cost": 0.2
+BASE_WEIGHTS = {
+    "interest": 0.30,
+    "popularity": 0.10,
+    "child": 0.10,
+    "dietary": 0.10,
+    "pet": 0.10,
+    "access": 0.10,
+    # "cost": 0.20,  # Budget alignment - preserved for future implementation
+}
 # BUDGET_TARGET = {"tight": 1.0, "sensible": 2.0, "upscale": 3.0, "luxury": 4.0}
 
 # Internal DTO
+
 
 class Row(TypedDict, total=False):
     id: str
@@ -46,7 +51,9 @@ class Row(TypedDict, total=False):
     _score: float
     _role: Optional[str]
 
+
 # Helpers
+
 
 def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     r = 0.0 if rating is None else max(0.0, min(1.0, float(rating) / 5.0))
@@ -129,7 +136,9 @@ def interest_match_score(
     # Normalize by number of selected themes
     return matches / len(selected_themes)
 
+
 # Supabase RPC
+
 
 def _rpc_fetch(
     req: Dict[str, Any],
@@ -164,6 +173,7 @@ def _rpc_fetch(
         "p_seed_lon": req.get("seed_lon"),
         "p_seed_lat": req.get("seed_lat"),
     }
+    _sb = get_supabase()
     rsp = _sb.rpc("rpc_fetch_poi_candidates_quota", params).execute()
     return list(rsp.data or [])
 
@@ -184,7 +194,9 @@ def fetch_candidates(req: Dict[str, Any], selected_themes: List[str]) -> List[Ro
         wheelchair_only=bool(flags.get("wheelchair_accessible")),
     )
 
+
 # Scoring
+
 
 def dietary_score(req: Dict[str, Any], poi: Row) -> float:
     prefs = set(req.get("dietary_restrictions") or [])
@@ -365,7 +377,9 @@ def trim_by_role(
 
     return result
 
+
 # Mapping to API POI
+
 
 def to_poi(row: Row) -> POI:
     """Convert internal Row to POI schema with all fields."""
@@ -376,6 +390,7 @@ def to_poi(row: Row) -> POI:
         id=row["id"],
         name=row["name"],
         poi_roles=roles,
+        area_name=row.get("area_name", None),
         category=(row.get("categories") or [None])[0],
         categories=row.get("categories") or [],
         themes=row.get("themes", []),
@@ -391,7 +406,9 @@ def to_poi(row: Row) -> POI:
         ),
     )
 
+
 # Orchestrator
+
 
 def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
     """

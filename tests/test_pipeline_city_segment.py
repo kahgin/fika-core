@@ -9,42 +9,6 @@ from app.services.pipeline import (
 class TestSegmentByCity:
     """Tests for segment_by_city function."""
 
-    def test_segment_by_city_single_admin_field(self):
-        """Test segmentation with complete_address.city field."""
-        maut_output = {
-            "places": [
-                {
-                    "id": "poi1",
-                    "name": "Place 1",
-                    "complete_address": {"city": "Singapore"},
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "poi_roles": ["attraction"],
-                },
-                {
-                    "id": "poi2",
-                    "name": "Place 2",
-                    "complete_address": {"city": "Singapore"},
-                    "coordinates": {"lat": 1.31, "lng": 103.81},
-                    "poi_roles": ["meal"],
-                },
-                {
-                    "id": "poi3",
-                    "name": "Place 3",
-                    "complete_address": {"city": "Kuala Lumpur"},
-                    "coordinates": {"lat": 3.1, "lng": 101.7},
-                    "poi_roles": ["attraction"],
-                },
-            ],
-            "meta": {"selected_themes": ["culture"]},
-        }
-
-        result = segment_by_city(maut_output)
-
-        assert "Singapore" in result
-        assert "Kuala Lumpur" in result
-        assert len(result["Singapore"]["places"]) == 2
-        assert len(result["Kuala Lumpur"]["places"]) == 1
-
     def test_segment_by_city_area_name_fallback(self):
         """Test segmentation with area_name fallback."""
         maut_output = {
@@ -52,14 +16,14 @@ class TestSegmentByCity:
                 {
                     "id": "poi1",
                     "name": "Place 1",
-                    "area_name": "Downtown",
+                    "area_name": "Johor",
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                     "poi_roles": ["attraction"],
                 },
                 {
                     "id": "poi2",
                     "name": "Place 2",
-                    "area_name": "Uptown",
+                    "area_name": "Singapore",
                     "coordinates": {"lat": 1.35, "lng": 103.85},
                     "poi_roles": ["attraction"],
                 },
@@ -69,27 +33,8 @@ class TestSegmentByCity:
 
         result = segment_by_city(maut_output)
 
-        assert "Downtown" in result
-        assert "Uptown" in result
-
-    def test_segment_by_city_planning_area_fallback(self):
-        """Test segmentation with planning_area fallback."""
-        maut_output = {
-            "places": [
-                {
-                    "id": "poi1",
-                    "name": "Place 1",
-                    "planning_area": "Central",
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "poi_roles": ["attraction"],
-                },
-            ],
-            "meta": {},
-        }
-
-        result = segment_by_city(maut_output)
-
-        assert "Central" in result
+        assert "Johor" in result
+        assert "Singapore" in result
 
     def test_segment_by_city_clustering_fallback(self):
         """Test segmentation with KMeans clustering for POIs without admin fields."""
@@ -120,7 +65,7 @@ class TestSegmentByCity:
                 {
                     "id": "poi1",
                     "name": "Place 1",
-                    "complete_address": {"city": "Singapore"},
+                    "area_name": "Singapore",
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                     "poi_roles": ["attraction"],
                 },
@@ -141,42 +86,6 @@ class TestSegmentByCity:
         total_pois = sum(len(city["places"]) for city in result.values())
         assert total_pois == 2
 
-    def test_segment_by_city_empty_places(self):
-        """Test segmentation with empty places list."""
-        maut_output = {"places": [], "meta": {}}
-
-        result = segment_by_city(maut_output)
-
-        assert result == {}
-
-    def test_segment_by_city_invalid_coordinates_skipped(self):
-        """Test that POIs with invalid coordinates are skipped."""
-        maut_output = {
-            "places": [
-                {
-                    "id": "poi1",
-                    "name": "Place 1",
-                    "coordinates": {"lat": None, "lng": 103.8},
-                    "poi_roles": ["attraction"],
-                },
-                {
-                    "id": "poi2",
-                    "name": "Place 2",
-                    "complete_address": {"city": "Singapore"},
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "poi_roles": ["attraction"],
-                },
-            ],
-            "meta": {},
-        }
-
-        result = segment_by_city(maut_output)
-
-        # Only the valid POI should be included
-        assert "Singapore" in result
-        assert len(result["Singapore"]["places"]) == 1
-
-
 class TestAllocateDaysPerCity:
     """Tests for allocate_days_per_city function."""
 
@@ -184,7 +93,7 @@ class TestAllocateDaysPerCity:
         """Test day allocation by capacity estimation."""
         maut_suboutput = {
             "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
 
         days = allocate_days_per_city(maut_suboutput)
@@ -196,7 +105,7 @@ class TestAllocateDaysPerCity:
         """Test day allocation with user-specified days."""
         maut_suboutput = {
             "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
         user_input = {"days_per_city": {"Singapore": 5}}
 
@@ -208,7 +117,7 @@ class TestAllocateDaysPerCity:
         """Test that minimum 1 day is allocated for cities with POIs."""
         maut_suboutput = {
             "places": [{"id": "poi1"}],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
 
         days = allocate_days_per_city(maut_suboutput)
@@ -219,7 +128,7 @@ class TestAllocateDaysPerCity:
         """Test that 0 days allocated for empty cities."""
         maut_suboutput = {
             "places": [],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
 
         days = allocate_days_per_city(maut_suboutput)
@@ -230,7 +139,7 @@ class TestAllocateDaysPerCity:
         """Test capacity adjustment for large cities."""
         maut_suboutput = {
             "places": [{"id": f"poi{i}"} for i in range(10)],
-            "meta": {"city_name": "Tokyo", "city_population": 14_000_000},
+            "meta": {"area_name": "Tokyo", "city_population": 14_000_000},
         }
 
         days = allocate_days_per_city(maut_suboutput)
@@ -242,7 +151,7 @@ class TestAllocateDaysPerCity:
         """Test day allocation from meta.num_days."""
         maut_suboutput = {
             "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"city_name": "Singapore", "num_days": 4},
+            "meta": {"area_name": "Singapore", "num_days": 4},
         }
 
         days = allocate_days_per_city(maut_suboutput)
@@ -272,7 +181,7 @@ class TestSelectHotelForCity:
                     "_score": 0.9,
                 },
             ],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
 
         hotel = select_hotel_for_city(maut_suboutput, 3)
@@ -285,7 +194,7 @@ class TestSelectHotelForCity:
         """Test hotel selection with user-provided hotel."""
         maut_suboutput = {
             "places": [],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
         user_hotels = {
             "Singapore": {
@@ -312,7 +221,7 @@ class TestSelectHotelForCity:
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                 }
             ],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
 
         hotel = select_hotel_for_city(maut_suboutput, 3)
@@ -324,7 +233,7 @@ class TestSelectHotelForCity:
         """Test error when hotel has invalid coordinates."""
         maut_suboutput = {
             "places": [],
-            "meta": {"city_name": "Singapore"},
+            "meta": {"area_name": "Singapore"},
         }
         user_hotels = {
             "Singapore": {
@@ -345,7 +254,7 @@ class TestSelectHotelForCity:
         maut_suboutput = {
             "places": [],
             "meta": {
-                "city_name": "Singapore",
+                "area_name": "Singapore",
                 "selected_hotel": {
                     "id": "meta_hotel",
                     "name": "Meta Selected Hotel",

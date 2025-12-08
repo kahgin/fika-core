@@ -28,6 +28,7 @@ def single_city_maut():
                 "id": "hotel1",
                 "name": "Test Hotel",
                 "poi_roles": ["accommodation"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.3, "lng": 103.8},
                 "_score": 0.9,
                 "complete_address": {"city": "Singapore"},
@@ -36,6 +37,7 @@ def single_city_maut():
                 "id": "attraction1",
                 "name": "Marina Bay",
                 "poi_roles": ["attraction"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "themes": ["culture"],
                 "complete_address": {"city": "Singapore"},
@@ -44,6 +46,7 @@ def single_city_maut():
                 "id": "meal1",
                 "name": "Hawker Center",
                 "poi_roles": ["meal"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.29, "lng": 103.84},
                 "complete_address": {"city": "Singapore"},
             },
@@ -66,6 +69,7 @@ def multi_city_maut():
                 "id": "sg_hotel",
                 "name": "Singapore Hotel",
                 "poi_roles": ["accommodation"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.3, "lng": 103.8},
                 "_score": 0.9,
                 "complete_address": {"city": "Singapore"},
@@ -74,6 +78,7 @@ def multi_city_maut():
                 "id": "sg_attraction1",
                 "name": "Marina Bay",
                 "poi_roles": ["attraction"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "themes": ["culture"],
                 "complete_address": {"city": "Singapore"},
@@ -82,6 +87,7 @@ def multi_city_maut():
                 "id": "sg_meal1",
                 "name": "Hawker Center",
                 "poi_roles": ["meal"],
+                "area_name": "Singapore",
                 "coordinates": {"lat": 1.29, "lng": 103.84},
                 "complete_address": {"city": "Singapore"},
             },
@@ -90,6 +96,7 @@ def multi_city_maut():
                 "id": "kl_hotel",
                 "name": "KL Hotel",
                 "poi_roles": ["accommodation"],
+                "area_name": "Kuala Lumpur",
                 "coordinates": {"lat": 3.15, "lng": 101.7},
                 "_score": 0.85,
                 "complete_address": {"city": "Kuala Lumpur"},
@@ -98,6 +105,7 @@ def multi_city_maut():
                 "id": "kl_attraction1",
                 "name": "Petronas Towers",
                 "poi_roles": ["attraction"],
+                "area_name": "Kuala Lumpur",
                 "coordinates": {"lat": 3.16, "lng": 101.71},
                 "themes": ["architecture"],
                 "complete_address": {"city": "Kuala Lumpur"},
@@ -106,6 +114,7 @@ def multi_city_maut():
                 "id": "kl_meal1",
                 "name": "Jalan Alor",
                 "poi_roles": ["meal"],
+                "area_name": "Kuala Lumpur",
                 "coordinates": {"lat": 3.14, "lng": 101.69},
                 "complete_address": {"city": "Kuala Lumpur"},
             },
@@ -142,6 +151,7 @@ class TestSingleCityPipeline:
         hotel = {
             "id": "explicit_hotel",
             "name": "Explicit Hotel",
+            "area_name": "Singapore",
             "lat": 1.3,
             "lon": 103.8,
         }
@@ -159,6 +169,7 @@ class TestSingleCityPipeline:
                     "id": "attraction1",
                     "name": "Attraction",
                     "poi_roles": ["attraction"],
+                    "area_name": "Singapore",
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                     "complete_address": {"city": "Singapore"},
                 }
@@ -182,13 +193,13 @@ class TestMultiCityPipeline:
         assert result["status"] in ("success", "partial_success")
         assert len(result["days"]) > 0
 
-    def test_multi_city_days_have_city_name(self, mock_osrm, multi_city_maut):
-        """Test that each day has city_name field."""
+    def test_multi_city_days_have_area_name(self, mock_osrm, multi_city_maut):
+        """Test that each day has area_name field."""
         result = run_full_pipeline(multi_city_maut, solver="acs")
 
         if result["status"] in ("success", "partial_success"):
             for day in result["days"]:
-                assert "city_name" in day
+                assert "area_name" in day
 
     def test_multi_city_request_id_in_meta(self, mock_osrm, multi_city_maut):
         """Test that request_id is included in meta."""
@@ -218,6 +229,7 @@ class TestPipelineEdgeCases:
                     "id": f"hotel_{i}",
                     "name": f"Hotel {i}",
                     "poi_roles": ["accommodation"],
+                    "area_name": f"City{i}",
                     "coordinates": {"lat": 1.0 + i, "lng": 100.0 + i},
                     "complete_address": {"city": f"City{i}"},
                 }
@@ -227,6 +239,7 @@ class TestPipelineEdgeCases:
                     "id": f"attraction_{i}",
                     "name": f"Attraction {i}",
                     "poi_roles": ["attraction"],
+                    "area_name": f"City{i}",
                     "coordinates": {"lat": 1.01 + i, "lng": 100.01 + i},
                     "complete_address": {"city": f"City{i}"},
                 }
@@ -253,6 +266,7 @@ class TestPipelineEdgeCases:
                     "id": "sg_hotel",
                     "name": "Singapore Hotel",
                     "poi_roles": ["accommodation"],
+                    "area_name": "Singapore",
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                     "complete_address": {"city": "Singapore"},
                 },
@@ -260,6 +274,7 @@ class TestPipelineEdgeCases:
                     "id": "sg_attraction",
                     "name": "Marina Bay",
                     "poi_roles": ["attraction"],
+                    "area_name": "Singapore",
                     "coordinates": {"lat": 1.28, "lng": 103.85},
                     "complete_address": {"city": "Singapore"},
                 },
@@ -268,6 +283,7 @@ class TestPipelineEdgeCases:
                     "id": "kl_attraction",
                     "name": "Petronas",
                     "poi_roles": ["attraction"],
+                    "area_name": "Kuala Lumpur",
                     "coordinates": {"lat": 3.15, "lng": 101.7},
                     "complete_address": {"city": "Kuala Lumpur"},
                 },

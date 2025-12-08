@@ -4,9 +4,8 @@
     "dates": {
         "type": "flexible",
         "days": 1,
-        "preferredMonth": null
+        "preferred_month": null
     },
-    "num_days": 1,
     "travelers": {
         "adults": 2,
         "children": 0,
@@ -44,8 +43,10 @@
         {
             "poi_id": "d036e3d9-9a2c-4d8d-b4a6-f17db736dbfd",
             "poi_name": "Singapore Zoo",
+            "poi_destination": "Singapore",
             "latitude": 1.404348,
             "longitude": 103.793023,
+            "day": 1,
             "time_type": "any_time",
             "themes": [
                 "family"
