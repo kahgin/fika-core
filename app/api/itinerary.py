@@ -19,6 +19,17 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
 
+def _normalize_city_name(raw):
+    """Normalize a location label to a city name the pipeline understands.
+    Example: "Johor, Malaysia" -> "Johor".
+    """
+    if not raw:
+        return None
+    name = str(raw).strip()
+    if "," in name:
+        name = name.split(",")[0].strip()
+    return name
+
 # Storage Helpers
 
 
@@ -73,21 +84,6 @@ def create_itinerary(payload: dict):
     Args:
         payload: Frontend CreateItineraryPayload
 
-    Returns:
-        {
-            "itin_id": str,
-            "status": "success" | "error",
-            "meta": {...},
-            "plan": {
-                "status": "ok",
-                "items": POI[],
-                "total_distance": float,
-                "total_time": int,
-                "route_order": str[],
-                "selected_themes": str[]
-            }
-        }
-
     Raises:
         HTTPException: 400 for invalid payload, 500 for processing errors
     """
@@ -122,13 +118,26 @@ def create_itinerary(payload: dict):
         if destinations:
             all_places = []
             selected_themes_union: list[str] = []
+            def _city_variants(name: str) -> list[str]:
+                low = name.lower()
+                if low == "johor":
+                    return [name, "Johor Bahru"]
+                return [name]
+
             for d in destinations:
-                city = d.get("city") or d.get("name") or d.get("destination")
+                raw_city = d.get("city") or d.get("name") or d.get("destination")
+                city = _normalize_city_name(raw_city)
                 if not city:
                     continue
-                req_i = dict(maut_request)
-                req_i["destination"] = city
-                out_i = run_pipeline(req_i)
+                out_i = None
+                for cname in _city_variants(city):
+                    req_i = dict(maut_request)
+                    req_i["destination"] = cname
+                    out_i = run_pipeline(req_i)
+                    if out_i.get("places"):
+                        break
+                if not out_i:
+                    continue
                 all_places.extend(out_i.get("places", []))
                 th = out_i.get("meta", {}).get("selected_themes", [])
                 for t in th:
@@ -311,18 +320,16 @@ def create_itinerary(payload: dict):
             if not isinstance(dates_obj, dict):
                 return fallback_days
             t = dates_obj.get("type")
-            if (
-                t == "specific"
-                and dates_obj.get("startDate")
-                and dates_obj.get("endDate")
-            ):
+            if t == "specific":
                 try:
                     from datetime import date as _date
 
-                    s = _date.fromisoformat(
-                        str(dates_obj.get("startDate")).split("T")[0]
-                    )
-                    e = _date.fromisoformat(str(dates_obj.get("endDate")).split("T")[0])
+                    rs = dates_obj.get("startDate") or dates_obj.get("start_date")
+                    re = dates_obj.get("endDate") or dates_obj.get("end_date")
+                    if not rs or not re:
+                        return fallback_days
+                    s = _date.fromisoformat(str(rs).split("T")[0])
+                    e = _date.fromisoformat(str(re).split("T")[0])
                     return max(1, (e - s).days + 1)
                 except Exception:
                     return fallback_days
@@ -339,25 +346,50 @@ def create_itinerary(payload: dict):
             total_days = _compute_total_days(
                 payload.get("dates", {}), maut_request["num_days"]
             )
-            provided = {}
+            provided: dict[str, int] = {}
             ordered_cities: list[str] = []
+
+            def _days_from_dest_dates(dobj: dict) -> int | None:
+                if not isinstance(dobj, dict):
+                    return None
+                if dobj.get("type") == "specific":
+                    try:
+                        from datetime import date as _date
+
+                        rs = dobj.get("startDate") or dobj.get("start_date")
+                        re = dobj.get("endDate") or dobj.get("end_date")
+                        if not rs or not re:
+                            return None
+                        s = _date.fromisoformat(str(rs).split("T")[0])
+                        e = _date.fromisoformat(str(re).split("T")[0])
+                        return max(1, (e - s).days + 1)
+                    except Exception:
+                        return None
+                return None
+
             for d in destinations:
-                city = d.get("city") or d.get("name") or d.get("destination")
+                raw_city = d.get("city") or d.get("name") or d.get("destination")
+                city = _normalize_city_name(raw_city)
                 if not city:
                     continue
                 ordered_cities.append(city)
+
+                # Prefer explicit days, else derive from per-destination dates
                 if d.get("days") is not None:
                     try:
-                        provided[city] = int(d.get("days"))
+                        provided[city] = max(1, int(d.get("days")))
                     except Exception:
                         provided[city] = 0
+                elif isinstance(d.get("dates"), dict):
+                    dd = _days_from_dest_dates(d.get("dates"))
+                    if dd:
+                        provided[city] = dd
+
             if provided:
                 s = sum(max(0, v) for v in provided.values())
                 if s > 0 and s != total_days:
                     ratio = total_days / s
-                    base = {
-                        k: max(0, int(round(v * ratio))) for k, v in provided.items()
-                    }
+                    base = {k: max(0, int(round(v * ratio))) for k, v in provided.items()}
                     diff = total_days - sum(base.values())
                     for k in ordered_cities:
                         if k in base and diff != 0:

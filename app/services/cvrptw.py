@@ -244,14 +244,10 @@ def build_problem(
     num_days = meta.get("num_days")
     if not num_days or num_days <= 0:
         # Fallback: try to calculate from dates if available
-        if (
-            dates.get("type") == "specific"
-            and dates.get("startDate")
-            and dates.get("endDate")
-        ):
+        if dates.get("type") == "specific" and dates.get("start_date") and dates.get("end_date"):
             try:
-                start_date = dt.date.fromisoformat(dates["startDate"])
-                end_date = dt.date.fromisoformat(dates["endDate"])
+                start_date = dt.date.fromisoformat(str(dates["start_date"]))
+                end_date = dt.date.fromisoformat(str(dates["end_date"]))
                 num_days = (end_date - start_date).days + 1
             except Exception:
                 num_days = 3
@@ -261,9 +257,9 @@ def build_problem(
             num_days = 3
 
     # Parse start date for day specs
-    if dates.get("type") == "specific" and dates.get("startDate"):
+    if dates.get("type") == "specific" and dates.get("start_date"):
         try:
-            start = dt.date.fromisoformat(dates["startDate"])
+            start = dt.date.fromisoformat(str(dates["start_date"]))
         except Exception:
             start = dt.date.today()
     else:

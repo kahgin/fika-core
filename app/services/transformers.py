@@ -31,10 +31,12 @@ def calculate_num_days(payload: Dict[str, Any]) -> int:
     # Specific dates: calculate from startDate to endDate (inclusive)
     if date_type == "specific":
         try:
-            start = date.fromisoformat(dates["startDate"].split("T")[0])
-            end = date.fromisoformat(dates["endDate"].split("T")[0])
+            raw_start = dates.get("startDate") or dates.get("start_date")
+            raw_end = dates.get("endDate") or dates.get("end_date")
+            start = date.fromisoformat(str(raw_start).split("T")[0])
+            end = date.fromisoformat(str(raw_end).split("T")[0])
             return max(1, min(10, (end - start).days + 1))
-        except (KeyError, ValueError, AttributeError):
+        except (KeyError, ValueError, AttributeError, TypeError):
             return 3
 
     return 3

@@ -4,7 +4,7 @@ from app.services.maut import run_pipeline
 from app.services.transformers import transform_frontend_payload
 
 
-TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_flex.json")
 
 
 def test_maut_pipeline():

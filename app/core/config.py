@@ -15,7 +15,9 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
-        "https://fikatrip.vercel.app",
+        "https://4.218.15.39",
+        "http://4.218.15.39:80",
+        "http://fika.koreacentral.cloudapp.azure.com",
     ]
 
     DEFAULT_LIMIT: int = 12

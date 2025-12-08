@@ -5,22 +5,23 @@ description = "Core for Fika Travel Itinerary Planner"
 readme = "README.md"
 requires-python = "==3.10.*"
 dependencies = [
-    "fastapi>=0.122.0",
+    "fastapi>=0.123.0",
     "uvicorn[standard]>=0.38.0",
-    "supabase>=2.24.0",
+    "supabase>=2.25.0",
     "googlemaps>=4.10.0",
     "ortools>=9.14.0",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
     "pydantic-settings>=2.12.0",
     "numba>=0.62.1",
-    "openai>=2.8.1",
+    "openai>=2.9.0",
+    "scikit-learn",
+    "pytest>=9.0.1",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.1",
-    "ruff>=0.14.7",
+    "ruff>=0.14.8",
 ]
 
 [tool.pytest.ini_options]

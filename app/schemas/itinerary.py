@@ -59,13 +59,9 @@ class DatesSpecific(BaseModel):
 
 
 class DestinationSpec(BaseModel):
-    """User-specified destination entry for multi-city requests.
+    """User-specified destination entry for multi-dest requests."""
 
-    city: canonical city/destination name
-    days: optional days to spend; if missing, system will allocate equally
-    """
-
-    city: str
+    dest: str
     days: Optional[int] = None
 
 

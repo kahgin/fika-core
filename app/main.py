@@ -1,11 +1,13 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from app.api import pois
 from app.api import itinerary
 from app.core.config import settings
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-load_dotenv()
 
 app = FastAPI(title="Fika API", version="0.1.0")
 

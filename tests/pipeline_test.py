@@ -6,7 +6,7 @@ from app.services.maut import run_pipeline
 from app.services.pipeline import run_full_pipeline
 from app.utils.validators import assert_itinerary_valid
 
-TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
+TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_flex.json")
 
 
 def test_full_pipeline_user_path():
