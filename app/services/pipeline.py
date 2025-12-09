@@ -49,6 +49,16 @@ def segment_by_city(
         logger.warning("segment_by_city: No places in MAUT output")
         return {}
 
+    def _normalize_area_name(raw: Optional[str]) -> Optional[str]:
+        """Normalize area name to handle variants like 'Johor' vs 'Johor, Malaysia'."""
+        if not raw:
+            return None
+        name = str(raw).strip()
+        # Remove country suffix (e.g., "Johor, Malaysia" -> "Johor")
+        if "," in name:
+            name = name.split(",")[0].strip()
+        return name
+
     # Group POIs by city
     city_groups: Dict[str, List[Dict]] = {}
     uncategorized: List[Dict] = []
@@ -56,9 +66,9 @@ def segment_by_city(
     for poi in places:
         area_name = None
 
-        # Area_name
+        # Area_name (normalized)
         if not area_name and poi.get("area_name"):
-            area_name = poi["area_name"]
+            area_name = _normalize_area_name(poi["area_name"])
 
         if area_name:
             city_groups.setdefault(area_name, []).append(poi)
@@ -118,6 +128,10 @@ def segment_by_city(
     meta = maut_output.get("meta", {})
 
     for area_name, city_pois in city_groups.items():
+        # Normalize area_name on all POIs in this group to ensure consistency
+        for poi in city_pois:
+            poi["area_name"] = area_name
+        
         # Count accommodations
         accommodation_count = sum(
             1 for poi in city_pois if "accommodation" in poi.get("poi_roles", [])
@@ -129,14 +143,14 @@ def segment_by_city(
 
         result[area_name] = {"places": city_pois, "meta": city_meta}
 
-        _log_event(
-            "segment_by_city",
-            {
-                "area_name": area_name,
-                "poi_count": len(city_pois),
-                "accommodation_count": accommodation_count,
-            },
-        )
+        # _log_event(
+        #     "segment_by_city",
+        #     {
+        #         "area_name": area_name,
+        #         "poi_count": len(city_pois),
+        #         "accommodation_count": accommodation_count,
+        #     },
+        # )
 
     # Assertion: at least one city identified
     if not result:
@@ -780,26 +794,26 @@ def _filter_mandatory_for_city(
 ) -> Optional[Dict[str, Dict]]:
     """
     Filter mandatory POIs for a specific city.
-    
+
     Matches mandatory POIs to city by:
     1. poi_destination field in mandatory spec
     2. area_name of the POI in places list
-    
+
     Args:
         mandatory: Full mandatory dict {poi_id: spec}
         city_name: Target city name
         places: POIs in the city (to lookup area_name)
-    
+
     Returns:
         Filtered mandatory dict for this city only
     """
     if not mandatory:
         return None
-    
+
     city_norm = _normalize_city_name(city_name)
     if not city_norm:
         return mandatory  # Can't filter, return all
-    
+
     # Build lookup of poi_id -> area_name from places
     poi_area_lookup: Dict[str, str] = {}
     for poi in places:
@@ -807,11 +821,11 @@ def _filter_mandatory_for_city(
         area = poi.get("area_name")
         if poi_id and area:
             poi_area_lookup[poi_id] = area
-    
+
     filtered: Dict[str, Dict] = {}
     for poi_id, spec in mandatory.items():
         spec = spec or {}
-        
+
         # Check poi_destination in spec
         poi_dest = spec.get("poi_destination")
         if poi_dest:
@@ -819,7 +833,7 @@ def _filter_mandatory_for_city(
             if dest_norm and (dest_norm in city_norm or city_norm in dest_norm):
                 filtered[poi_id] = spec
                 continue
-        
+
         # Check area_name from places lookup
         poi_area = poi_area_lookup.get(poi_id)
         if poi_area:
@@ -827,11 +841,11 @@ def _filter_mandatory_for_city(
             if area_norm and (area_norm in city_norm or city_norm in area_norm):
                 filtered[poi_id] = spec
                 continue
-        
+
         # If no destination info, include in all cities (fallback)
         if not poi_dest and not poi_area:
             filtered[poi_id] = spec
-    
+
     return filtered if filtered else None
 
 
@@ -1101,7 +1115,7 @@ def run_full_pipeline(
                 city_mandatory = _filter_mandatory_for_city(
                     mandatory, area_name, maut_city.get("places", [])
                 )
-                
+
                 if solver == "acs":
                     selected_themes = maut_city.get("meta", {}).get(
                         "selected_themes", []

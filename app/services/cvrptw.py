@@ -19,6 +19,17 @@ def _get_primary_theme(themes: Optional[List[str]]) -> Optional[str]:
     return themes[0] if themes else None
 
 
+def _is_meal_in_preferred_window(start_min: int) -> bool:
+    """Check if a meal's start time falls within the preferred lunch or dinner windows.
+    
+    Aligned with acs_cvrptw: uses vrp_config.meal_windows[1:] (lunch and dinner).
+    """
+    return any(
+        w_start <= start_min <= w_end 
+        for w_start, w_end in vrp_config.meal_windows[1:]
+    )
+
+
 def _create_day_specs(
     maut_output: dict, hotel: Dict[str, float], pacing: str
 ) -> List[DaySpec]:
@@ -128,7 +139,7 @@ def _create_poi_node(
     mandatory: Optional[Dict[str, Dict]],
 ) -> Optional[Node]:
     """Create a single Node object for a POI, handling its schedule and constraints.
-    
+
     Handles mandatory POI time_type modes:
     - 'specific': Use provided start_time/end_time window
     - 'all_day': Block entire day (day start to end)
@@ -150,11 +161,11 @@ def _create_poi_node(
     base_id = str(poi["id"]).rsplit("_day", 1)[0]
     is_mand = False
     md_spec: Dict = {}
-    
+
     if mandatory and base_id in mandatory:
         is_mand = True
         md_spec = mandatory[base_id] or {}
-    
+
     # Get mandatory constraints
     day_constraint = md_spec.get("day")
     time_type = md_spec.get("time_type", "any_time")
@@ -169,7 +180,7 @@ def _create_poi_node(
 
     if day_specific is not None:
         d = day_specs[day_specific]
-        
+
         if is_mand and is_all_day:
             # All-day: block entire day window, use full day budget
             wbd[day_specific] = [(d.start_min, d.end_min)]
@@ -180,8 +191,16 @@ def _create_poi_node(
             try:
                 start_parts = window_constraint[0].split(":")
                 end_parts = window_constraint[1].split(":")
-                start = int(start_parts[0]) * 60 + int(start_parts[1]) if len(start_parts) > 1 else int(start_parts[0]) * 60
-                end = int(end_parts[0]) * 60 + int(end_parts[1]) if len(end_parts) > 1 else int(end_parts[0]) * 60
+                start = (
+                    int(start_parts[0]) * 60 + int(start_parts[1])
+                    if len(start_parts) > 1
+                    else int(start_parts[0]) * 60
+                )
+                end = (
+                    int(end_parts[0]) * 60 + int(end_parts[1])
+                    if len(end_parts) > 1
+                    else int(end_parts[0]) * 60
+                )
                 wbd[day_specific] = [(start, end)]
                 # Adjust service time to fit within window
                 service = min(service, end - start)
@@ -207,7 +226,7 @@ def _create_poi_node(
                 windows = restrict_meal_windows(windows)
             if windows:
                 wbd[day_specific] = windows
-        
+
         if not wbd:
             return None  # Not visitable on its specific day
     else:
@@ -241,6 +260,7 @@ def _create_poi_node(
 
 # Build Problem from MAUT Output
 
+
 def build_problem(
     maut_output: dict,
     hotel: Dict[str, float],
@@ -253,7 +273,9 @@ def build_problem(
     This function is now a simplified entry point that delegates to helpers.
     """
     day_specs = _create_day_specs(maut_output, hotel, pacing)
-    nodes = _create_nodes(maut_output, day_specs, hotel, pacing, selected_themes, mandatory)
+    nodes = _create_nodes(
+        maut_output, day_specs, hotel, pacing, selected_themes, mandatory
+    )
 
     # Create the travel matrix using OSRM
     coords = [(n.lat, n.lon) for n in nodes]
@@ -263,6 +285,7 @@ def build_problem(
 
 
 # OR-Tools Solver
+
 
 def solve_cvrptw(
     day_specs: List[DaySpec],
@@ -364,9 +387,7 @@ def solve_cvrptw(
             if is_mand
             else vrp_config.drop_poi_penalty
         )
-        routing.AddDisjunction(
-            [manager.NodeToIndex(i) for i in idxs], penalty, 1
-        )
+        routing.AddDisjunction([manager.NodeToIndex(i) for i in idxs], penalty, 1)
 
     # Meals dimension (min/max meals per day, cap 3)
     def meal_cb(from_index, to_index):
@@ -375,7 +396,11 @@ def solve_cvrptw(
 
     meal_idx = routing.RegisterTransitCallback(meal_cb)
     routing.AddDimension(
-        meal_idx, 0, 3, True, "Meals"  # Max 3 meals per day
+        meal_idx,
+        0,
+        3,
+        True,
+        "Meals",  # Max 3 meals per day
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
@@ -414,9 +439,7 @@ def solve_cvrptw(
         for v in range(V):
             # Count available meal nodes for the specific day
             available_meals_today = sum(
-                1
-                for n in nodes
-                if n.role == "meal" and v in n.windows_by_day
+                1 for n in nodes if n.role == "meal" and v in n.windows_by_day
             )
             req = min(meals_required, available_meals_today)
             if req > 0:
@@ -505,6 +528,7 @@ def solve_cvrptw(
 
 
 # Main Entry Point
+
 
 def run_cvrptw(
     maut_output: dict,

@@ -30,7 +30,9 @@ def _get_base_id(poi_id: str) -> str:
 
 def _is_meal_in_preferred_window(start_min: int) -> bool:
     """Check if a meal's start time falls within the preferred lunch or dinner windows."""
-    return any(w_start <= start_min <= w_end for w_start, w_end in vrp_config.meal_windows[1:])
+    return any(
+        w_start <= start_min <= w_end for w_start, w_end in vrp_config.meal_windows[1:]
+    )
 
 
 def _get_primary_theme(node: Node) -> Optional[str]:
@@ -324,7 +326,9 @@ def _acs_optimize_day(
     subset = available_node_indices
     m = len(subset)
 
-    distances = [[float(travel[subset[i]][subset[j]]) for j in range(m)] for i in range(m)]
+    distances = [
+        [float(travel[subset[i]][subset[j]]) for j in range(m)] for i in range(m)
+    ]
 
     pheromone = [[1.0] * m for _ in range(m)]
     heuristic = [[1.0 / (d + 1e-6) if d > 0 else 0.0 for d in row] for row in distances]

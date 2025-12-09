@@ -102,7 +102,7 @@ class MandatoryPoiSpec(BaseModel):
     day: 1-based day index; optional
     window: [start_hh:mm, end_hh:mm]; optional (for time_type='specific')
     all_day: bool; optional (for time_type='all_day')
-    
+
     Presence in the mapping marks a POI as mandatory even if all fields are None/default.
     """
 

@@ -203,6 +203,14 @@ def create_itinerary(payload: dict):
         # Add hotels to places if provided
         if hotels_from_payload:
             for hotel_data in hotels_from_payload:
+                # Normalize destination to area_name for proper city segmentation
+                hotel_destination = hotel_data.get("destination")
+                hotel_area_name = (
+                    _normalize_destination_name(hotel_destination)
+                    if hotel_destination
+                    else None
+                )
+
                 hotel_poi = {
                     "id": hotel_data.get("poi_id"),
                     "name": hotel_data.get("poi_name", "Hotel"),
@@ -216,6 +224,9 @@ def create_itinerary(payload: dict):
                     "images": hotel_data.get("images", []),
                     "source": "user",
                 }
+                # Set area_name for city segmentation (critical for multi-city)
+                if hotel_area_name:
+                    hotel_poi["area_name"] = hotel_area_name
                 # Add to places if not already present
                 if not any(p.get("id") == hotel_poi["id"] for p in places):
                     places.append(hotel_poi)
@@ -244,9 +255,9 @@ def create_itinerary(payload: dict):
                 day = poi.get("day")
                 date_str = poi.get("date")
 
-                # Get poi_destination (normalize it like destination names)
+                # Get poi_destination 
                 poi_dest_raw = poi.get("poi_destination")
-                poi_destination = _normalize_destination_name(poi_dest_raw) if poi_dest_raw else None
+                poi_destination = (_normalize_destination_name(poi_dest_raw) if poi_dest_raw else None)
 
                 md_entry = {"time_type": time_type}
                 if poi_destination:
@@ -257,9 +268,12 @@ def create_itinerary(payload: dict):
                     # Convert date to day index (1-based)
                     try:
                         from datetime import date as _date
+
                         trip_start_str = dates_info.get("start_date")
                         if trip_start_str:
-                            trip_start = _date.fromisoformat(str(trip_start_str).split("T")[0])
+                            trip_start = _date.fromisoformat(
+                                str(trip_start_str).split("T")[0]
+                            )
                             poi_date = _date.fromisoformat(str(date_str).split("T")[0])
                             day_index = (poi_date - trip_start).days + 1  # 1-based
                             if day_index > 0:
@@ -638,7 +652,7 @@ def delete_itinerary(itin_id: str):
             raise HTTPException(status_code=404, detail="Itinerary not found")
 
         os.remove(storage_path)
-        logger.info(f"Deleted itinerary {itin_id}")
+        # logger.info(f"Deleted itinerary {itin_id}")
 
         return {"status": "deleted", "itin_id": itin_id}
     except HTTPException:
@@ -962,7 +976,9 @@ def schedule_poi(itin_id: str, payload: dict):
                 pacing = data.get("plan", {}).get("meta", {}).get("pacing", "balanced")
                 role = poi_stop.get("role", "attraction")
                 try:
-                    duration_min = int(vrp_config.service_time_min.get(role, {}).get(pacing, 60))
+                    duration_min = int(
+                        vrp_config.service_time_min.get(role, {}).get(pacing, 60)
+                    )
                 except Exception:
                     duration_min = 60
                 # Compute end time HH:MM

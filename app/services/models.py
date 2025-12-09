@@ -11,6 +11,7 @@ class DaySpec:
     end_min: int
     depot_id: str
 
+
 @dataclass
 class Node:
     idx: int
@@ -23,4 +24,3 @@ class Node:
     themes: Optional[List[str]]
     windows_by_day: Dict[int, List[Tuple[int, int]]]
     is_mandatory: bool = False
-
