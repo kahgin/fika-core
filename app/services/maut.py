@@ -382,7 +382,7 @@ def trim_by_role(
 
 
 def to_poi(row: Row) -> POI:
-    """Convert internal Row to POI schema with all fields."""
+    """Convert internal Row to POI schema with all fields (snake_case)."""
     roles = row.get("poi_roles") or []
     if not roles and row.get("role_pick"):
         roles = [str(row.get("role_pick"))]
@@ -395,13 +395,13 @@ def to_poi(row: Row) -> POI:
         categories=row.get("categories") or [],
         themes=row.get("themes", []),
         rating=row.get("review_rating"),
-        reviewCount=row.get("review_count"),
+        review_count=row.get("review_count"),
         images=row.get("images") or [],
         coordinates=Coordinates(
             lat=float(row["latitude"]), lng=float(row["longitude"])
         ),
-        openHours=row.get("open_hours"),
-        priceLevel=(
+        open_hours=row.get("open_hours"),
+        price_level=(
             int(row["price_level"]) if row.get("price_level") is not None else None
         ),
     )

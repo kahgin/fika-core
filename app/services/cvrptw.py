@@ -20,13 +20,9 @@ def _get_primary_theme(themes: Optional[List[str]]) -> Optional[str]:
 
 
 def _is_meal_in_preferred_window(start_min: int) -> bool:
-    """Check if a meal's start time falls within the preferred lunch or dinner windows.
-    
-    Aligned with acs_cvrptw: uses vrp_config.meal_windows[1:] (lunch and dinner).
-    """
+    """Check if a meal's start time falls within the preferred lunch or dinner windows."""
     return any(
-        w_start <= start_min <= w_end 
-        for w_start, w_end in vrp_config.meal_windows[1:]
+        w_start <= start_min <= w_end for w_start, w_end in vrp_config.meal_windows[1:]
     )
 
 
@@ -153,6 +149,7 @@ def _create_poi_node(
     service = service_times.get(pacing, 90)
 
     wbd: Dict[int, List[Tuple[int, int]]] = {}
+    # Internal data uses snake_case
     open_hours = poi.get("open_hours")
     day_specific = poi.get("_day_specific")
     role_default = vrp_config.default_role_windows.get(role, (9 * 60, 21 * 60))

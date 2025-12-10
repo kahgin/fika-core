@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Tuple
 
 # NOTE: Canonical naming convention is snake_case across API, backend, and DB.
-# For backward compatibility inside the codebase, select fields accept camelCase
-# aliases during model construction. All serialization uses snake_case.
+# All internal data uses snake_case. Conversion to camelCase happens only
+# at API response boundaries via transformers.
 
 
 class Coordinates(BaseModel):
@@ -16,13 +16,7 @@ class Coordinates(BaseModel):
 
 
 class POI(BaseModel):
-    """Canonical POI schema consumed by MAUT, Pipeline, and CVRPTW (snake_case).
-
-    Aliases provided for legacy internal constructors:
-    - review_count <- reviewCount
-    - open_hours <- openHours
-    - price_level <- priceLevel
-    """
+    """Canonical POI schema consumed by MAUT, Pipeline, and CVRPTW (snake_case only)."""
 
     id: str
     name: str
@@ -32,15 +26,11 @@ class POI(BaseModel):
     categories: Optional[List[str]] = None
     themes: Optional[List[str]] = None
     rating: Optional[float] = None
-    review_count: Optional[int] = Field(default=None, alias="reviewCount")
+    review_count: Optional[int] = None
     images: List[str] = []
     coordinates: Optional[Coordinates] = None
-    open_hours: Optional[Dict[str, Any]] = Field(default=None, alias="openHours")
-    price_level: Optional[int] = Field(default=None, alias="priceLevel")
-
-    model_config = {
-        "populate_by_name": True,  # allow using snake_case field names explicitly
-    }
+    open_hours: Optional[Dict[str, Any]] = None
+    price_level: Optional[int] = None
 
 
 class DatesFlexible(BaseModel):

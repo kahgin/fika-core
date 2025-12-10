@@ -131,7 +131,7 @@ def segment_by_city(
         # Normalize area_name on all POIs in this group to ensure consistency
         for poi in city_pois:
             poi["area_name"] = area_name
-        
+
         # Count accommodations
         accommodation_count = sum(
             1 for poi in city_pois if "accommodation" in poi.get("poi_roles", [])
@@ -575,17 +575,17 @@ def select_hotel_for_city(
             "source": "user",
         }
 
-        _log_event(
-            "hotel_selected",
-            {
-                "area_name": area_name,
-                "hotel_id": hotel["id"],
-                "hotel_name": hotel["name"],
-                "source": "user",
-                "coords": {"lat": lat, "lng": lon},
-            },
-            request_id,
-        )
+        # _log_event(
+        #     "hotel_selected",
+        #     {
+        #         "area_name": area_name,
+        #         "hotel_id": hotel["id"],
+        #         "hotel_name": hotel["name"],
+        #         "source": "user",
+        #         "coords": {"lat": lat, "lng": lon},
+        #     },
+        #     request_id,
+        # )
 
         return hotel
 
@@ -611,7 +611,7 @@ def select_hotel_for_city(
             }
 
             _log_event(
-                "hotel_selected",
+                "meta_hotel_selected",
                 {
                     "area_name": area_name,
                     "hotel_id": hotel["id"],
@@ -652,7 +652,7 @@ def select_hotel_for_city(
             }
 
             _log_event(
-                "hotel_selected",
+                "case_3_hotel_selected",
                 {
                     "area_name": area_name,
                     "hotel_id": hotel["id"],
@@ -670,7 +670,7 @@ def select_hotel_for_city(
         nearest = _find_nearest_accommodation(places, all_accommodations, request_id)
         if nearest:
             _log_event(
-                "hotel_selected",
+                "case_4_hotel_selected",
                 {
                     "area_name": area_name,
                     "hotel_id": nearest["id"],
@@ -685,7 +685,7 @@ def select_hotel_for_city(
     # Case 5: Use global fallback hotel
     if global_fallback_hotel:
         _log_event(
-            "hotel_selected",
+            "case_5_hotel_selected",
             {
                 "area_name": area_name,
                 "hotel_id": global_fallback_hotel["id"],
@@ -1145,16 +1145,16 @@ def run_full_pipeline(
                         mandatory=city_mandatory,
                         cfg=VRPConfig(),
                     )
-                    _log_event(
-                        "solver.run",
-                        {
-                            "area_name": area_name,
-                            "solver": "acs",
-                            "days_count": len(cvrptw_output.get("days", [])),
-                            "total_candidates": max(0, len(nodes) - 1),
-                        },
-                        request_id,
-                    )
+                    # _log_event(
+                    #     "solver.run",
+                    #     {
+                    #         "area_name": area_name,
+                    #         "solver": "acs",
+                    #         "days_count": len(cvrptw_output.get("days", [])),
+                    #         "total_candidates": max(0, len(nodes) - 1),
+                    #     },
+                    #     request_id,
+                    # )
                 else:
                     cvrptw_output = run_cvrptw(
                         maut_output=maut_city,

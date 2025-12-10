@@ -124,23 +124,29 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 # Backend → Frontend Transformation
 
 
+def to_camel_case(snake_str: str) -> str:
+    """Convert snake_case to camelCase."""
+    components = snake_str.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
 def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Transform internal POI format to frontend format.
+    Transform internal POI format (snake_case) to frontend format (camelCase).
 
     Field mappings:
     - review_rating → rating
     - review_count → reviewCount
-    - poi_roles → roles
+    - poi_roles → roles, poiRoles
     - price_level → priceLevel
     - open_hours → openHours
     - complete_address → location (derived from city or country)
 
     Args:
-        poi: Internal POI dict from MAUT service
+        poi: Internal POI dict from MAUT service (snake_case)
 
     Returns:
-        Frontend-formatted POI dict
+        Frontend-formatted POI dict (camelCase)
     """
     # Extract coordinates
     coords = None
@@ -167,7 +173,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "category": category,
         "categories": poi.get("categories", [category] if category else []),
         "rating": poi.get("review_rating") or poi.get("rating"),
-        "reviewCount": poi.get("review_count") or poi.get("reviewCount"),
+        "reviewCount": poi.get("review_count"),
         "location": location,
         "images": poi.get("images", []),
         "roles": poi.get("poi_roles", []),
@@ -176,11 +182,11 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "description": poi.get("description") or poi.get("descriptions"),
         "coordinates": coords,
         "website": poi.get("website"),
-        "googleMapsUrl": poi.get("googleMapsUrl") or poi.get("google_map_link"),
+        "googleMapsUrl": poi.get("google_maps_url") or poi.get("google_map_link"),
         "address": poi.get("address"),
         "phone": poi.get("phone"),
         "openHours": poi.get("open_hours"),
-        "priceLevel": poi.get("price_level") or poi.get("priceLevel"),
+        "priceLevel": poi.get("price_level"),
     }
 
 

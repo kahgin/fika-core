@@ -32,7 +32,7 @@ def get_supabase() -> Client:
         raise
 
 
-# Optional helper functions
+# Helper functions
 def reset_supabase():
     """Reset client (useful for testing)"""
     global _supabase_client

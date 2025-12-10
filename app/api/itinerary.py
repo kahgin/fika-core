@@ -255,9 +255,11 @@ def create_itinerary(payload: dict):
                 day = poi.get("day")
                 date_str = poi.get("date")
 
-                # Get poi_destination 
+                # Get poi_destination
                 poi_dest_raw = poi.get("poi_destination")
-                poi_destination = (_normalize_destination_name(poi_dest_raw) if poi_dest_raw else None)
+                poi_destination = (
+                    _normalize_destination_name(poi_dest_raw) if poi_dest_raw else None
+                )
 
                 md_entry = {"time_type": time_type}
                 if poi_destination:
