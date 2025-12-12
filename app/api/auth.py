@@ -2,16 +2,17 @@
 User Authentication API
 
 Provides endpoints for user signup, login, logout, and profile management.
-Uses Supabase for storage and SHA-256 for password hashing.
+Uses Supabase for storage and bcrypt for password hashing.
 """
 
-import hashlib
+import bcrypt
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 
 from app.db.supabase_client import get_supabase
 from app.utils.logger import get_logger
@@ -24,20 +25,20 @@ SESSION_DURATION_DAYS = 30
 
 
 # Request/Response Models
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+
 class SignupRequest(BaseModel):
-    email: EmailStr
-    username: str
+    email: str
     password: str
     name: Optional[str] = None
 
-    @field_validator("username")
+    @field_validator("email")
     @classmethod
-    def validate_username(cls, v: str) -> str:
+    def validate_email(cls, v: str) -> str:
         v = v.lower().strip()
-        if len(v) < 3 or len(v) > 30:
-            raise ValueError("Username must be 3-30 characters")
-        if not v.replace("_", "").isalnum():
-            raise ValueError("Username can only contain letters, numbers, and underscores")
+        if not EMAIL_REGEX.match(v):
+            raise ValueError("Invalid email address")
         return v
 
     @field_validator("password")
@@ -49,8 +50,13 @@ class SignupRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        return v.lower().strip()
 
 
 class UpdateProfileRequest(BaseModel):
@@ -86,18 +92,14 @@ class AuthResponse(BaseModel):
 
 # Helper Functions
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256 with a salt."""
-    salt = secrets.token_hex(16)
-    hash_obj = hashlib.sha256((salt + password).encode("utf-8"))
-    return f"{salt}${hash_obj.hexdigest()}"
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify a password against its hash."""
     try:
-        salt, stored_hash = hashed.split("$")
-        hash_obj = hashlib.sha256((salt + password).encode("utf-8"))
-        return hash_obj.hexdigest() == stored_hash
+        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
     except (ValueError, AttributeError):
         return False
 
@@ -190,18 +192,27 @@ def signup(request: SignupRequest):
         if existing_email.data:
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        # Check if username already exists
-        existing_username = supabase.table("users").select("id").eq("username", request.username).execute()
-        if existing_username.data:
-            raise HTTPException(status_code=400, detail="Username already taken")
+        # Auto-generate username from email
+        base_username = request.email.split("@")[0].lower()
+        # Remove invalid characters
+        base_username = "".join(c for c in base_username if c.isalnum() or c == "_")
+        if len(base_username) < 3:
+            base_username = base_username + "user"
+        username = base_username[:30]  # Max 30 chars
+        
+        # Check if this username exists and add suffix if needed
+        existing = supabase.table("users").select("id").eq("username", username).execute()
+        if existing.data:
+            import random
+            username = f"{username[:25]}_{random.randint(1000, 9999)}"
 
         # Create user
         password_hash = hash_password(request.password)
         result = supabase.table("users").insert({
             "email": request.email,
-            "username": request.username,
+            "username": username,
             "password_hash": password_hash,
-            "name": request.name or request.username,
+            "name": request.name or username,
         }).execute()
 
         if not result.data:
@@ -236,13 +247,13 @@ def login(request: LoginRequest):
         result = supabase.table("users").select("*").eq("email", request.email).execute()
 
         if not result.data:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="We couldn't find an account with that email. Please check and try again.")
 
         user = result.data[0]
 
         # Verify password
         if not verify_password(request.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
 
         # Check if user is active
         if not user.get("is_active", True):

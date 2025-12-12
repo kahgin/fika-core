@@ -58,6 +58,7 @@ try:
         delete_itinerary_from_db,
         itinerary_exists_in_db,
         list_itineraries_from_db,
+        load_itinerary_for_user,
     )
     DB_STORAGE_AVAILABLE = True
 except ImportError:
@@ -685,22 +686,41 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
 
 
 @router.get("/itinerary/{itin_id}")
-def get_itinerary(itin_id: str):
+def get_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
     Retrieve an existing itinerary by ID.
+    
+    Authorization check:
+    - If itinerary has no owner (null user_id), anyone can access
+    - If itinerary has an owner, only that user can access
 
     Args:
         itin_id: Itinerary identifier
+        authorization: Optional Bearer token
 
     Returns:
         Full itinerary data in camelCase format
 
     Raises:
-        HTTPException: 404 if not found, 500 for errors
+        HTTPException: 403 if not owner, 404 if not found, 500 for errors
     """
     try:
+        user_id = get_optional_user_id(authorization)
+        
+        # Try database first with ownership check
+        if DB_STORAGE_AVAILABLE:
+            data, error = load_itinerary_for_user(itin_id, user_id)
+            if error == "forbidden":
+                raise HTTPException(status_code=403, detail="You don't have permission to access this itinerary")
+            if data:
+                return transform_itinerary_response_to_frontend(data)
+            # If not found in DB, fall through to file storage
+        
+        # Fallback to file storage (legacy - no ownership check for file storage)
         data = load_itinerary(itin_id)
         return transform_itinerary_response_to_frontend(data)
+    except HTTPException:
+        raise
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Itinerary not found")
     except Exception as e:
@@ -764,27 +784,46 @@ def list_itineraries(authorization: Optional[str] = Header(None)):
 
 
 @router.delete("/itinerary/{itin_id}")
-def delete_itinerary(itin_id: str):
+def delete_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
     Delete an itinerary by ID.
+    
+    Authorization check:
+    - If itinerary has no owner (null user_id), anyone can delete
+    - If itinerary has an owner, only that user can delete
 
     Args:
         itin_id: Itinerary identifier
+        authorization: Optional Bearer token
 
     Returns:
         {"status": "deleted", "itinId": str}
 
     Raises:
-        HTTPException: 404 if not found, 500 for errors
+        HTTPException: 403 if not owner, 404 if not found, 500 for errors
     """
     try:
+        user_id = get_optional_user_id(authorization)
+        
+        # Try database first with ownership check
+        if DB_STORAGE_AVAILABLE:
+            # Check ownership first
+            data, error = load_itinerary_for_user(itin_id, user_id)
+            if error == "forbidden":
+                raise HTTPException(status_code=403, detail="You don't have permission to delete this itinerary")
+            if data:
+                # User owns it, proceed with delete
+                delete_itinerary_from_db(itin_id)
+                return {"status": "deleted", "itinId": itin_id}
+            # If not in DB, fall through to file storage
+        
+        # Fallback to file storage (legacy - no ownership check)
         storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
 
         if not os.path.exists(storage_path):
             raise HTTPException(status_code=404, detail="Itinerary not found")
 
         os.remove(storage_path)
-        # logger.info(f"Deleted itinerary {itin_id}")
 
         return {"status": "deleted", "itinId": itin_id}
     except HTTPException:
@@ -840,15 +879,15 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
 
             day = days[int(day_index)]
             stops = day.get("stops", [])
-            # Build lookup and preserve depot/hotel positions
+            # Build lookup and preserve depot/hotel/accommodation positions
             first = (
                 stops[0]
-                if stops and stops[0].get("role") in ("depot", "hotel")
+                if stops and stops[0].get("role") in ("depot", "hotel", "accommodation")
                 else None
             )
             last = (
                 stops[-1]
-                if stops and stops[-1].get("role") in ("depot", "hotel")
+                if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation")
                 else None
             )
             core = (
@@ -869,9 +908,8 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
             new_stops = prefix + new_core + suffix
             day["stops"] = new_stops
 
-            # Recompute metrics and sort by arrival for consistency
+            # Recompute metrics but DON'T sort - respect user's manual ordering
             _recompute_day_metrics(day)
-            _sort_day_stops_by_time(day)
 
         elif scope == "entire_trip":
             # Apply cross-day moves if provided
@@ -902,12 +940,12 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
                 stops = d.get("stops", [])
                 first = (
                     stops[0]
-                    if stops and stops[0].get("role") in ("depot", "hotel")
+                    if stops and stops[0].get("role") in ("depot", "hotel", "accommodation")
                     else None
                 )
                 last = (
                     stops[-1]
-                    if stops and stops[-1].get("role") in ("depot", "hotel")
+                    if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation")
                     else None
                 )
                 core = (
@@ -925,7 +963,7 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
                         new_core.append(s)
                 d["stops"] = prefix + new_core + suffix
                 _recompute_day_metrics(d)
-                _sort_day_stops_by_time(d)
+                # DON'T sort - respect user's manual ordering
         else:
             raise HTTPException(status_code=400, detail="Invalid scope")
 

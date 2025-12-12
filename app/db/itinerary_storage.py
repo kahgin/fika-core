@@ -276,3 +276,78 @@ def itinerary_exists_in_db(itin_id: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to check itinerary existence {itin_id}: {e}")
         return False
+
+
+def load_itinerary_for_user(itin_id: str, user_id: Optional[str]) -> tuple[Optional[dict], str]:
+    """
+    Load itinerary from database with ownership verification.
+    
+    Args:
+        itin_id: The itinerary UUID
+        user_id: The user ID to verify ownership (None for anonymous)
+        
+    Returns:
+        Tuple of (itinerary data or None, error message)
+        - If found and user owns it: (data, "")
+        - If not found: (None, "not_found")
+        - If user doesn't own it: (None, "forbidden")
+    """
+    try:
+        supabase = get_supabase()
+        
+        result = supabase.table("itineraries").select("*").eq("id", itin_id).execute()
+        
+        if not result.data or len(result.data) == 0:
+            return None, "not_found"
+            
+        row = result.data[0]
+        itinerary_owner = row.get("user_id")
+        
+        # Check ownership:
+        # - If user is authenticated, they can only access their own itineraries
+        # - If user is a guest (user_id is None), they cannot access any DB itineraries
+        #   (guests should use localStorage, not the database)
+        # - Itineraries with null owner are orphaned and should not be accessible
+        if user_id is None:
+            # Guests cannot access any database itineraries
+            logger.warning(f"Guest attempted to access itinerary {itin_id}")
+            return None, "forbidden"
+        
+        if itinerary_owner is not None and itinerary_owner != user_id:
+            logger.warning(f"User {user_id} attempted to access itinerary {itin_id} owned by {itinerary_owner}")
+            return None, "forbidden"
+        
+        # Also block access to orphaned itineraries (no owner)
+        if itinerary_owner is None:
+            logger.warning(f"User {user_id} attempted to access orphaned itinerary {itin_id}")
+            return None, "forbidden"
+        
+        # Reconstruct the data structure
+        plan = row.get("plan", {})
+        
+        data = {
+            "itin_id": str(row.get("id")),
+            "status": row.get("status", "success"),
+            "meta": {
+                "title": row.get("title"),
+                "destinations": row.get("destinations", []),
+                "dates": row.get("dates", {}),
+                "num_days": row.get("dates", {}).get("days") or len(plan.get("days", [])),
+                "travelers": row.get("travelers", {}),
+                "preferences": row.get("preferences", {}),
+                "flags": row.get("flags", {}),
+                "hotels": row.get("hotels", []),
+                "mandatory_pois": row.get("mandatory_pois", []),
+                "ideas": row.get("ideas", []),
+                "user_id": row.get("user_id"),
+            },
+            "plan": plan,
+            "created_at": row.get("created_at"),
+            "updated_at": row.get("updated_at"),
+        }
+        
+        logger.info(f"Loaded itinerary {itin_id} for user {user_id}")
+        return data, ""
+    except Exception as e:
+        logger.error(f"Failed to load itinerary {itin_id} for user {user_id}: {e}")
+        return None, "error"
