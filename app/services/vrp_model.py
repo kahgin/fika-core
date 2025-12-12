@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 
 from pydantic import BaseModel, Field
+import yaml
+from pathlib import Path
 
 
 @dataclass
@@ -55,7 +57,7 @@ class VRPConfig(BaseModel):
     service_time_min: Dict[str, Dict[str, int]] = Field(
         default={
             "attraction": {"relaxed": 120, "balanced": 90, "packed": 60},
-            "meal": {"relaxed": 75, "balanced": 60, "packed": 45},
+            "meal": {"relaxed": 90, "balanced": 75, "packed": 60},
             "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
         }
     )
@@ -101,7 +103,7 @@ class VRPConfig(BaseModel):
     # Solver-Specific Parameters
     acs_n_ants: int = Field(default=30)
     acs_n_iterations: int = Field(default=60)
-    acs_alpha: float = Field(default=1.0, description="Pheromone importance")
+    acs_alpha: float = Field(default=2.0, description="Pheromone importance")
     acs_beta: float = Field(default=2.0, description="Heuristic importance")
     acs_evaporation_rate: float = Field(default=0.5)
     acs_q: float = Field(default=100.0, description="Pheromone deposit factor")
@@ -114,5 +116,56 @@ class VRPConfig(BaseModel):
         return [self.breakfast_win, self.lunch_win, self.dinner_win]
 
 
-# Create a default instance to be used across the application
-vrp_config = VRPConfig()
+def load_config(config_path: Optional[Path] = None) -> VRPConfig:
+    """
+    Load VRP configuration from YAML file.
+    
+    Args:
+        config_path: Optional path to config file. If None, uses default location.
+        
+    Returns:
+        VRPConfig instance with loaded or default values.
+    """
+    if config_path is None:
+        # Default: look in app/core/vrp_config.yaml
+        config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
+    
+    if config_path.exists():
+        with open(config_path, "r") as f:
+            params = yaml.safe_load(f) or {}
+        return VRPConfig(**params)
+    return VRPConfig()
+
+
+def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
+    """
+    Save VRP configuration to YAML file.
+    
+    Args:
+        config: VRPConfig instance to save.
+        config_path: Optional path. If None, saves to app/core/vrp_config.yaml.
+        
+    Returns:
+        Path where config was saved.
+    """
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
+    
+    # Only save ACS-tunable and penalty parameters (not complex nested dicts)
+    tunable_keys = [
+        "acs_n_ants", "acs_n_iterations", "acs_alpha", "acs_beta",
+        "acs_evaporation_rate", "acs_q", "acs_max_theme_per_day",
+        "penalty_meal_to_meal", "penalty_same_theme", "penalty_theme_limit_exceeded",
+        "drop_poi_penalty", "meal_shortfall_penalty", "mandatory_miss_penalty",
+    ]
+    
+    params = {k: getattr(config, k) for k in tunable_keys}
+    
+    with open(config_path, "w") as f:
+        yaml.safe_dump(params, f, default_flow_style=False)
+    
+    return config_path
+
+
+# Load default config at module import
+vrp_config = load_config()

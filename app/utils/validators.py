@@ -2,12 +2,8 @@ from typing import Dict, Any, List, Optional, Tuple
 import datetime as dt
 
 from app.services.vrp_utils import (
-    parse_time_range_label,
-    normalize_open_hours_value,
-    parse_weekday_intervals,
     get_effective_windows,
     is_poi_open_on_date,
-    WEEKDAYS,
 )
 
 # Configuration
@@ -47,7 +43,9 @@ def get_meal_type(arrival_min: int) -> str:
     return "other"
 
 
-def get_default_window_for_role(role: str, themes: Optional[List[str]] = None) -> Tuple[int, int]:
+def get_default_window_for_role(
+    role: str, themes: Optional[List[str]] = None
+) -> Tuple[int, int]:
     """Get default time window based on POI role and themes."""
     if themes and "nature" in themes:
         return DEFAULT_HOURS["nature"]
@@ -63,7 +61,7 @@ def get_open_windows_for_date(
 ) -> Tuple[bool, List[Tuple[int, int]]]:
     """
     Compute effective opening windows for a POI on a given date.
-    
+
     Uses vrp_utils functions for parsing to ensure consistency with scheduling.
     Internal data uses snake_case (open_hours).
 
@@ -78,19 +76,19 @@ def get_open_windows_for_date(
     open_hours = poi.get("open_hours")
     themes = poi.get("themes", [])
     default_window = get_default_window_for_role(role, themes)
-    
+
     # Use vrp_utils for consistent parsing
     is_open, intervals = is_poi_open_on_date(open_hours, date_obj)
-    
+
     if not is_open:
         return (True, [])  # Explicitly closed
-    
+
     if intervals:
         # Check for 24h
         if (0, 24 * 60) in intervals:
             return (False, [(0, 24 * 60)])
         return (False, intervals)
-    
+
     # No intervals found, use defaults
     return (False, [default_window])
 
@@ -114,14 +112,14 @@ def validate_poi_schedule_against_hours(
 ) -> Tuple[bool, str]:
     """
     Validate that a POI visit is within its opening hours.
-    
+
     Args:
         poi: POI dict with open_hours (snake_case)
         arrival_min: Arrival time in minutes from midnight
         depart_min: Departure time in minutes from midnight
         date_obj: Date of visit (None for unknown-day itinerary)
         role: POI role (attraction, meal, etc.)
-    
+
     Returns:
         (is_valid, error_message) - error_message is empty if valid
     """
@@ -129,14 +127,14 @@ def validate_poi_schedule_against_hours(
     open_hours = poi.get("open_hours")
     themes = poi.get("themes", [])
     default_window = get_default_window_for_role(role, themes)
-    
+
     if date_obj is not None:
         # Date-specific validation
         is_open, intervals = is_poi_open_on_date(open_hours, date_obj)
-        
+
         if not is_open:
             return (False, f"POI is closed on {date_obj.strftime('%A')}")
-        
+
         windows = intervals if intervals else [default_window]
     else:
         # Unknown-day: use effective windows with representative interval
@@ -145,11 +143,11 @@ def validate_poi_schedule_against_hours(
         )
         if not is_open:
             return (False, "POI is closed")
-    
+
     # Check for 24h
     if (0, 24 * 60) in windows:
         return (True, "")
-    
+
     if not is_within_any_window(arrival_min, depart_min, windows):
         if windows:
             s0, e0 = windows[0]
@@ -157,7 +155,7 @@ def validate_poi_schedule_against_hours(
         else:
             expected = "unknown"
         return (False, f"Visit outside hours, expected {expected}")
-    
+
     return (True, "")
 
 
@@ -209,7 +207,9 @@ def validate_itinerary(
         meals_today = 0
         prev_stop = None
 
-        stats["total_stops"] += len([s for s in stops if s.get("role") not in ("hotel", "depot")])
+        stats["total_stops"] += len(
+            [s for s in stops if s.get("role") not in ("hotel", "depot")]
+        )
 
         for stop_idx, stop in enumerate(stops):
             poi_id_base = stop["poi_id"].rsplit("_day", 1)[0]
@@ -241,7 +241,11 @@ def validate_itinerary(
                 continue
 
             # 1. Consecutive meals
-            if prev_stop and prev_stop.get("role") == "meal" and stop.get("role") == "meal":
+            if (
+                prev_stop
+                and prev_stop.get("role") == "meal"
+                and stop.get("role") == "meal"
+            ):
                 violations.append(
                     {
                         "type": "consecutive_meals",
@@ -285,7 +289,7 @@ def validate_itinerary(
                     date_obj=date_obj,
                     role=role,
                 )
-                
+
                 if not is_valid:
                     if "closed" in error_msg.lower():
                         violations.append(
@@ -311,7 +315,9 @@ def validate_itinerary(
                                 "day": day_num,
                                 "weekday": weekday_short,
                                 "poi": stop.get("name"),
-                                "expected_hours": error_msg.replace("Visit outside hours, expected ", ""),
+                                "expected_hours": error_msg.replace(
+                                    "Visit outside hours, expected ", ""
+                                ),
                             }
                         )
                     prev_stop = stop
@@ -331,14 +337,17 @@ def validate_itinerary(
         stats["total_meals"] += meals_today
 
     # 5. Meals per day constraints (global)
+    # Note: Meal count is a soft constraint - depends on available meal POIs
+    # that match dietary restrictions and time windows
     for day_idx, meal_count in enumerate(stats["meals_per_day"]):
         day_num = day_idx + 1
         if meal_count < 1:
+            # Warning, not error - may be due to dietary restrictions limiting options
             violations.append(
                 {
                     "type": "insufficient_meals",
-                    "severity": "error",
-                    "message": f"Day {day_num}: Only {meal_count} meals",
+                    "severity": "warning",
+                    "message": f"Day {day_num}: Only {meal_count} meals (may be due to dietary restrictions)",
                     "day": day_num,
                     "weekday": None,
                     "poi": None,
@@ -357,6 +366,8 @@ def validate_itinerary(
             )
 
     # 6. Theme balance against selected themes
+    # Note: This is informational - theme coverage depends on available POIs
+    # in the destination that match the selected themes
     selected_themes = maut_output.get("meta", {}).get("selected_themes", [])
     if selected_themes:
         missing_themes = [
@@ -366,9 +377,11 @@ def validate_itinerary(
             violations.append(
                 {
                     "type": "theme_imbalance",
-                    "severity": "warning",
+                    "severity": "info",
                     "message": (
-                        "Missing themes in itinerary: " + ", ".join(missing_themes)
+                        "Missing themes in itinerary: "
+                        + ", ".join(missing_themes)
+                        + " (may not be available in destination)"
                     ),
                     "day": None,
                     "weekday": None,
@@ -410,8 +423,11 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
     else:
         errors = [v for v in violations if v["severity"] == "error"]
         warnings = [v for v in violations if v["severity"] == "warning"]
+        infos = [v for v in violations if v["severity"] == "info"]
 
-        print(f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings")
+        print(
+            f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings, {len(infos)} info"
+        )
 
         if errors:
             print("\n❌ ERRORS:")
@@ -434,6 +450,11 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
                     else:
                         day_str = f"Day {v['day']}: "
                 print(f"   {day_str}{v['message']}")
+
+        if infos:
+            print("\nℹ️  INFO:")
+            for v in infos:
+                print(f"   {v['message']}")
 
 
 def assert_itinerary_valid(

@@ -209,3 +209,79 @@ Assistant reply:
   - For CLARIFY: clear numbered questions.
 
 """
+
+'''
+Improvise the current days per city mapping to handle the issue of mandatory pois not added as per user request.
+
+- Honor any explicit user day assignment first (day → city or day → specific POI). If a user assigns a POI to day X, that day’s city is forced to the POI’s city.
+- Mandatory POIs with fixed days must not be moved; they count toward that day’s city allocation.
+- Proportional allocation applies only to remaining (unfixed) days, using weighted counts (mandatory weight > optional weight).
+- Contiguity smoothing: prefer contiguous day blocks per city to minimize travel shuffles. Greedy smoothing moves optional days.
+- The allocator expands blocks adjacent to fixed days first (reduces travel shuffles and preserves user intent). Remaining days are distributed to keep days per city balanced while minimizing the number of switches between cities.
+
+Here are the examples, with all trip days as five days. WHole the examples are in days (both days and dates should work the same do u understand?) :
+A - User: day1 = SG POI, day2 = Johor POI, day3 = SG POI
+Fixed: 1→SG, 2→Johor, 3→SG. Remaining days: 4,5.
+
+B — User: day1 = Johor, day3 = Singapore
+Fixed: 1→Johor, 3→Singapore. Remaining: 2,4,5. (Favor contiguous blocks)
+1,2 -> Johor, 3,4,5 -> Singapore.
+
+C — User: day1 = Johor, day2 = Singapore
+Fixed adjacent swap: 1→Johor, 2→Singapore. Remaining days 3,4,5 — best to make the larger contiguous block after day 2.
+1,2,3,4,5 → Johor, 6,7,8,9,10 → Singapore.
+
+D — User: day1 = Johor, day2 = Singapore, day5 = Johor
+Fixed: 1→J, 2→S, 5→J. Remaining days 3,4. We know that to make it balanced shoud be 2/3 for each dest, so either S has day2-3 or 4 (extend) and the rest is Johor days.
+
+For example of total_days = 10, fixed: day1 = Johor, day3 = Singapore, day8 = Johor.
+Fixed days: 1→J, 3→S, 8→J. Remaining days: 2,4,5,6,7,9,10 (7 days). Contiguity-first allocation produces contiguous middle block for the largest city-span and Johor blocks around its fixed days:
+
+Proposed allocation:
+Day 1: Johor (fixed)
+Day 2: Johor (expand Johor around day1)
+Day 3: Singapore (fixed)
+Day 4: Singapore
+Day 5: Singapore
+Day 6: Singapore
+Day 7: Singapore (expand SG block to minimize swaps)
+Day 8: Johor (fixed)
+Day 9: Johor
+Day 10: Johor
+Fixed days are preserved exactly.
+
+so priority is - trip days by user for dest -> mandatory poi, dest mapping to their day (if specified on what day or what day what time), from here we need to be able to determine balancing num of days per destination based on num of pois(?), i know currently the code has this. and then front this stay we try to build the travelling dest & days, depending on the mandatory fixed day given by user we try to extend it balancely so both dest (or more) gets almost equal days, however that does not mean to introduce more travelling across, cities, ensure it was minimal. So when day 1 has mandatory poi at Johor and Day 2 is straight at sg then the rest of the trip is at sg. this is due to travelling across city is expensive and we dont introduce funnily. but MUST respect to travel destination set by user. if 2, then both must be visit. 
+
+
+make sure to update the test file to check whether it respect all the principles given Use back the original test file if exist like test city segment or smtg i dont know)
+The case described when mandatory pois is given and no day per city is given. if both is not given, just use back the current logic of balancing etc etc.
+---
+As for current, user will only parse 1 hotel node per destination (so when a city is travelled multiple times in a trip, make it use back the same hotel node.)
+Make sure the hard constraint for user specified mandatory pois are added to their respective day with or without time given. With given time then respect given time.
+---
+Second, currently the check in and check out is first depot node.
+The logic should be as follows:
+
+First day of entire trip
+- Because we dont have an arrival node the first node of first day can be anywhere.
+- However at night also need to have check in node to depot / hotel / accommodation.
+
+B) Changing cities (intermediate days)
+- Every time Day(N).city ≠ Day(N+1).city:
+- Maks sure than Day n+1 check out (start depot node) is day n hotel. and night check in node is day n+1 hotel.
+- Transfer starts after check-out (10:00 for packed, 11:00 for relaxed).
+- Arrival at next city must satisfy hotel check-in earliest time.
+- If arrival is earlier → schedule filler events like lunch or small POI (if feasible), or show “waiting until check-in”.
+- Day N+1 starts from the new hotel (depot).
+
+C) Last day
+- Only the depot node in the morning (for check out). 
+- then can make it continue to travel for the day(just like current) however dont add any hotel check-in block(depot).
+
+currently i see that the osrm computes nodes per city. THis works however less making sense in reality, 
+
+
+---
+
+currently i noticed backend uses depot & accommodation role interchangeably for accommodation nodes, make it stick to only one when storing in itinerary. for the local like cvrptw & acs-cvrptw u can implemeent it but it should ensure the large pipeline is using accommodation for consistency so it wont have error.
+'''

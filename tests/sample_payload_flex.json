@@ -3,7 +3,7 @@
     "destination": "Singapore",
     "dates": {
         "type": "flexible",
-        "days": 1,
+        "days": 4,
         "preferred_month": null
     },
     "travelers": {
@@ -19,7 +19,7 @@
     "flags": {
         "is_muslim": true
     },
-    "dietary_restrictions": null,
+    "dietary_restrictions": "vegetarian",
     "hotels": [
         {
             "poi_id": "d6709b71-2dc6-4e84-9e4c-c498fef9fcdf",
@@ -29,13 +29,7 @@
             "themes": [],
             "role": "accommodation",
             "images": [
-                "https://lh3.googleusercontent.com/p/AF1QipPvDWNGK5AAFhhV4Gmd94o4L2eo7ebwUPD1zu34",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwd_khwvXwXt5bDVPN3sLAR3av4eni5LPuPfIhxAvNNVrBBMI8JDd-U6SK2N7cfSoMH0kcqJgmH8Llk_056nNXHoUaK26csF2lE9CNXQvWQsH-UtBzX1f2sEoRDyhhONjwjcxXG",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSyXA6gN4xJ_PFpUgApeyjZP9DSJ1v-xlocUMzIzaegtooyfa7Lqr5tEIp05lRUCdj9JoKaboDEgcAb3QWUmCfs_MOli1B3GOtLejkBOdebrw5KLGrezmpNmi8tEFhDm3HxHl28sCNMybojk",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSxKsyZCZ4Ym6wlbyctUAlDIB4VgFhwK5b1mTHh46WXXstEz1pQfg8kN6ekcS9-tRQgKDHULBHEDVs-stGbYaHuncXFQW2aKAsMybCl9I9tl0fTPeSEReq8egHVkCE8BtNuJ7GJSjA",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSxJyq9oC3y0IGQ2oEVWv8b79sZh4hgjbJSaQd2EYDy_9dX-W7d990ZIj_2zHkYz9yWa-afNzq9ajEJukngMbFp3uSTtH2YA0-hr5RM5TakUeBz38rffiLyOatqaC29YplZaPeKZ_w",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSyTmCw2TUm2Gls_kbNzZACbd-DqENeejD1xooVxNVjrFA5P2rRNwHcTkHvi6KUSf-lvXxhFx6r0QDfGUceemiSXvTShW9hgxZwMUSwJuqpAkxOq9rf24cLP6J0fs8Bl4Uux-SWsug",
-                "https://lh3.googleusercontent.com/p/AF1QipMdhBWEBA9ALKFuNxK_ScD1ERoq6JmDGA6n3ZB7"
+                "https://lh3.googleusercontent.com/p/AF1QipPvDWNGK5AAFhhV4Gmd94o4L2eo7ebwUPD1zu34"
             ]
         }
     ],
@@ -53,14 +47,7 @@
             ],
             "role": "attraction",
             "images": [
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwE2uvZmz6ESaVFMUjRrovGb4EQO4qyX4IDuXkvB64gldjcO2cf1jJOfpDXsUUkWXuWYllkYroljMGorvg6qvRrBdNTbBm05OFIcFMNjwrB9P4gGcNZnOcovOU2zMt59uGDXoEOqkjnFblR",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwl8UJmO1scCSwRjrtxqC4GiWM6YG1G-HUPGeQmK8xu6QwoZm8mvwxaTBbV1TH1DLBYcu9fpUfCqPZArvOQN49oRohati-0vB6Y-EsUySS_yP-pqTSyCv40rb4KD2ci9T1uY5bkJ1Y43Kc",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwrST-WIZP-DcFtE7jLywALCLHTdXmk3Sum2i2t41CcotQYsMeh3VoUPgl8kceXz9j3YjwXL26y6t8ELtOkJBAV5ISAhJccl7ToFld8qZb0Q9u-ztT7-Cel7x1fHwd9U1SoqVZH",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSxrj0vzOAO-UXXuj1LiI2nRVUl5IcLFM9EPs3MhNu9dY0XU-eGz5Gr5vKSP836BOwtDZkFO1iT34SDOQ0TK0qdPNaU-CVEkATNgTdeHrRK5bj5sHXjkvffr-Yk-c-NqOEan91k",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwtouZ_wiJmh5B5G_Oc5-lBAIVazkU40Q1TBPH5XtyRvRI8pvd6j3yoV1joj9y4Gi59CUM6ifKkXSSYnJDYwQWv6emTOOWQMkeSd7MaezHc5zfuWy1T1pgWn7VHI0Liqj1jw15q",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSyOC20JmPHeWHf12AvBUwgmPURCHymNpEuLzlbbS93yKd0_zkisM0XVLt3ZhlDXVOQPg0kmk7sKQw_uHAgHyLm498a0xC0e7YYqU-nPmR09oRGQLJMGvXKJJU5NmY-oHlgzsY-B",
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSyfyLv1ft5zRcIp1RxIPNXvhs1jMssCjh8ysVXmW-0XkFVudOtmBvRjkUkSkWnfdj8Mi53Lcr3nPpK61rSy0YT9_pUMFHZ5rYjWI682tmAuwJCw8L50vO_1WMyOVxPNChowppTDVQ",
-                "https://lh3.googleusercontent.com/p/AF1QipNJNyHVSA3b0gFvZZCi3dT2FkKarsY9U7ZFy7bv"
+                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwE2uvZmz6ESaVFMUjRrovGb4EQO4qyX4IDuXkvB64gldjcO2cf1jJOfpDXsUUkWXuWYllkYroljMGorvg6qvRrBdNTbBm05OFIcFMNjwrB9P4gGcNZnOcovOU2zMt59uGDXoEOqkjnFblR"
             ]
         }
     ]

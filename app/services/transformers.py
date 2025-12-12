@@ -1,8 +1,21 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from datetime import date
 from app.utils.logger import get_logger
+from app.utils.naming import dict_to_camel_case
 
 logger = get_logger(__name__)
+
+# Role mapping constants
+ROLE_DEPOT = "depot"  # Internal VRP role
+ROLE_ACCOMMODATION = "accommodation"  # Canonical role for output
+
+# Frontend role mapping - maps internal roles to UI-friendly roles
+FRONTEND_ROLE_MAP = {
+    "depot": "accommodation",  # Map depot to accommodation for frontend
+    "accommodation": "accommodation",
+    "attraction": "attraction",
+    "meal": "meal",
+}
 
 # Frontend → Backend Transformation
 
@@ -137,7 +150,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     Field mappings:
     - review_rating → rating
     - review_count → reviewCount
-    - poi_roles → roles, poiRoles
     - price_level → priceLevel
     - open_hours → openHours
     - complete_address → location (derived from city or country)
@@ -176,8 +188,7 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "reviewCount": poi.get("review_count"),
         "location": location,
         "images": poi.get("images", []),
-        "roles": poi.get("poi_roles", []),
-        "poiRoles": poi.get("poi_roles", []),
+        "roles": poi.get("roles", []),
         "themes": poi.get("themes", []),
         "description": poi.get("description") or poi.get("descriptions"),
         "coordinates": coords,
@@ -188,6 +199,76 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level"),
     }
+
+
+def map_stop_role_for_frontend(role: str) -> str:
+    """
+    Map internal stop role to frontend-compatible role.
+    
+    Args:
+        role: Internal role string
+        
+    Returns:
+        Frontend-compatible role string
+    """
+    return FRONTEND_ROLE_MAP.get(role, role)
+
+
+def transform_stop_for_frontend(stop: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform a single stop dict for frontend consumption.
+    
+    Maps internal roles to frontend roles and ensures consistent field naming.
+    
+    Args:
+        stop: Internal stop dict
+        
+    Returns:
+        Frontend-compatible stop dict
+    """
+    stop_copy = stop.copy()
+    
+    # Map role to frontend role
+    if "role" in stop_copy:
+        stop_copy["role"] = map_stop_role_for_frontend(stop_copy["role"])
+    
+    return stop_copy
+
+
+def transform_day_for_frontend(day: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform a single day dict for frontend consumption.
+    
+    Transforms all stops within the day.
+    
+    Args:
+        day: Internal day dict
+        
+    Returns:
+        Frontend-compatible day dict
+    """
+    day_copy = day.copy()
+    
+    # Transform stops
+    if "stops" in day_copy:
+        day_copy["stops"] = [
+            transform_stop_for_frontend(stop) for stop in day_copy["stops"]
+        ]
+    
+    return day_copy
+
+
+def transform_days_for_frontend(days: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Transform all days for frontend consumption.
+    
+    Args:
+        days: List of internal day dicts
+        
+    Returns:
+        List of frontend-compatible day dicts
+    """
+    return [transform_day_for_frontend(day) for day in days]
 
 
 def transform_response_to_frontend(
@@ -217,3 +298,19 @@ def transform_response_to_frontend(
         "route_order": output.get("route_order", []),
         "meta": output.get("meta", {}),
     }
+
+
+def transform_itinerary_response_to_frontend(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform full itinerary response to frontend format (camelCase).
+    
+    This is the main function to use when returning itinerary data to frontend.
+    It converts all keys to camelCase recursively.
+    
+    Args:
+        data: Internal itinerary data with snake_case keys
+        
+    Returns:
+        Frontend-compatible data with camelCase keys
+    """
+    return dict_to_camel_case(data)

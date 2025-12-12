@@ -20,7 +20,7 @@ class POI(BaseModel):
 
     id: str
     name: str
-    poi_roles: List[str] = []
+    roles: List[str] = []
     area_name: Optional[str] = None
     category: Optional[str] = None
     categories: Optional[List[str]] = None

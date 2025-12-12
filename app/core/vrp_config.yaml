@@ -1,0 +1,13 @@
+acs_alpha: 2.3299848545285125
+acs_beta: 3.3946339367881464
+acs_evaporation_rate: 0.29361118426546196
+acs_max_theme_per_day: 2
+acs_n_ants: 28
+acs_n_iterations: 117
+acs_q: 73.3991780504304
+drop_poi_penalty: 1041
+mandatory_miss_penalty: 13325
+meal_shortfall_penalty: 882
+penalty_meal_to_meal: 7197
+penalty_same_theme: 681
+penalty_theme_limit_exceeded: 12081

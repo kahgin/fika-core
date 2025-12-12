@@ -9,9 +9,9 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["pois"])
 
 UI_TO_ROLE = {
-    "attractions": "attraction",
-    "restaurants": "meal",
-    "hotels": "accommodation",
+    "attraction": "attraction",
+    "restaurant": "meal",
+    "hotel": "accommodation",
 }
 
 
@@ -19,13 +19,13 @@ UI_TO_ROLE = {
 def list_pois(
     limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT),
     offset: int = Query(0, ge=0),
-    role: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$"),
+    role: Optional[str] = Query(None, regex="^(attraction|restaurant|hotel)$"),
     destination: Optional[str] = Query(None),
 ):
     try:
         supabase = get_supabase()
         roles = [UI_TO_ROLE[role]] if role else None
-        
+
         resp = supabase.rpc(
             "rpc_search_pois",
             {
@@ -37,16 +37,20 @@ def list_pois(
                 "p_offset": offset,
             },
         ).execute()
-        
+
         data = resp.data or []
-        
+
         # Extract total count from first row
         total = data[0]["total_count"] if data else 0
-        
+
         # Transform POIs to frontend format (camelCase)
-        pois = [transform_poi_to_frontend({k: v for k, v in p.items() if k != "total_count"}) 
-                for p in data]
-        
+        pois = [
+            transform_poi_to_frontend(
+                {k: v for k, v in p.items() if k != "total_count"}
+            )
+            for p in data
+        ]
+
         return {
             "status": "success",
             "count": total,
@@ -63,15 +67,15 @@ def search_pois(
     limit: int = Query(settings.DEFAULT_LIMIT, ge=1, le=settings.MAX_LIMIT),
     offset: int = Query(0, ge=0),
     destination: Optional[str] = Query(None),
-    role: Optional[str] = Query(None, regex="^(attractions|restaurants|hotels)$"),
+    role: Optional[str] = Query(None, regex="^(attraction|restaurant|hotel)$"),
 ):
     try:
         if not q.strip():
             return {"status": "success", "query": q, "count": 0, "data": []}
-        
+
         supabase = get_supabase()
         roles = [UI_TO_ROLE[role]] if role else None
-        
+
         resp = supabase.rpc(
             "rpc_search_pois",
             {
@@ -83,16 +87,20 @@ def search_pois(
                 "p_offset": offset,
             },
         ).execute()
-        
+
         data = resp.data or []
-        
+
         # Extract total count from first row
         total = data[0]["total_count"] if data else 0
-        
+
         # Transform POIs to frontend format (camelCase)
-        pois = [transform_poi_to_frontend({k: v for k, v in p.items() if k != "total_count"}) 
-                for p in data]
-        
+        pois = [
+            transform_poi_to_frontend(
+                {k: v for k, v in p.items() if k != "total_count"}
+            )
+            for p in data
+        ]
+
         return {
             "status": "success",
             "query": q,
@@ -114,11 +122,11 @@ def search_pois_minimal(
     try:
         if not destination or not roles:
             return {"status": "success", "data": []}
-        
+
         role_list = [r.strip() for r in roles.split(",") if r.strip()]
         if not role_list:
             return {"status": "success", "data": []}
-        
+
         supabase = get_supabase()
         resp = supabase.rpc(
             "rpc_search_pois",
@@ -131,30 +139,32 @@ def search_pois_minimal(
                 "p_offset": 0,
             },
         ).execute()
-        
+
         raw_data = resp.data or []
         transformed = []
-        
+
         # Transform to frontend format (camelCase)
         for poi in raw_data:
             images = poi.get("images") or []
             themes = poi.get("themes") or []
-            poi_roles = poi.get("poi_roles") or []
-            
-            transformed.append({
-                "id": poi.get("id"),
-                "name": poi.get("name"),
-                "coordinates": {
-                    "lat": poi.get("latitude"),
-                    "lng": poi.get("longitude"),
-                },
-                "images": images,
-                "themes": themes,
-                "role": poi_roles[0] if poi_roles else "",
-                "poiRoles": poi_roles,
-                "openHours": poi.get("open_hours"),  # Convert to camelCase for frontend
-            })
-        
+            roles = poi.get("roles") or []
+
+            transformed.append(
+                {
+                    "id": poi.get("id"),
+                    "name": poi.get("name"),
+                    "coordinates": {
+                        "lat": poi.get("latitude"),
+                        "lng": poi.get("longitude"),
+                    },
+                    "images": images,
+                    "themes": themes,
+                    "role": roles[0] if roles else "",
+                    "roles": roles,
+                    "openHours": poi.get("open_hours"),
+                }
+            )
+
         return {"status": "success", "data": transformed}
     except Exception as e:
         logger.exception("Error searching POIs minimal")

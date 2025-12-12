@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional, Set, Any
 
+from app.services.osrm import tiered_round
 from app.services.vrp_model import VRPConfig
 from app.services.vrp_model import DaySpec, Node, vrp_config
 from app.services.vrp_utils import format_time_minutes
@@ -45,6 +46,11 @@ def _get_primary_theme(node: Node) -> Optional[str]:
     return node.role
 
 
+# Role constants for consistency
+ROLE_DEPOT_INTERNAL = "depot"  # Used internally by VRP solver
+ROLE_ACCOMMODATION = "accommodation"  # Canonical role for output
+
+
 def _simulate_day_route(
     day: DaySpec,
     nodes: List[Node],
@@ -69,6 +75,7 @@ def _simulate_day_route(
     and the number of meals included.
     """
     depot_idx = 0  # Depot is always at index 0
+    depot_node = nodes[depot_idx]
     t = day.start_min
     current = depot_idx
     stops: List[Dict] = []
@@ -76,9 +83,24 @@ def _simulate_day_route(
     meals_count = 0
     food_streak = 0
     total_travel_min = 0
-    last_role: str = "depot"
+    last_role: str = ROLE_DEPOT_INTERNAL
     theme_count_per_day: Dict[str, int] = {}
     extra_penalty_total = 0.0
+
+    # Add depot start - use 'accommodation' role for output consistency
+    stops.append(
+        {
+            "poi_id": depot_node.poi_id,
+            "name": depot_node.name,
+            "role": ROLE_ACCOMMODATION,  # Use accommodation for output
+            "themes": [],
+            "arrival": format_time_minutes(day.start_min),
+            "start_service": format_time_minutes(day.start_min),
+            "depart": format_time_minutes(day.start_min),
+            "latitude": depot_node.lat,
+            "longitude": depot_node.lon,
+        }
+    )
 
     # Meal window configuration
     SOFT_TOL = 30  # Allowable deviation before penalties apply
@@ -207,7 +229,7 @@ def _simulate_day_route(
         {
             "poi_id": depot_node.poi_id,
             "name": depot_node.name,
-            "role": depot_node.role,
+            "role": ROLE_ACCOMMODATION,  # Use accommodation for output consistency
             "themes": [],
             "arrival": format_time_minutes(arrival_back),
             "start_service": format_time_minutes(arrival_back),
@@ -308,7 +330,7 @@ def _acs_optimize_day(
                 {
                     "poi_id": depot.poi_id,
                     "name": depot.name,
-                    "role": "hotel",
+                    "role": ROLE_ACCOMMODATION,  # Use accommodation for consistency
                     "arrival": format_time_minutes(day.start_min),
                     "start_service": format_time_minutes(day.start_min),
                     "depart": format_time_minutes(day.start_min),
@@ -327,7 +349,8 @@ def _acs_optimize_day(
     m = len(subset)
 
     distances = [
-        [float(travel[subset[i]][subset[j]]) for j in range(m)] for i in range(m)
+        [tiered_round(float(travel[subset[i]][subset[j]]) / 60.0) for j in range(m)]
+        for i in range(m)
     ]
 
     pheromone = [[1.0] * m for _ in range(m)]
@@ -412,7 +435,7 @@ def _acs_optimize_day(
                 {
                     "poi_id": depot.poi_id,
                     "name": depot.name,
-                    "role": "hotel",
+                    "role": ROLE_ACCOMMODATION,  # Use accommodation for consistency
                     "arrival": format_time_minutes(day.start_min),
                     "start_service": format_time_minutes(day.start_min),
                     "depart": format_time_minutes(day.start_min),

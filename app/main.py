@@ -5,6 +5,7 @@ load_dotenv()
 from fastapi import FastAPI
 from app.api import pois
 from app.api import itinerary
+from app.api import recompute
 from app.core.config import settings
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +23,7 @@ app.add_middleware(
 # Routers
 app.include_router(pois.router)
 app.include_router(itinerary.router)
+app.include_router(recompute.router)
 
 
 @app.get("/")

@@ -9,17 +9,17 @@ Tests 4 cases:
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import date
 
-from app.services.cvrptw import build_problem, _create_poi_node
-from app.services.vrp_model import DaySpec, Node, vrp_config
+from app.services.vrp_utils import build_problem
+from app.services.vrp_model import vrp_config
 
 
 @pytest.fixture
 def mock_osrm():
     """Mock OSRM client for deterministic tests."""
-    with patch("app.services.cvrptw.osrm_client") as mock:
+    with patch("app.services.osrm.osrm_client") as mock:
 
         def matrix_minutes(coords):
             n = len(coords)
@@ -48,27 +48,27 @@ def basic_maut_output():
             {
                 "id": "attraction1",
                 "name": "Marina Bay Sands",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "themes": ["culture"],
             },
             {
                 "id": "attraction2",
                 "name": "Gardens by the Bay",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.29, "lng": 103.86},
                 "themes": ["nature"],
             },
             {
                 "id": "meal1",
                 "name": "Hawker Center",
-                "poi_roles": ["meal"],
+                "roles": ["meal"],
                 "coordinates": {"lat": 1.30, "lng": 103.84},
             },
             {
                 "id": "mandatory_poi",
                 "name": "Singapore Zoo",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.40, "lng": 103.79},
                 "themes": ["family"],
             },
@@ -532,7 +532,7 @@ class TestMandatoryPoiMultiCity:
 
     def test_multi_city_mandatory_poi_integration(self, mock_osrm):
         """Integration test: mandatory POIs assigned to correct city days."""
-        from app.services.cvrptw import build_problem
+        from app.services.vrp_utils import build_problem
         from app.services.pipeline import _filter_mandatory_for_city
 
         # Singapore POIs
@@ -540,7 +540,7 @@ class TestMandatoryPoiMultiCity:
             {
                 "id": "sg_attraction",
                 "name": "Marina Bay",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "area_name": "Singapore",
                 "themes": ["culture"],
@@ -548,7 +548,7 @@ class TestMandatoryPoiMultiCity:
             {
                 "id": "sg_mandatory",
                 "name": "Singapore Zoo",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.40, "lng": 103.79},
                 "area_name": "Singapore",
                 "themes": ["family"],
@@ -560,7 +560,7 @@ class TestMandatoryPoiMultiCity:
             {
                 "id": "jb_attraction",
                 "name": "Legoland",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.43, "lng": 103.63},
                 "area_name": "Johor Bahru",
                 "themes": ["family"],
@@ -568,7 +568,7 @@ class TestMandatoryPoiMultiCity:
             {
                 "id": "jb_mandatory",
                 "name": "Hello Kitty Town",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.42, "lng": 103.64},
                 "area_name": "Johor Bahru",
                 "themes": ["family"],
@@ -679,7 +679,7 @@ class TestMandatoryPoiEdgeCases:
             {
                 "id": "mandatory_poi_2",
                 "name": "Universal Studios",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.25, "lng": 103.82},
                 "themes": ["family"],
             }

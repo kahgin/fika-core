@@ -14,24 +14,18 @@ Tests verify that:
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
-from datetime import date
+from unittest.mock import patch
 
-from app.services.cvrptw import (
-    _create_day_specs,
-    _create_poi_node,
-    _create_nodes,
-    build_problem,
-    run_cvrptw,
-)
+from app.services.vrp_utils import create_day_specs, build_problem
+from app.services.cvrptw import run_cvrptw
 from app.services.acs_cvrptw import run_acs_cvrptw
-from app.services.vrp_model import DaySpec, Node, vrp_config, VRPConfig
+from app.services.vrp_model import vrp_config, VRPConfig
 
 
 @pytest.fixture
 def mock_osrm():
     """Mock OSRM client for deterministic tests."""
-    with patch("app.services.cvrptw.osrm_client") as mock:
+    with patch("app.services.osrm.osrm_client") as mock:
 
         def matrix_minutes(coords):
             n = len(coords)
@@ -60,27 +54,27 @@ def basic_maut_output():
             {
                 "id": "attraction1",
                 "name": "Marina Bay Sands",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "themes": ["culture"],
             },
             {
                 "id": "attraction2",
                 "name": "Gardens by the Bay",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.29, "lng": 103.86},
                 "themes": ["nature"],
             },
             {
                 "id": "meal1",
                 "name": "Hawker Center",
-                "poi_roles": ["meal"],
+                "roles": ["meal"],
                 "coordinates": {"lat": 1.30, "lng": 103.84},
             },
             {
                 "id": "meal2",
                 "name": "Restaurant",
-                "poi_roles": ["meal"],
+                "roles": ["meal"],
                 "coordinates": {"lat": 1.31, "lng": 103.83},
             },
         ],
@@ -96,7 +90,7 @@ class TestPacingDaySpecs:
 
     def test_relaxed_pacing_day_specs(self, basic_maut_output, hotel):
         """Relaxed pacing: start=10:00 (600min), budget=8h (480min), end=18:00 (1080min)."""
-        day_specs = _create_day_specs(basic_maut_output, hotel, pacing="relaxed")
+        day_specs = create_day_specs(basic_maut_output, hotel, pacing="relaxed")
 
         assert len(day_specs) == 2
         for ds in day_specs:
@@ -106,7 +100,7 @@ class TestPacingDaySpecs:
 
     def test_balanced_pacing_day_specs(self, basic_maut_output, hotel):
         """Balanced pacing: start=9:00 (540min), budget=11h (660min), end=20:00 (1200min)."""
-        day_specs = _create_day_specs(basic_maut_output, hotel, pacing="balanced")
+        day_specs = create_day_specs(basic_maut_output, hotel, pacing="balanced")
 
         assert len(day_specs) == 2
         for ds in day_specs:
@@ -116,7 +110,7 @@ class TestPacingDaySpecs:
 
     def test_packed_pacing_day_specs(self, basic_maut_output, hotel):
         """Packed pacing: start=8:00 (480min), budget=14h (840min), end=22:00 (1320min)."""
-        day_specs = _create_day_specs(basic_maut_output, hotel, pacing="packed")
+        day_specs = create_day_specs(basic_maut_output, hotel, pacing="packed")
 
         assert len(day_specs) == 2
         for ds in day_specs:
@@ -267,7 +261,7 @@ class TestPacingAcsCvrptw:
                 {
                     "id": f"attraction{i}",
                     "name": f"Attraction {i}",
-                    "poi_roles": ["attraction"],
+                    "roles": ["attraction"],
                     "coordinates": {"lat": 1.28 + i * 0.01, "lng": 103.85 + i * 0.01},
                     "themes": ["culture"],
                 }
@@ -277,7 +271,7 @@ class TestPacingAcsCvrptw:
                 {
                     "id": f"meal{i}",
                     "name": f"Meal {i}",
-                    "poi_roles": ["meal"],
+                    "roles": ["meal"],
                     "coordinates": {"lat": 1.30 + i * 0.01, "lng": 103.84 + i * 0.01},
                 }
                 for i in range(3)
@@ -372,15 +366,15 @@ class TestPacingPipeline:
     def test_pacing_passed_to_build_problem(self, mock_osrm, basic_maut_output, hotel):
         """Verify pacing parameter is used in build_problem."""
         with (
-            patch("app.services.cvrptw._create_day_specs") as mock_day_specs,
-            patch("app.services.cvrptw._create_nodes") as mock_nodes,
+            patch("app.services.vrp_utils.create_day_specs") as mock_day_specs,
+            patch("app.services.vrp_utils.create_nodes") as mock_nodes,
         ):
             mock_day_specs.return_value = []
             mock_nodes.return_value = []
 
             build_problem(basic_maut_output, hotel, pacing="packed")
 
-            # Verify pacing was passed to _create_day_specs
+            # Verify pacing was passed to create_day_specs
             mock_day_specs.assert_called_once()
             call_args = mock_day_specs.call_args
             assert call_args[0][2] == "packed" or call_args[1].get("pacing") == "packed"
@@ -412,7 +406,7 @@ class TestPacingEdgeCases:
         self, mock_osrm, basic_maut_output, hotel
     ):
         """Invalid pacing value should fall back to balanced defaults."""
-        day_specs = _create_day_specs(basic_maut_output, hotel, pacing="invalid_pacing")
+        day_specs = create_day_specs(basic_maut_output, hotel, pacing="invalid_pacing")
 
         # Should use balanced defaults (9:00 start, 11h budget)
         balanced_start = vrp_config.pace_day_start_min.get("balanced", 9 * 60)
@@ -439,7 +433,7 @@ class TestPacingEdgeCases:
     def test_pacing_case_sensitivity(self, mock_osrm, basic_maut_output, hotel):
         """Pacing values are case-sensitive (lowercase expected)."""
         # Uppercase should not match, falls back to default
-        day_specs = _create_day_specs(basic_maut_output, hotel, pacing="RELAXED")
+        day_specs = create_day_specs(basic_maut_output, hotel, pacing="RELAXED")
 
         # Should NOT use relaxed (10:00 start), should use default
         relaxed_start = vrp_config.pace_day_start_min.get("relaxed")

@@ -5,12 +5,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
+        extra="ignore",
     )
 
     SUPABASE_URL: str
     SUPABASE_KEY: str
     GOOGLE_MAPS_API_KEY: str
-    OPENAI_API_KEY: str
+    GOOGLE_AI_STUDIO_KEY: str
     OSRM_URL: str
     UNSPLASH_APPLICATION_ID: str
     UNSPLASH_ACCESS_KEY: str

@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import patch
-from app.services.cvrptw import build_problem
+from app.services.vrp_utils import build_problem
 
 
 @pytest.fixture
 def mock_osrm():
     """Mock OSRM client for deterministic tests."""
-    with patch("app.services.cvrptw.osrm_client") as mock:
+    with patch("app.services.osrm.osrm_client") as mock:
 
         def matrix_minutes(coords):
             n = len(coords)
@@ -24,14 +24,14 @@ def basic_maut_output():
             {
                 "id": "attraction1",
                 "name": "Marina Bay",
-                "poi_roles": ["attraction"],
+                "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
                 "themes": ["culture"],
             },
             {
                 "id": "meal1",
                 "name": "Hawker Center",
-                "poi_roles": ["meal"],
+                "roles": ["meal"],
                 "coordinates": {"lat": 1.29, "lng": 103.84},
             },
         ],
@@ -63,7 +63,6 @@ class TestBuildProblemDepot:
             basic_maut_output,
             hotel,
             pacing="balanced",
-            selected_themes=["culture"],
         )
 
         # Verify depot node (index 0)
@@ -214,13 +213,13 @@ class TestBuildProblemEdgeCases:
                 {
                     "id": "poi1",
                     "name": "No Coords",
-                    "poi_roles": ["attraction"],
+                    "roles": ["attraction"],
                     # Missing coordinates
                 },
                 {
                     "id": "poi2",
                     "name": "Has Coords",
-                    "poi_roles": ["attraction"],
+                    "roles": ["attraction"],
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                 },
             ],
@@ -246,7 +245,7 @@ class TestBuildProblemEdgeCases:
                 {
                     "id": "poi1",
                     "name": "Attraction",
-                    "poi_roles": ["attraction"],
+                    "roles": ["attraction"],
                     "coordinates": {"lat": 1.3, "lng": 103.8},
                 },
             ],

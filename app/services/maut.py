@@ -27,7 +27,7 @@ BASE_WEIGHTS = {
 class Row(TypedDict, total=False):
     id: str
     name: str
-    poi_roles: Optional[List[str]]
+    roles: Optional[List[str]]
     categories: Optional[List[str]]
     themes: Optional[List[str]]
     open_hours: Optional[Dict[str, Any]]
@@ -93,22 +93,20 @@ def derive_selected_themes(req: Dict[str, Any]) -> List[str]:
 def role_keep_counts(num_days: int) -> Dict[str, int]:
     d = max(1, int(num_days or 7))
     return {
-        "attraction": min(12 * d, 300),
-        "meal": min(8 * d, 50),
-        "accommodation": min(d + 5, 15),
+        "attraction": min(12 * d, 120),
+        "meal": min(6 * d, 60),
+        "accommodation": min(d + 3, 13),
     }
 
 
-def applicable_dims(req: Dict[str, Any], poi_roles: List[str]) -> Set[str]:
+def applicable_dims(req: Dict[str, Any], roles: List[str]) -> Set[str]:
     dims: Set[str] = {"interest", "popularity"}  # "cost"
     flags = req.get("flags", {})
     if flags.get("has_child"):
         dims.add("child")
     if flags.get("has_pets"):
         dims.add("pet")
-    if "halal" in (req.get("dietary_restrictions") or []) and (
-        "meal" in (poi_roles or [])
-    ):
+    if "halal" in (req.get("dietary_restrictions") or []) and ("meal" in (roles or [])):
         dims.add("dietary")
     if flags.get("wheelchair_accessible"):
         dims.add("access")
@@ -214,7 +212,7 @@ def dietary_score(req: Dict[str, Any], poi: Row) -> float:
 
 
 def score_row(req: Dict[str, Any], row: Row, selected_themes: List[str]) -> float:
-    roles = row.get("poi_roles") or []
+    roles = row.get("roles") or []
     dims = applicable_dims(req, roles)
     W = renorm_weights(dims)
 
@@ -285,7 +283,7 @@ def trim_by_role(
     by_role: Dict[str, List[Row]] = {"attraction": [], "meal": [], "accommodation": []}
 
     for r in scored:
-        roles = r.get("poi_roles") or []
+        roles = r.get("roles") or []
         primary = roles[0] if roles else (r.get("role_pick") or "attraction")
         if primary == "meal":
             by_role["meal"].append(r)
@@ -383,13 +381,13 @@ def trim_by_role(
 
 def to_poi(row: Row) -> POI:
     """Convert internal Row to POI schema with all fields (snake_case)."""
-    roles = row.get("poi_roles") or []
+    roles = row.get("roles") or []
     if not roles and row.get("role_pick"):
         roles = [str(row.get("role_pick"))]
     return POI(
         id=row["id"],
         name=row["name"],
-        poi_roles=roles,
+        roles=roles,
         area_name=row.get("area_name", None),
         category=(row.get("categories") or [None])[0],
         categories=row.get("categories") or [],
@@ -410,7 +408,7 @@ def to_poi(row: Row) -> POI:
 # Orchestrator
 
 
-def run_pipeline(payload: Dict[str, Any], *, as_model: bool = False):
+def run_maut(payload: Dict[str, Any], *, as_model: bool = False):
     """
     Run MAUT pipeline to score and select POIs.
 

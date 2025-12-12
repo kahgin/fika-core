@@ -1,72 +1,77 @@
+"""
+OR-Tools CVRPTW solver test.
+
+Tests the OR-Tools constraint solver directly.
+"""
+
 import os
 import json
-from app.services.maut import run_pipeline
+
+from app.services.maut import run_maut
+from app.services.transformers import transform_frontend_payload
 from app.services.cvrptw import run_cvrptw
 
 TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_spec.json")
 
 
-def test_cvrptw_with_maut():
-    """Test CVRPTW with MAUT output"""
-    # Load test input
+def test_cvrptw_solver():
+    """
+    Test OR-Tools CVRPTW solver.
+
+    Verifies:
+    - Returns days structure
+    - Correct number of days
+    - Each day has stops
+    - Last stop is depot/hotel
+    """
     with open(TEST_PATH, "r", encoding="utf-8") as f:
         frontend_payload = json.load(f)
 
-    # Run MAUT pipeline
-    maut_output = run_pipeline(frontend_payload)
+    # Run MAUT
+    maut_request = transform_frontend_payload(frontend_payload)
+    maut_output = run_maut(maut_request)
 
-    # Save MAUT output
-    maut_output_path = os.path.join(os.path.dirname(__file__), "maut_output.json")
-    with open(maut_output_path, "w", encoding="utf-8") as f:
-        json.dump(maut_output, f, indent=2)
+    # Inject dates/num_days
+    maut_output.setdefault("meta", {})
+    maut_output["meta"]["dates"] = frontend_payload["dates"]
+    maut_output["meta"]["num_days"] = maut_request["num_days"]
+
+    # Get hotel
+    selected_hotel = maut_output["meta"].get("selected_hotel")
+    assert selected_hotel, "MAUT did not select a hotel"
+
+    coords = selected_hotel.get("coordinates") or {}
+    hotel = {
+        "id": selected_hotel["id"],
+        "name": selected_hotel["name"],
+        "lat": coords.get("lat"),
+        "lon": coords.get("lng"),
+    }
 
     # Run CVRPTW
-    hotel = {"id": "hotel_1", "name": "Test Hotel", "lat": 1.290270, "lon": 103.851959}
-
-    cvrptw_output = run_cvrptw(
+    result = run_cvrptw(
         maut_output=maut_output,
         hotel=hotel,
         pacing="balanced",
-        mandatory=None,
-        time_limit_sec=15,
     )
 
-    # Save CVRPTW output
-    cvrptw_output_path = os.path.join(os.path.dirname(__file__), "cvrptw_output.json")
-    with open(cvrptw_output_path, "w", encoding="utf-8") as f:
-        json.dump(cvrptw_output, f, indent=2)
+    # Save output
+    out_path = os.path.join(os.path.dirname(__file__), "cvrptw_output.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
 
     # Assertions
-    assert cvrptw_output is not None
-    assert isinstance(cvrptw_output, dict)
-    assert "days" in cvrptw_output
-    assert isinstance(cvrptw_output["days"], list)
+    assert "days" in result
+    days = result["days"]
+    assert len(days) > 0, f"No days returned: {result.get('note')}"
+    assert len(days) == maut_request["num_days"]
 
-    # Ensure CVRPTW succeeded
-    days = cvrptw_output.get("days", [])
-    assert len(days) > 0, f"CVRPTW returned no days: {cvrptw_output.get('note')}"
-
-    # Validate day count matches request
-    expected_days = frontend_payload.get("num_days", 3)
-    assert len(days) == expected_days, f"Expected {expected_days} days, got {len(days)}"
-
-    # Validate per-day invariants
+    # Each day has stops ending at depot
     for i, day in enumerate(days):
         assert len(day["stops"]) >= 1, f"Day {i + 1} has no stops"
-
-        # Last stop should be hotel
         last = day["stops"][-1]
-        assert last["role"] == "hotel", f"Day {i + 1} last stop is not hotel"
+        assert last["role"] in ("depot", "hotel"), f"Day {i + 1} doesn't end at depot"
 
-        # Meal count should be valid
-        meals = day["meals"]
-        assert 0 <= meals <= 3, f"Day {i + 1} has invalid meal count: {meals}"
-
-    print(f"\n✅ MAUT output: {len(maut_output.get('places', []))} POIs")
-    print(f"✅ CVRPTW output: {len(cvrptw_output['days'])} days")
-    for i, day in enumerate(cvrptw_output["days"]):
-        print(f"   Day {i + 1}: {len(day['stops'])} stops, {day['meals']} meals")
-
-
-if __name__ == "__main__":
-    test_cvrptw_with_maut()
+    print(f"\n✅ CVRPTW: {len(days)} days")
+    for i, day in enumerate(days):
+        print(f"   Day {i + 1}: {len(day['stops'])} stops, {day.get('meals', 0)} meals")

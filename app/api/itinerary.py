@@ -6,13 +6,16 @@ from app.services.transformers import (
     transform_frontend_payload,
     transform_response_to_frontend,
     transform_poi_to_frontend,
+    transform_days_for_frontend,
+    transform_itinerary_response_to_frontend,
 )
-from app.services.maut import run_pipeline
+from app.services.maut import run_maut
 from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
 from app.services.vrp_model import vrp_config
 from app.services.osrm import osrm_client
-from app.utils.naming import transform_frontend_to_canonical
+from app.utils.naming import transform_frontend_to_canonical, dict_to_camel_case
+from app.utils.date_utils import recompute_day_labels
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
@@ -90,7 +93,7 @@ def create_itinerary(payload: dict):
         # 1. Ingress normalization to canonical snake_case
         try:
             payload = transform_frontend_to_canonical(payload)
-            print(payload)
+            # print(payload)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -122,7 +125,7 @@ def create_itinerary(payload: dict):
                 for cname in _city_variants(city):
                     req_i = dict(maut_request)
                     req_i["destination"] = cname
-                    out_i = run_pipeline(req_i)
+                    out_i = run_maut(req_i)
                     if out_i.get("places"):
                         break
                 if not out_i:
@@ -153,7 +156,7 @@ def create_itinerary(payload: dict):
                 },
             }
         else:
-            maut_output = run_pipeline(maut_request)
+            maut_output = run_maut(maut_request)
 
         # 3.5. Enrich MAUT output with dates and num_days for CVRPTW compatibility
         maut_output.setdefault("meta", {})
@@ -182,7 +185,7 @@ def create_itinerary(payload: dict):
         elif not is_multi_city:
             # Fallback to MAUT-selected accommodation (single-city only)
             accommodations = [
-                p for p in places if "accommodation" in p.get("poi_roles", [])
+                p for p in places if "accommodation" in p.get("roles", [])
             ]
             if accommodations:
                 hotel_poi = accommodations[0]
@@ -218,7 +221,7 @@ def create_itinerary(payload: dict):
                         "lat": hotel_data.get("latitude"),
                         "lng": hotel_data.get("longitude"),
                     },
-                    "poi_roles": [hotel_data.get("role", "accommodation")],
+                    "roles": [hotel_data.get("role", "accommodation")],
                     "themes": hotel_data.get("themes", []),
                     "open_hours": hotel_data.get("open_hours"),
                     "images": hotel_data.get("images", []),
@@ -233,7 +236,6 @@ def create_itinerary(payload: dict):
                     logger.info(f"Added hotel {hotel_poi['name']} to places")
 
         if mandatory_pois_from_payload:
-            # Build canonical mandatory dict for solver adapter
             # Schema per POI: {
             #   "day": Optional[int],           # 1-based day index
             #   "window": Optional[[HH:MM, HH:MM]],  # time window
@@ -264,6 +266,12 @@ def create_itinerary(payload: dict):
                 md_entry = {"time_type": time_type}
                 if poi_destination:
                     md_entry["poi_destination"] = poi_destination
+                
+                # Store additional info for tracking/ideas
+                md_entry["poi_name"] = poi.get("poi_name", "Unknown POI")
+                md_entry["role"] = poi.get("role", "attraction")
+                md_entry["themes"] = poi.get("themes", [])
+                md_entry["images"] = poi.get("images", [])
 
                 # Handle day/date based on dates mode
                 if is_specific_dates and date_str:
@@ -286,9 +294,10 @@ def create_itinerary(payload: dict):
                     # Flexible mode: use day directly (already 1-based)
                     md_entry["day"] = day
 
-                # Handle time_type modes
-                if time_type == "all_day":
+                # Handle time_type modes (support both camelCase and snake_case)
+                if time_type in ("all_day", "allDay"):
                     md_entry["all_day"] = True
+                    md_entry["time_type"] = "all_day"  # Normalize to snake_case
                     # No window needed - solver will block entire day
                 elif time_type == "specific" and start_time and end_time:
                     md_entry["window"] = [start_time, end_time]
@@ -305,7 +314,7 @@ def create_itinerary(payload: dict):
                         "lat": poi.get("latitude"),
                         "lng": poi.get("longitude"),
                     },
-                    "poi_roles": [poi.get("role", "attraction")],
+                    "roles": [poi.get("role", "attraction")],
                     "area_name": poi.get("poi_destination"),
                     "themes": poi.get("themes", []),
                     "open_hours": poi.get("open_hours"),
@@ -541,6 +550,10 @@ def create_itinerary(payload: dict):
             plan["pipeline_error"] = pipeline_output.get("error")
 
         # 5. Build response
+        # Extract mandatory_ideas from pipeline output to populate ideas
+        pipeline_meta = pipeline_output.get("meta", {}) if pipeline_output else {}
+        mandatory_ideas = pipeline_meta.get("mandatory_ideas", [])
+        
         result = {
             "itin_id": itin_id,
             "status": "success",
@@ -555,7 +568,7 @@ def create_itinerary(payload: dict):
                 "dietary_restrictions": payload.get("dietary_restrictions"),
                 "hotels": payload.get("hotels", []),
                 "mandatory_pois": payload.get("mandatory_pois", []),
-                "ideas": [],  # User-added POIs
+                "ideas": mandatory_ideas,  # Populate with unfulfilled mandatory POIs
             },
             "plan": plan,
         }
@@ -563,7 +576,8 @@ def create_itinerary(payload: dict):
         # 6. Persist to storage
         save_itinerary(itin_id, result)
 
-        return result
+        # Return camelCase response to frontend
+        return transform_itinerary_response_to_frontend(result)
 
     except HTTPException:
         raise
@@ -589,13 +603,14 @@ def get_itinerary(itin_id: str):
         itin_id: Itinerary identifier
 
     Returns:
-        Full itinerary data
+        Full itinerary data in camelCase format
 
     Raises:
         HTTPException: 404 if not found, 500 for errors
     """
     try:
-        return load_itinerary(itin_id)
+        data = load_itinerary(itin_id)
+        return transform_itinerary_response_to_frontend(data)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Itinerary not found")
     except Exception as e:
@@ -609,7 +624,7 @@ def list_itineraries():
     List all stored itineraries.
 
     Returns:
-        List of itinerary metadata
+        List of itinerary metadata in camelCase format
     """
     try:
         storage_dir = get_storage_dir()
@@ -622,7 +637,7 @@ def list_itineraries():
                 try:
                     itin_id = filename.replace(".json", "")
                     data = load_itinerary(itin_id)
-                    itineraries.append(data)
+                    itineraries.append(transform_itinerary_response_to_frontend(data))
                 except Exception as e:
                     logger.warning(f"Failed to load itinerary {filename}: {e}")
                     continue
@@ -642,7 +657,7 @@ def delete_itinerary(itin_id: str):
         itin_id: Itinerary identifier
 
     Returns:
-        {"status": "deleted", "itin_id": str}
+        {"status": "deleted", "itinId": str}
 
     Raises:
         HTTPException: 404 if not found, 500 for errors
@@ -656,7 +671,7 @@ def delete_itinerary(itin_id: str):
         os.remove(storage_path)
         # logger.info(f"Deleted itinerary {itin_id}")
 
-        return {"status": "deleted", "itin_id": itin_id}
+        return {"status": "deleted", "itinId": itin_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -669,12 +684,12 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
     """
     Reorder itinerary stops with support for single-day and entire-trip scopes.
 
-    Payload options:
+    Payload options (camelCase from frontend, converted to snake_case):
     - scope: "single_day" | "entire_trip" (default: single_day)
-    - day_index: required if scope == single_day
-    - ordered_poi_ids: list[str] desired order
-    - moves: Optional[dict[str,int]] mapping poi_id -> target day_index (for cross-day moves)
-    - options: { respect_time_windows?: bool (default True), allow_overflow?: bool (default True), idempotency_key?: str }
+    - dayIndex: required if scope == single_day
+    - orderedPoiIds: list[str] desired order
+    - moves: Optional[dict[str,int]] mapping poiId -> target dayIndex (for cross-day moves)
+    - options: { respectTimeWindows?: bool (default True), allowOverflow?: bool (default True), idempotencyKey?: str }
 
     Behavior:
     - No-drop invariant: Do not drop any POIs.
@@ -682,6 +697,9 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
     - Annotate basic flags (placeholders): overflow, time_window_violation, extended_hours.
     """
     try:
+        # Convert payload from camelCase to snake_case
+        payload = transform_frontend_to_canonical(payload)
+        
         scope = payload.get("scope") or "single_day"
         ordered = payload.get("ordered_poi_ids") or payload.get("poi_ids") or []
         options = payload.get("options") or {}
@@ -811,7 +829,7 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
 
         save_itinerary(itin_id, data)
         # logger.info(f"Reordered itinerary {itin_id} with scope={scope}")
-        return data
+        return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
         raise
@@ -846,7 +864,7 @@ def _sort_day_stops_by_time(day: dict) -> None:
 
     def is_depot(stop: dict) -> bool:
         role = stop.get("role")
-        return role in ("depot", "hotel")
+        return role in ("depot", "hotel", "accommodation")
 
     def sort_key(stop: dict):
         arrival = stop.get("arrival")
@@ -914,19 +932,22 @@ def schedule_poi(itin_id: str, payload: dict):
     """
     Update POI schedule (time or move to different day) with strict input modes.
 
-    Allowed modes:
-    - all_day: true
-    - start_time and end_time both provided (HH:MM)
-    - single_time: "HH:MM" (infer end_time from role/pacing defaults)
+    Allowed modes (camelCase from frontend):
+    - allDay: true
+    - startTime and endTime both provided (HH:MM)
+    - singleTime: "HH:MM" (infer endTime from role/pacing defaults)
 
-    Reject payloads with only one of start_time/end_time.
+    Reject payloads with only one of startTime/endTime.
     """
     try:
+        # Convert payload from camelCase to snake_case
+        payload = transform_frontend_to_canonical(payload)
+        
         poi_id = payload.get("poi_id")
         day_index = payload.get("day_index")
         if not poi_id or day_index is None:
             raise HTTPException(
-                status_code=400, detail="poi_id and day_index are required"
+                status_code=400, detail="poiId and dayIndex are required"
             )
 
         data = load_itinerary(itin_id)
@@ -936,7 +957,7 @@ def schedule_poi(itin_id: str, payload: dict):
         days = data["plan"]["days"]
         day_index = int(day_index)
         if day_index < 0 or day_index >= len(days):
-            raise HTTPException(status_code=400, detail="Invalid day_index")
+            raise HTTPException(status_code=400, detail="Invalid dayIndex")
 
         # Find and remove POI from current location (any day)
         poi_stop = None
@@ -995,13 +1016,13 @@ def schedule_poi(itin_id: str, payload: dict):
                 except Exception:
                     raise HTTPException(
                         status_code=400,
-                        detail="Invalid single_time format; expected HH:MM",
+                        detail="Invalid singleTime format; expected HH:MM",
                     )
             else:
                 # No valid mode
                 raise HTTPException(
                     status_code=400,
-                    detail="Provide all_day, both start/end times, or single_time",
+                    detail="Provide allDay, both start/end times, or singleTime",
                 )
 
         # Add to target day and sort
@@ -1014,7 +1035,7 @@ def schedule_poi(itin_id: str, payload: dict):
 
         save_itinerary(itin_id, data)
         # logger.info(f"Scheduled POI {poi_id} in itinerary {itin_id}")
-        return data
+        return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
         raise
@@ -1033,7 +1054,7 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str):
         poi_id: POI identifier to remove
 
     Returns:
-        Updated itinerary data
+        Updated itinerary data in camelCase format
     """
     try:
         data = load_itinerary(itin_id)
@@ -1056,7 +1077,7 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str):
         save_itinerary(itin_id, data)
         # logger.info(f"Deleted POI {poi_id} from itinerary {itin_id}")
 
-        return data
+        return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
         raise
@@ -1076,7 +1097,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
 
     Args:
         itin_id: Itinerary identifier
-        payload: {
+        payload (camelCase from frontend): {
             "dates": {...},
             "travelers": {...},
             "preferences": {...},
@@ -1084,12 +1105,15 @@ def update_itinerary_meta(itin_id: str, payload: dict):
         }
 
     Returns:
-        Updated itinerary data
+        Updated itinerary data in camelCase format
 
     Raises:
         HTTPException: 404 if not found, 400 for invalid payload, 500 for errors
     """
     try:
+        # Convert payload from camelCase to snake_case
+        payload = transform_frontend_to_canonical(payload)
+        
         data = load_itinerary(itin_id)
 
         if "meta" not in data:
@@ -1162,7 +1186,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
             if new_days > current_days:
                 # Append empty days
                 for _ in range(new_days - current_days):
-                    days_list.append({"dates": {}, "stops": []})
+                    days_list.append({"stops": []})
                 logger.info(
                     f"Extended itinerary {itin_id} days: {current_days} -> {new_days}"
                 )
@@ -1176,10 +1200,12 @@ def update_itinerary_meta(itin_id: str, payload: dict):
                 for day in truncated:
                     for stop in day.get("stops", []):
                         poi_id = stop.get("poi_id")
-                        if not poi_id:
+                        # Strip _dayX suffix if present
+                        base_poi_id = poi_id.rsplit("_day", 1)[0] if poi_id else None
+                        if not base_poi_id:
                             continue
                         try:
-                            res = get_poi_by_id(poi_id)
+                            res = get_poi_by_id(base_poi_id)
                             if res and res.get("data"):
                                 poi = res["data"]
                                 # Avoid duplicates by id
@@ -1216,11 +1242,15 @@ def update_itinerary_meta(itin_id: str, payload: dict):
                     f"Trimmed itinerary {itin_id} days: {current_days} -> {new_days}, moved {moved} POIs to ideas"
                 )
 
+        # Recompute day labels (day number, date, weekday) based on updated dates
+        if "dates" in payload and days_list:
+            recompute_day_labels(days_list, data["meta"].get("dates"))
+
         # Persist updated itinerary
         save_itinerary(itin_id, data)
         logger.info(f"Updated metadata for itinerary {itin_id}")
 
-        return data
+        return transform_itinerary_response_to_frontend(data)
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Itinerary not found")
@@ -1236,19 +1266,22 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
 
     Args:
         itin_id: Itinerary identifier
-        payload: {"poi_id": str, "day": int (optional)}
+        payload (camelCase from frontend): {"poiId": str, "day": int (optional)}
 
     Returns:
-        Updated itinerary data
+        Updated itinerary data in camelCase format
 
     Raises:
         HTTPException: 404 if itinerary not found, 400 for invalid payload, 500 for errors
     """
     try:
+        # Convert payload from camelCase to snake_case
+        payload = transform_frontend_to_canonical(payload)
+        
         # Validate payload
         poi_id = payload.get("poi_id")
         if not poi_id:
-            raise HTTPException(status_code=400, detail="poi_id is required")
+            raise HTTPException(status_code=400, detail="poiId is required")
 
         # Load existing itinerary
         try:
@@ -1280,10 +1313,13 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
                     "id": poi_details.get("id"),
                     "name": poi_details.get("name"),
                     "category": poi_details.get("category"),
+                    "categories": poi_details.get("categories"),
                     "rating": poi_details.get("rating"),
+                    "reviews_count": poi_details.get("reviews_count"),
+                    "roles": poi_details.get("roles"),
+                    "themes": poi_details.get("themes"),
                     "location": poi_details.get("location"),
-                    "images": poi_details.get("images", []),
-                    "image": poi_details.get("images", [None])[0],
+                    "images": poi_details.get("images", [None])[0],
                 }
                 data["meta"]["ideas"].append(idea_item)
 
@@ -1299,7 +1335,7 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
             logger.error(f"Failed to fetch POI details: {e}")
             raise HTTPException(status_code=500, detail="Failed to fetch POI details")
 
-        return data
+        return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
         raise

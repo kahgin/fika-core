@@ -3,11 +3,28 @@ from math import radians, sin, cos, sqrt, atan2
 from typing import Optional, List, Tuple
 from app.core.config import settings
 from app.utils.logger import get_logger
+from math import ceil
 
 logger = get_logger(__name__)
 
 MAX_OSRM_NODES = 1900  # Max nodes for OSRM /table requests
 OSRM_TIMEOUT = 5  # seconds
+
+
+def tiered_round(minutes: float) -> int:
+    """
+    Round travel time conservatively for UI / solver.
+
+    10-30 min: ceil to nearest 5
+    30-60 min: ceil to nearest 10
+    >60 min: ceil to nearest 15
+    """
+    if minutes < 30:
+        return int(ceil(minutes / 5) * 5)
+    elif minutes < 60:
+        return int(ceil(minutes / 10) * 10)
+    else:
+        return int(ceil(minutes / 15) * 15)
 
 
 def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -49,7 +66,7 @@ def haversine_matrix(
             sec = haversine_time_seconds(
                 lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh
             )
-            minutes = max(0, int(round(sec / 60.0)))
+            minutes = tiered_round(sec / 60.0)
             matrix[i][j] = minutes
 
     return matrix
@@ -205,7 +222,7 @@ class OSRMClient:
                     row = durations[i]
                     for j in range(n):
                         sec = row[j] if row[j] is not None else 0.0
-                        minutes = max(0, int(round(float(sec) / 60.0)))
+                        minutes = tiered_round(float(sec) / 60.0)
                         matrix[i][j] = minutes
 
                 logger.info("OSRM matrix computed: %d nodes", n)
@@ -236,7 +253,7 @@ class OSRMClient:
                 sec = haversine_time_seconds(
                     lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh
                 )
-                minutes = max(0, int(round(sec / 60.0)))
+                minutes = tiered_round(sec / 60.0)
                 matrix[i][j] = minutes
 
         return matrix

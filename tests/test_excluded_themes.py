@@ -12,10 +12,10 @@ def _base_payload():
 
 def test_explicit_excludes_used_as_is():
     payload = _base_payload()
-    payload["excluded_themes"] = ["nightlife", "theme_parks", "nightlife"]
+    payload["excluded_themes"] = ["nightlife", "family", "nightlife"]
     out = transform_frontend_payload(payload)
     # Deduped, order preserved for first occurrence
-    assert out["excluded_themes"] == ["nightlife", "theme_parks"]
+    assert out["excluded_themes"] == ["nightlife", "family"]
 
 
 def test_empty_excludes_injects_nightlife_when_muslim():
@@ -45,7 +45,7 @@ def test_not_muslim_and_not_provided_results_in_empty_excludes():
 def test_is_muslim_and_explicit_list_still_excludes_nightlife():
     payload = _base_payload()
     payload["flags"] = {"is_muslim": True}
-    payload["excluded_themes"] = ["theme_parks"]
+    payload["excluded_themes"] = ["family"]
     out = transform_frontend_payload(payload)
     # Ensure nightlife is excluded even if not specified explicitly
-    assert out["excluded_themes"] == ["theme_parks", "nightlife"]
+    assert out["excluded_themes"] == ["family", "nightlife"]

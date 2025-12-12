@@ -1,0 +1,35 @@
+{
+  "ortools": {
+    "solver": "OR-Tools",
+    "total_travel_time_min": 1883,
+    "unique_pois": 21,
+    "total_stops": 21,
+    "time_sequence_valid": true,
+    "depot_positions_valid": true,
+    "poi_coverage_valid": true,
+    "meal_constraints_valid": true,
+    "theme_constraints_valid": false,
+    "total_distance_km": 241.55,
+    "violations": [
+      "Day 1: 4 attractions with theme 'relax' (max 2)",
+      "Day 1: 3 attractions with theme 'food_culinary' (max 2)",
+      "Day 2: 3 attractions with theme 'relax' (max 2)",
+      "Day 3: 3 attractions with theme 'relax' (max 2)"
+    ],
+    "feasible": true
+  },
+  "acs": {
+    "solver": "ACS",
+    "total_travel_time_min": 1742,
+    "unique_pois": 9,
+    "total_stops": 9,
+    "time_sequence_valid": true,
+    "depot_positions_valid": true,
+    "poi_coverage_valid": true,
+    "meal_constraints_valid": true,
+    "theme_constraints_valid": true,
+    "total_distance_km": 70.66,
+    "violations": [],
+    "feasible": true
+  }
+}

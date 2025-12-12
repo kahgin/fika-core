@@ -3,8 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any, List
 
-# Strict single-case policy: snake_case only across API, backend, and DB.
-# This module validates payloads and rejects any non-snake_case keys.
+# Naming convention policy:
+# - Frontend uses camelCase
+# - Backend uses snake_case internally
+# - This module handles conversion at API boundaries:
+#   - Incoming requests (camelCase) -> snake_case for backend processing
+#   - Outgoing responses (snake_case) -> camelCase for frontend consumption
 
 _SNAKE_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -14,36 +18,47 @@ def is_snake_case_key(key: str) -> bool:
     return bool(_SNAKE_KEY_RE.fullmatch(key))
 
 
-def _collect_invalid_keys(obj: Any, path: str = "") -> List[str]:
-    """Recursively collect dotted paths of keys that are not snake_case."""
-    invalid: List[str] = []
+def to_camel_case(snake_str: str) -> str:
+    """Convert snake_case string to camelCase."""
+    components = snake_str.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
 
+
+def to_snake_case(camel_str: str) -> str:
+    """Convert camelCase string to snake_case."""
+    result = re.sub(r"([A-Z])", r"_\1", camel_str)
+    return result.lower().lstrip("_")
+
+
+def dict_to_camel_case(obj: Any) -> Any:
+    """
+    Recursively convert all dict keys from snake_case to camelCase.
+    Used for transforming backend responses to frontend format.
+    """
     if isinstance(obj, dict):
-        for k, v in obj.items():
-            # Only validate string keys
-            if isinstance(k, str) and not is_snake_case_key(k):
-                invalid.append(f"{path}.{k}" if path else k)
-            # Recurse
-            invalid.extend(_collect_invalid_keys(v, f"{path}.{k}" if path else k))
+        return {to_camel_case(k): dict_to_camel_case(v) for k, v in obj.items()}
     elif isinstance(obj, list):
-        for idx, v in enumerate(obj):
-            invalid.extend(
-                _collect_invalid_keys(v, f"{path}[{idx}]" if path else f"[{idx}]")
-            )
+        return [dict_to_camel_case(item) for item in obj]
+    return obj
 
-    return invalid
+
+def dict_to_snake_case(obj: Any) -> Any:
+    """
+    Recursively convert all dict keys from camelCase to snake_case.
+    Used for transforming frontend payloads to backend format.
+    """
+    if isinstance(obj, dict):
+        return {to_snake_case(k): dict_to_snake_case(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [dict_to_snake_case(item) for item in obj]
+    return obj
 
 
 def transform_frontend_to_canonical(obj: Any) -> Any:
-    """Enforce snake_case-only payloads.
+    """Transform frontend payload (camelCase) to canonical snake_case format.
 
-    - Validates recursively that all dict keys are snake_case.
-    - If any invalid keys are found, raises ValueError with a clear message listing offending keys.
-    - Returns the object unchanged when valid (canonical form is snake_case already).
+    - Recursively converts all dict keys from camelCase to snake_case.
+    - Frontend sends camelCase, backend processes snake_case.
+    - Returns the transformed object with all keys in snake_case.
     """
-    invalid = _collect_invalid_keys(obj)
-    if invalid:
-        raise ValueError(
-            "Payload keys must be snake_case. Invalid keys: " + ", ".join(invalid)
-        )
-    return obj
+    return dict_to_snake_case(obj)
