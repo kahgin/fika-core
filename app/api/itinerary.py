@@ -1,7 +1,8 @@
 import os
 import json
 import uuid
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Header
 from app.services.transformers import (
     transform_frontend_payload,
     transform_response_to_frontend,
@@ -33,7 +34,35 @@ def _normalize_destination_name(raw):
     return name
 
 
+# Auth helper - import from auth module
+def get_optional_user_id(authorization: Optional[str]) -> Optional[str]:
+    """Get user ID from authorization header if valid, None otherwise."""
+    if not authorization:
+        return None
+    try:
+        from app.api.auth import get_user_from_token
+        token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+        user = get_user_from_token(token)
+        return user["id"] if user else None
+    except Exception:
+        return None
+
+
 # Storage Helpers
+
+# Import database storage functions
+try:
+    from app.db.itinerary_storage import (
+        save_itinerary_to_db,
+        load_itinerary_from_db,
+        delete_itinerary_from_db,
+        itinerary_exists_in_db,
+        list_itineraries_from_db,
+    )
+    DB_STORAGE_AVAILABLE = True
+except ImportError:
+    DB_STORAGE_AVAILABLE = False
+    logger.warning("Database storage not available, using file storage only")
 
 
 def get_storage_dir() -> str:
@@ -45,32 +74,91 @@ def get_storage_dir() -> str:
     )
 
 
-def save_itinerary(itin_id: str, data: dict) -> None:
-    """Persist itinerary to local JSON storage."""
+def save_itinerary(itin_id: str, data: dict, user_id: Optional[str] = None) -> None:
+    """Persist itinerary to storage (database for logged-in users, file for anonymous)."""
+    # Add user_id to meta if provided
+    if user_id:
+        data.setdefault("meta", {})["user_id"] = user_id
+    
+    # Only save to database if user is logged in
+    if DB_STORAGE_AVAILABLE and user_id:
+        try:
+            if save_itinerary_to_db(itin_id, data):
+                logger.info(f"Saved itinerary {itin_id} to database for user {user_id}")
+                return
+        except Exception as e:
+            logger.warning(f"Database save failed for {itin_id}, falling back to file: {e}")
+    
+    # File storage for anonymous users or as fallback
     storage_dir = get_storage_dir()
     os.makedirs(storage_dir, exist_ok=True)
 
     storage_path = os.path.join(storage_dir, f"{itin_id}.json")
     with open(storage_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.info(f"Saved itinerary {itin_id} to file storage (anonymous)")
 
 
-def load_itinerary(itin_id: str) -> dict:
-    """Load itinerary from local JSON storage."""
+def load_itinerary(itin_id: str, user_id: Optional[str] = None) -> dict:
+    """Load itinerary from storage (database primary, file fallback)."""
+    # Try database storage first
+    if DB_STORAGE_AVAILABLE:
+        try:
+            data = load_itinerary_from_db(itin_id)
+            if data:
+                logger.info(f"Loaded itinerary {itin_id} from database")
+                return data
+        except Exception as e:
+            logger.warning(f"Database load failed for {itin_id}, trying file: {e}")
+    
+    # Fallback to file storage
     storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
 
     if not os.path.exists(storage_path):
         raise FileNotFoundError(f"Itinerary {itin_id} not found")
 
     with open(storage_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    
+    # Migrate file storage to database if available
+    if DB_STORAGE_AVAILABLE:
+        try:
+            save_itinerary_to_db(itin_id, data)
+            logger.info(f"Migrated itinerary {itin_id} from file to database")
+        except Exception as e:
+            logger.warning(f"Failed to migrate {itin_id} to database: {e}")
+    
+    return data
+
+
+def delete_itinerary(itin_id: str) -> bool:
+    """Delete itinerary from storage."""
+    deleted = False
+    
+    # Delete from database
+    if DB_STORAGE_AVAILABLE:
+        try:
+            if delete_itinerary_from_db(itin_id):
+                deleted = True
+                logger.info(f"Deleted itinerary {itin_id} from database")
+        except Exception as e:
+            logger.warning(f"Database delete failed for {itin_id}: {e}")
+    
+    # Also delete from file storage if exists
+    storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
+    if os.path.exists(storage_path):
+        os.remove(storage_path)
+        deleted = True
+        logger.info(f"Deleted itinerary {itin_id} from file storage")
+    
+    return deleted
 
 
 # API Endpoints
 
 
 @router.post("/itinerary/create")
-def create_itinerary(payload: dict):
+def create_itinerary(payload: dict, authorization: Optional[str] = Header(None)):
     """
     Create a new itinerary from frontend form payload.
 
@@ -83,11 +171,13 @@ def create_itinerary(payload: dict):
 
     Args:
         payload: Frontend CreateItineraryPayload
+        authorization: Optional Bearer token for authenticated users
 
     Raises:
         HTTPException: 400 for invalid payload, 500 for processing errors
     """
     itin_id = str(uuid.uuid4())
+    user_id = get_optional_user_id(authorization)
 
     try:
         # 1. Ingress normalization to canonical snake_case
@@ -574,7 +664,7 @@ def create_itinerary(payload: dict):
         }
 
         # 6. Persist to storage
-        save_itinerary(itin_id, result)
+        save_itinerary(itin_id, result, user_id)
 
         # Return camelCase response to frontend
         return transform_itinerary_response_to_frontend(result)
@@ -619,14 +709,39 @@ def get_itinerary(itin_id: str):
 
 
 @router.get("/itineraries")
-def list_itineraries():
+def list_itineraries(authorization: Optional[str] = Header(None)):
     """
-    List all stored itineraries.
+    List stored itineraries for the authenticated user.
+    
+    For authenticated users: Returns their itineraries from database.
+    For anonymous users: Returns empty list (they should use local storage).
 
     Returns:
         List of itinerary metadata in camelCase format
     """
     try:
+        user_id = get_optional_user_id(authorization)
+        
+        # For authenticated users, get from database
+        if DB_STORAGE_AVAILABLE and user_id:
+            try:
+                db_itineraries, total_count = list_itineraries_from_db(user_id)
+                # Transform each itinerary to proper format
+                result = []
+                for itin_summary in db_itineraries:
+                    # Load full itinerary for proper transformation
+                    full_itin = load_itinerary_from_db(itin_summary.get("id"))
+                    if full_itin:
+                        result.append(transform_itinerary_response_to_frontend(full_itin))
+                return result
+            except Exception as e:
+                logger.warning(f"Database list failed for user {user_id}: {e}")
+        
+        # For anonymous users, return empty (frontend uses local storage)
+        if not user_id:
+            return []
+        
+        # Fallback: list from file storage (legacy)
         storage_dir = get_storage_dir()
         if not os.path.exists(storage_dir):
             return []
@@ -1170,6 +1285,16 @@ def update_itinerary_meta(itin_id: str, payload: dict):
                 **data["meta"].get("flags", {}),
                 **payload["flags"],
             }
+
+        # Update hotels if provided
+        if "hotels" in payload:
+            data["meta"]["hotels"] = payload["hotels"]
+            logger.info(f"Updated hotels for itinerary {itin_id}")
+
+        # Update mandatory POIs if provided
+        if "mandatory_pois" in payload:
+            data["meta"]["mandatory_pois"] = payload["mandatory_pois"]
+            logger.info(f"Updated mandatory_pois for itinerary {itin_id}")
 
         # Adjust plan days if dates provided
         new_days = (

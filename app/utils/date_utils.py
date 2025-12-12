@@ -13,7 +13,7 @@ def format_day_label(
     Format day label based on date type (specific vs flexible).
 
     For specific dates: Returns day number, date, and weekday
-    For flexible dates: Returns only day number
+    For flexible dates: Returns only day number (ignores any existing dates)
 
     Args:
         day_index: 0-based day index
@@ -29,23 +29,11 @@ def format_day_label(
     """
     day_num = day_index + 1
 
-    # If explicit date provided, use it
-    if date_str:
-        try:
-            d = date.fromisoformat(str(date_str).split("T")[0])
-            weekday = d.strftime("%A")
-            weekday_short = d.strftime("%a")
-            return {
-                "day": day_num,
-                "date": d.isoformat(),
-                "weekday": weekday,
-                "label": f"{weekday_short}, {d.strftime('%b %d')}",
-            }
-        except (ValueError, AttributeError):
-            pass
+    # Check dates_info for type first
+    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
 
-    # Check dates_info for type
-    if not dates_info or not isinstance(dates_info, dict):
+    # For flexible dates, always return only day number (no dates)
+    if date_type == "flexible":
         return {
             "day": day_num,
             "date": None,
@@ -53,10 +41,10 @@ def format_day_label(
             "label": f"Day {day_num}",
         }
 
-    date_type = dates_info.get("type")
-
+    # For specific dates, calculate from start_date or use explicit date
     if date_type == "specific":
-        start_date_str = dates_info.get("start_date")
+        # Try to use start_date from dates_info
+        start_date_str = dates_info.get("start_date") if dates_info else None
         if start_date_str:
             try:
                 start_date = date.fromisoformat(str(start_date_str).split("T")[0])
@@ -72,13 +60,30 @@ def format_day_label(
             except (ValueError, AttributeError):
                 pass
 
-    # Flexible dates or fallback
+        # Fallback to explicit date_str if start_date not available
+        if date_str:
+            try:
+                d = date.fromisoformat(str(date_str).split("T")[0])
+                weekday = d.strftime("%A")
+                weekday_short = d.strftime("%a")
+                return {
+                    "day": day_num,
+                    "date": d.isoformat(),
+                    "weekday": weekday,
+                    "label": f"{weekday_short}, {d.strftime('%b %d')}",
+                }
+            except (ValueError, AttributeError):
+                pass
+
+    # No dates_info or fallback - just return day number
     return {
         "day": day_num,
         "date": None,
         "weekday": None,
         "label": f"Day {day_num}",
     }
+
+
 
 
 def recompute_day_labels(
@@ -89,22 +94,25 @@ def recompute_day_labels(
 
     Updates each day dict with:
     - day: int (1-based)
-    - date: str | None
-    - weekday: str | None
+    - date: str | None (None for flexible dates)
+    - weekday: str | None (None for flexible dates)
     - label: str (for display)
+
+    For flexible dates, this will clear any existing dates/weekdays.
 
     Args:
         days: List of day dicts to update
         dates_info: Dates metadata with type, start_date, end_date
     """
+    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
+
     for idx, day in enumerate(days):
-        # Check if day already has explicit date
-        existing_date = day.get("date")
+        # For flexible dates, ignore existing date - always use "Day X" format
+        # For specific dates, try to use existing date or calculate from start_date
+        existing_date = day.get("date") if date_type == "specific" else None
         label_info = format_day_label(idx, dates_info, existing_date)
 
         day["day"] = label_info["day"]
         day["date"] = label_info["date"]
         day["weekday"] = label_info["weekday"]
-        # Don't overwrite label if not needed, but ensure consistency
-        if "label" not in day or day.get("label") != label_info["label"]:
-            day["label"] = label_info["label"]
+        day["label"] = label_info["label"]

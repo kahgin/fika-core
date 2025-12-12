@@ -73,10 +73,19 @@ def recompute_itinerary(itin_id: str, payload: dict):
         else:  # single_day
             result = _recompute_single_day(data, day_index, options)
 
+        # Recompute day labels based on dates info
+        from app.utils.date_utils import recompute_day_labels
+
+        if result.get("plan", {}).get("days"):
+            recompute_day_labels(result["plan"]["days"], result.get("meta", {}).get("dates"))
+
         save_itinerary(itin_id, result)
         logger.info(f"Recomputed itinerary {itin_id} with mode={mode}")
 
-        return result
+        # Transform to frontend format
+        from app.services.transformers import transform_itinerary_response_to_frontend
+
+        return transform_itinerary_response_to_frontend(result)
 
     except HTTPException:
         raise
@@ -363,18 +372,54 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     depot_id = target_day.get("depot_id")
     hotel = None
 
-    for stop in target_day.get("stops", []):
-        if stop.get("poi_id") == depot_id:
+    # Try to find hotel from stops
+    if depot_id:
+        for stop in target_day.get("stops", []):
+            if stop.get("poi_id") == depot_id:
+                hotel = {
+                    "id": depot_id,
+                    "name": stop.get("name", "Hotel"),
+                    "lat": stop.get("latitude"),
+                    "lon": stop.get("longitude"),
+                }
+                break
+
+    # Fallback: try to get hotel from meta.hotels
+    if not hotel:
+        hotels_from_meta = meta.get("hotels", [])
+        if hotels_from_meta:
+            first_hotel = hotels_from_meta[0]
             hotel = {
-                "id": depot_id,
-                "name": stop.get("name", "Hotel"),
-                "lat": stop.get("latitude"),
-                "lon": stop.get("longitude"),
+                "id": first_hotel.get("poi_id"),
+                "name": first_hotel.get("poi_name", "Hotel"),
+                "lat": first_hotel.get("latitude"),
+                "lon": first_hotel.get("longitude"),
             }
-            break
+
+    # Fallback: try to find any accommodation in stops
+    if not hotel:
+        for stop in target_day.get("stops", []):
+            if "accommodation" in (stop.get("role") or ""):
+                hotel = {
+                    "id": stop.get("poi_id"),
+                    "name": stop.get("name", "Hotel"),
+                    "lat": stop.get("latitude"),
+                    "lon": stop.get("longitude"),
+                }
+                break
+
+    # Final fallback: use first stop as reference point
+    if not hotel and target_day.get("stops"):
+        first_stop = target_day["stops"][0]
+        hotel = {
+            "id": first_stop.get("poi_id"),
+            "name": first_stop.get("name", "Start Point"),
+            "lat": first_stop.get("latitude"),
+            "lon": first_stop.get("longitude"),
+        }
 
     if not hotel:
-        raise HTTPException(status_code=400, detail="No hotel found for day")
+        raise HTTPException(status_code=400, detail="No hotel or reference point found for day")
 
     # Build single-day problem
     from datetime import date as _date, timedelta
