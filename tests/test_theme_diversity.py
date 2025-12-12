@@ -19,8 +19,8 @@ class TestThemeConfig:
 
     def test_max_theme_per_day_defined(self):
         """Test max theme per day is defined."""
-        assert hasattr(vrp_config, "acs_max_theme_per_day")
-        assert vrp_config.acs_max_theme_per_day >= 1
+        assert hasattr(vrp_config, "max_theme_per_day")
+        assert vrp_config.max_theme_per_day >= 1
 
     def test_same_theme_penalty_defined(self):
         """Test penalty for same theme is defined."""

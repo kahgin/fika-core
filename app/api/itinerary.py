@@ -266,7 +266,7 @@ def create_itinerary(payload: dict):
                 md_entry = {"time_type": time_type}
                 if poi_destination:
                     md_entry["poi_destination"] = poi_destination
-                
+
                 # Store additional info for tracking/ideas
                 md_entry["poi_name"] = poi.get("poi_name", "Unknown POI")
                 md_entry["role"] = poi.get("role", "attraction")
@@ -553,7 +553,7 @@ def create_itinerary(payload: dict):
         # Extract mandatory_ideas from pipeline output to populate ideas
         pipeline_meta = pipeline_output.get("meta", {}) if pipeline_output else {}
         mandatory_ideas = pipeline_meta.get("mandatory_ideas", [])
-        
+
         result = {
             "itin_id": itin_id,
             "status": "success",
@@ -699,7 +699,7 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
     try:
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
-        
+
         scope = payload.get("scope") or "single_day"
         ordered = payload.get("ordered_poi_ids") or payload.get("poi_ids") or []
         options = payload.get("options") or {}
@@ -942,7 +942,7 @@ def schedule_poi(itin_id: str, payload: dict):
     try:
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
-        
+
         poi_id = payload.get("poi_id")
         day_index = payload.get("day_index")
         if not poi_id or day_index is None:
@@ -1113,7 +1113,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
     try:
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
-        
+
         data = load_itinerary(itin_id)
 
         if "meta" not in data:
@@ -1277,7 +1277,7 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
     try:
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
-        
+
         # Validate payload
         poi_id = payload.get("poi_id")
         if not poi_id:

@@ -11,8 +11,9 @@ genai.configure(api_key=settings.GOOGLE_AI_STUDIO_KEY)
 
 # Use a valid model name (e.g., gemini-1.5-flash or gemini-2.0-flash-exp)
 # "gemini-2.5-flash" likely does not exist yet.
-DEFAULT_MODEL = "models/gemini-flash-latest" 
+DEFAULT_MODEL = "models/gemini-flash-latest"
 client = genai.GenerativeModel(DEFAULT_MODEL)
+
 
 async def ask_gemini(prompt: str, max_tokens: int = 3000) -> str:
     try:
@@ -21,15 +22,15 @@ async def ask_gemini(prompt: str, max_tokens: int = 3000) -> str:
         resp = await client.generate_content_async(
             contents=prompt,
             generation_config=GenerationConfig(
-                max_output_tokens=max_tokens,
-                temperature=0.2
-            )
+                max_output_tokens=max_tokens, temperature=0.2
+            ),
         )
         # FIX 3: Google response is accessed via .text, not .choices
         return resp.text
     except Exception as e:
         print(f"Error: {e}")
         return "Error generating response"
+
 
 if __name__ == "__main__":
     # FIX 4: Define a main async function to run the coroutine

@@ -210,7 +210,7 @@ Assistant reply:
 
 """
 
-'''
+"""
 Improvise the current days per city mapping to handle the issue of mandatory pois not added as per user request.
 
 - Honor any explicit user day assignment first (day → city or day → specific POI). If a user assigns a POI to day X, that day’s city is forced to the POI’s city.
@@ -284,4 +284,4 @@ currently i see that the osrm computes nodes per city. THis works however less m
 ---
 
 currently i noticed backend uses depot & accommodation role interchangeably for accommodation nodes, make it stick to only one when storing in itinerary. for the local like cvrptw & acs-cvrptw u can implemeent it but it should ensure the large pipeline is using accommodation for consistency so it wont have error.
-'''
+"""

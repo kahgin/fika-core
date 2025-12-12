@@ -33,7 +33,7 @@ def _get_meal_window_penalty(arrival_min: int, cfg=vrp_config) -> int:
     Returns penalty in cost units.
     """
     SOFT_TOL = 30  # Minutes before penalty applies
-    
+
     deltas = []
     for w_start, w_end in cfg.meal_windows:
         if w_start <= arrival_min <= w_end:
@@ -42,17 +42,17 @@ def _get_meal_window_penalty(arrival_min: int, cfg=vrp_config) -> int:
             deltas.append(w_start - arrival_min)
         else:
             deltas.append(arrival_min - w_end)
-    
+
     best_delta = min(deltas) if deltas else cfg.meal_hard_tol_min + 1
-    
+
     # If too far from any meal window, apply large penalty
     if best_delta > cfg.meal_hard_tol_min:
         return cfg.penalty_meal_to_meal * 2  # Very high penalty
-    
+
     # Soft penalty for being outside tolerance but within hard limit
     if best_delta > SOFT_TOL:
         return int(30.0 * float(best_delta - SOFT_TOL))
-    
+
     return 0
 
 
@@ -177,7 +177,8 @@ def solve_cvrptw(
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
-    # Theme dimension to enforce max 2 attractions with same theme per day
+    # Theme dimension to enforce max attractions with same theme per day
+    # Note: We only add dimensions for themes with many POIs to avoid solver overload
     unique_themes = list(
         set(
             _get_primary_theme(n.themes)
@@ -186,40 +187,44 @@ def solve_cvrptw(
         )
     )
 
-    for theme in unique_themes:
+    # Count POIs per theme
+    theme_counts = {}
+    for n in nodes:
+        if n.role == "attraction":
+            t = _get_primary_theme(n.themes)
+            if t:
+                theme_counts[t] = theme_counts.get(t, 0) + 1
+
+    def make_theme_cb(target_theme: str):
+        """Create a theme callback with captured theme value."""
 
         def theme_cb(from_index, to_index):
             j = manager.IndexToNode(to_index)
             node_j = nodes[j]
             if (
                 node_j.role == "attraction"
-                and _get_primary_theme(node_j.themes) == theme
+                and _get_primary_theme(node_j.themes) == target_theme
             ):
                 return 1
             return 0
 
-        theme_transit_idx = routing.RegisterTransitCallback(theme_cb)
-        routing.AddDimension(
-            theme_transit_idx,
-            0,  # No slack
-            vrp_config.max_theme_per_day,  # Max per day (shared config)
-            True,  # Start cumul to zero
-            f"theme_{theme}",
-        )
+        return theme_cb
 
-    # Food streak dimension - max 2 consecutive food-like POIs
-    def food_streak_cb(from_index, to_index):
-        j = manager.IndexToNode(to_index)
-        return 1 if _is_food_like(nodes[j]) else 0
+    # Only add theme dimension for themes that have more than max_per_day POIs
+    # This avoids solver overload while still enforcing limits where needed
+    for theme in unique_themes:
+        if theme_counts.get(theme, 0) > vrp_config.max_theme_per_day:
+            theme_transit_idx = routing.RegisterTransitCallback(make_theme_cb(theme))
+            routing.AddDimension(
+                theme_transit_idx,
+                0,  # No slack
+                vrp_config.max_theme_per_day,  # Max per day (shared config)
+                True,  # Start cumul to zero
+                f"theme_{theme}",
+            )
 
-    food_streak_idx = routing.RegisterTransitCallback(food_streak_cb)
-    routing.AddDimension(
-        food_streak_idx,
-        0,  # No slack
-        2,  # Max 2 consecutive food items (same as ACS)
-        True,
-        "FoodStreak",
-    )
+    # Note: Food streak (consecutive food items) is handled via soft penalty in transit_cb
+    # OR-Tools dimensions track cumulative values, not consecutive sequences
 
     # Set meal requirements per day
     if meals_required > 0:

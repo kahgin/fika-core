@@ -115,7 +115,7 @@ def _simulate_day_route(
 
         # Enforce max attractions with the same theme per day
         if n.role == "attraction" and primary_theme:
-            if theme_count_per_day.get(primary_theme, 0) >= cfg.acs_max_theme_per_day:
+            if theme_count_per_day.get(primary_theme, 0) >= cfg.max_theme_per_day:
                 continue
 
         # Enforce max meals per day
@@ -240,6 +240,11 @@ def _simulate_day_route(
     )
 
     cost = float(total_travel_min) + extra_penalty_total
+
+    # Reward for visiting more POIs (negative cost = bonus)
+    # This encourages ACS to visit more POIs rather than just minimizing travel
+    poi_count = len(visited_base_ids)
+    cost -= cfg.poi_visit_bonus * poi_count
 
     if meals_count < meals_min:
         cost += cfg.meal_shortfall_penalty * (meals_min - meals_count)

@@ -395,11 +395,12 @@ class TestAcsMultiDay:
             meals_required=0,
         )
 
-        # Collect all visited base IDs
+        # Collect all visited base IDs (excluding depot/hotel/accommodation)
         all_visited = []
         for day in result["days"]:
             for stop in day["stops"]:
-                if stop["role"] != "depot" and stop["role"] != "hotel":
+                role = stop.get("role", "")
+                if role not in ("depot", "hotel", "accommodation"):
                     base_id = _get_base_id(stop["poi_id"])
                     all_visited.append(base_id)
 

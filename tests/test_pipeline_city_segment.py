@@ -475,10 +475,10 @@ class TestCityDayAllocator:
         # Fixed days must be respected
         assert result.day_to_city[1] == "Johor"
         assert result.day_to_city[3] == "Singapore"
-        
+
         # Day 2 should be Johor (contiguous with day 1)
         assert result.day_to_city[2] == "Johor"
-        
+
         # Days 4,5 should be Singapore (contiguous with day 3)
         assert result.day_to_city[4] == "Singapore"
         assert result.day_to_city[5] == "Singapore"
@@ -509,7 +509,7 @@ class TestCityDayAllocator:
         # Fixed days must be respected
         assert result.day_to_city[1] == "Johor"
         assert result.day_to_city[2] == "Singapore"
-        
+
         # Days 3,4,5 should extend Singapore (larger contiguous block)
         assert result.day_to_city[3] == "Singapore"
         assert result.day_to_city[4] == "Singapore"
@@ -543,11 +543,11 @@ class TestCityDayAllocator:
         assert result.day_to_city[1] == "Johor"
         assert result.day_to_city[2] == "Singapore"
         assert result.day_to_city[5] == "Johor"
-        
+
         # Count days per city
         johor_days = sum(1 for d, c in result.day_to_city.items() if c == "Johor")
         sg_days = sum(1 for d, c in result.day_to_city.items() if c == "Singapore")
-        
+
         # Should be balanced (2-3 each)
         assert johor_days >= 2
         assert sg_days >= 2
@@ -581,14 +581,14 @@ class TestCityDayAllocator:
         assert result.day_to_city[1] == "Johor"
         assert result.day_to_city[3] == "Singapore"
         assert result.day_to_city[8] == "Johor"
-        
+
         # Day 2 should expand Johor around day 1
         assert result.day_to_city[2] == "Johor"
-        
+
         # Days 9-10 should expand Johor around day 8
         assert result.day_to_city[9] == "Johor"
         assert result.day_to_city[10] == "Johor"
-        
+
         # Middle days (4-7) should be Singapore
         for day in [4, 5, 6, 7]:
             assert result.day_to_city[day] == "Singapore"
@@ -608,7 +608,7 @@ class TestCityDayAllocator:
         # Singapore should get more days (3:1 POI ratio)
         sg_days = sum(1 for d, c in result.day_to_city.items() if c == "Singapore")
         jh_days = sum(1 for d, c in result.day_to_city.items() if c == "Johor")
-        
+
         assert sg_days >= jh_days
         assert sg_days + jh_days == 4
 
@@ -626,7 +626,9 @@ class TestCityDayAllocator:
             "sg0": {"poi_destination": "Singapore"},
         }
         poi_city_lookup = {
-            "jh0": "Johor", "jh1": "Johor", "jh2": "Johor",
+            "jh0": "Johor",
+            "jh1": "Johor",
+            "jh2": "Johor",
             "sg0": "Singapore",
         }
 
@@ -640,7 +642,7 @@ class TestCityDayAllocator:
         # Johor should get more days due to more mandatory POIs
         jh_days = sum(1 for d, c in result.day_to_city.items() if c == "Johor")
         sg_days = sum(1 for d, c in result.day_to_city.items() if c == "Singapore")
-        
+
         assert jh_days >= sg_days
 
     def test_city_switches_minimized(self):
@@ -1231,7 +1233,7 @@ class TestMandatoryPOIConstraints:
         # Johor should get more days due to mandatory POI weight
         jh_days = sum(1 for d, c in result.day_to_city.items() if c == "Johor")
         sg_days = sum(1 for d, c in result.day_to_city.items() if c == "Singapore")
-        
+
         assert jh_days >= sg_days
 
     def test_mandatory_poi_date_to_day_conversion(self):

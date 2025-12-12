@@ -255,4 +255,4 @@ class TestConfigValues:
 
     def test_max_theme_per_day_positive(self):
         """Test max theme per day is positive."""
-        assert vrp_config.acs_max_theme_per_day >= 1
+        assert vrp_config.max_theme_per_day >= 1

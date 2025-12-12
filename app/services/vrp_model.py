@@ -100,6 +100,12 @@ class VRPConfig(BaseModel):
         default=60 * 24 * 7, description="Penalty for missing a mandatory POI"
     )
 
+    # ACS POI coverage bonus (negative cost = reward for visiting)
+    poi_visit_bonus: int = Field(
+        default=120,
+        description="Bonus (cost reduction) per POI visited to encourage more visits",
+    )
+
     # Solver-Specific Parameters
     acs_n_ants: int = Field(default=30)
     acs_n_iterations: int = Field(default=60)
@@ -107,7 +113,9 @@ class VRPConfig(BaseModel):
     acs_beta: float = Field(default=2.0, description="Heuristic importance")
     acs_evaporation_rate: float = Field(default=0.5)
     acs_q: float = Field(default=100.0, description="Pheromone deposit factor")
-    acs_max_theme_per_day: int = Field(
+
+    # Shared constraint parameters (used by both OR-Tools and ACS)
+    max_theme_per_day: int = Field(
         default=2, description="Max attractions with same primary theme per day"
     )
 
@@ -119,17 +127,17 @@ class VRPConfig(BaseModel):
 def load_config(config_path: Optional[Path] = None) -> VRPConfig:
     """
     Load VRP configuration from YAML file.
-    
+
     Args:
         config_path: Optional path to config file. If None, uses default location.
-        
+
     Returns:
         VRPConfig instance with loaded or default values.
     """
     if config_path is None:
         # Default: look in app/core/vrp_config.yaml
         config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
-    
+
     if config_path.exists():
         with open(config_path, "r") as f:
             params = yaml.safe_load(f) or {}
@@ -140,30 +148,40 @@ def load_config(config_path: Optional[Path] = None) -> VRPConfig:
 def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     """
     Save VRP configuration to YAML file.
-    
+
     Args:
         config: VRPConfig instance to save.
         config_path: Optional path. If None, saves to app/core/vrp_config.yaml.
-        
+
     Returns:
         Path where config was saved.
     """
     if config_path is None:
         config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
-    
+
     # Only save ACS-tunable and penalty parameters (not complex nested dicts)
     tunable_keys = [
-        "acs_n_ants", "acs_n_iterations", "acs_alpha", "acs_beta",
-        "acs_evaporation_rate", "acs_q", "acs_max_theme_per_day",
-        "penalty_meal_to_meal", "penalty_same_theme", "penalty_theme_limit_exceeded",
-        "drop_poi_penalty", "meal_shortfall_penalty", "mandatory_miss_penalty",
+        "acs_n_ants",
+        "acs_n_iterations",
+        "acs_alpha",
+        "acs_beta",
+        "acs_evaporation_rate",
+        "acs_q",
+        "max_theme_per_day",
+        "penalty_meal_to_meal",
+        "penalty_same_theme",
+        "penalty_theme_limit_exceeded",
+        "drop_poi_penalty",
+        "meal_shortfall_penalty",
+        "mandatory_miss_penalty",
+        "poi_visit_bonus",
     ]
-    
+
     params = {k: getattr(config, k) for k in tunable_keys}
-    
+
     with open(config_path, "w") as f:
         yaml.safe_dump(params, f, default_flow_style=False)
-    
+
     return config_path
 
 

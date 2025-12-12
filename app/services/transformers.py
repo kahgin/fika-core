@@ -204,10 +204,10 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
 def map_stop_role_for_frontend(role: str) -> str:
     """
     Map internal stop role to frontend-compatible role.
-    
+
     Args:
         role: Internal role string
-        
+
     Returns:
         Frontend-compatible role string
     """
@@ -217,54 +217,54 @@ def map_stop_role_for_frontend(role: str) -> str:
 def transform_stop_for_frontend(stop: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transform a single stop dict for frontend consumption.
-    
+
     Maps internal roles to frontend roles and ensures consistent field naming.
-    
+
     Args:
         stop: Internal stop dict
-        
+
     Returns:
         Frontend-compatible stop dict
     """
     stop_copy = stop.copy()
-    
+
     # Map role to frontend role
     if "role" in stop_copy:
         stop_copy["role"] = map_stop_role_for_frontend(stop_copy["role"])
-    
+
     return stop_copy
 
 
 def transform_day_for_frontend(day: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transform a single day dict for frontend consumption.
-    
+
     Transforms all stops within the day.
-    
+
     Args:
         day: Internal day dict
-        
+
     Returns:
         Frontend-compatible day dict
     """
     day_copy = day.copy()
-    
+
     # Transform stops
     if "stops" in day_copy:
         day_copy["stops"] = [
             transform_stop_for_frontend(stop) for stop in day_copy["stops"]
         ]
-    
+
     return day_copy
 
 
 def transform_days_for_frontend(days: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Transform all days for frontend consumption.
-    
+
     Args:
         days: List of internal day dicts
-        
+
     Returns:
         List of frontend-compatible day dicts
     """
@@ -303,13 +303,13 @@ def transform_response_to_frontend(
 def transform_itinerary_response_to_frontend(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transform full itinerary response to frontend format (camelCase).
-    
+
     This is the main function to use when returning itinerary data to frontend.
     It converts all keys to camelCase recursively.
-    
+
     Args:
         data: Internal itinerary data with snake_case keys
-        
+
     Returns:
         Frontend-compatible data with camelCase keys
     """
