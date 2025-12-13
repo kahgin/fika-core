@@ -13,7 +13,6 @@ Day Allocation Strategy:
 - Expand blocks adjacent to fixed days first
 """
 
-import pytest
 from datetime import date
 
 from app.services.pipeline import (
@@ -24,14 +23,11 @@ from app.services.pipeline import (
     validate_global_rules,
     _normalize_stop_roles,
     _map_roles_for_frontend,
-    ROLE_DEPOT,
     ROLE_ACCOMMODATION,
 )
 from app.services.city_day_allocator import (
     allocate_days_to_cities,
     extract_fixed_assignments,
-    CityDayAllocation,
-    FixedDayAssignment,
 )
 
 
@@ -1238,9 +1234,6 @@ class TestMandatoryPOIConstraints:
 
     def test_mandatory_poi_date_to_day_conversion(self):
         """Test that mandatory POIs with dates are converted to day indices."""
-        cities = {
-            "Singapore": {"places": [{"id": f"sg{i}"} for i in range(10)]},
-        }
         mandatory = {
             "sg_poi": {"date": "2024-01-03", "poi_destination": "Singapore"},
         }

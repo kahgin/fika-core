@@ -6,13 +6,12 @@ import uuid
 from datetime import date, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 
-from app.services.vrp_model import VRPConfig, vrp_config
+from app.services.vrp_model import vrp_config
 from app.services.vrp_utils import build_problem
 from app.services.cvrptw import run_cvrptw
 from app.services.acs_cvrptw import run_acs_cvrptw
 from app.services.city_day_allocator import (
     allocate_days_to_cities,
-    CityDayAllocation,
 )
 from app.utils.logger import get_logger
 
@@ -141,11 +140,6 @@ def segment_by_city(
         # Normalize area_name on all POIs in this group to ensure consistency
         for poi in city_pois:
             poi["area_name"] = area_name
-
-        # Count accommodations
-        accommodation_count = sum(
-            1 for poi in city_pois if "accommodation" in poi.get("roles", [])
-        )
 
         # Create city-specific meta
         city_meta = meta.copy()
@@ -1840,11 +1834,9 @@ def _apply_checkin_checkout_logic(
 
         # Get next day's city for city change detection
         next_city = None
-        next_hotel = None
         if not is_last_day and day_idx + 1 < total_days:
             next_day = all_days[day_idx + 1]
             next_city = next_day.get("area_name") or next_day.get("destination")
-            next_hotel = city_hotels.get(next_city, {}) if next_city else {}
 
         # Get previous day's city for city change detection
         prev_city = None

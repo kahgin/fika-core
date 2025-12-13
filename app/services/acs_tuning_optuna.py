@@ -95,9 +95,6 @@ class TuningObjective:
                 total_score += score
                 n_evaluated += 1
 
-                if self.verbose:
-                    logger.info(f"Trial {trial.number}, Case {i}: score={score:.2f}")
-
             except Exception as e:
                 logger.warning(f"Trial {trial.number}, Case {i} failed: {e}")
                 total_score += 50000

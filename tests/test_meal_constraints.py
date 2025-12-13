@@ -11,7 +11,7 @@ Constraints:
 import pytest
 from unittest.mock import patch
 
-from app.services.vrp_model import vrp_config, DaySpec, Node
+from app.services.vrp_model import vrp_config
 from app.services.vrp_utils import restrict_meal_windows
 
 

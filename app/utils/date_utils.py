@@ -4,6 +4,24 @@ from datetime import date, timedelta
 from typing import Dict, Any, Optional
 
 
+def time_to_minutes(time_str: str, default: int = 9 * 60) -> int:
+    """
+    Parse HH:MM time string to minutes since midnight.
+
+    Args:
+        time_str: Time string in HH:MM format (e.g., "09:30")
+        default: Default value to return if parsing fails (default: 540 = 9:00 AM)
+
+    Returns:
+        Minutes since midnight (0-1439)
+    """
+    try:
+        parts = time_str.split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError, AttributeError):
+        return default
+
+
 def format_day_label(
     day_index: int,
     dates_info: Optional[Dict[str, Any]] = None,
@@ -30,7 +48,9 @@ def format_day_label(
     day_num = day_index + 1
 
     # Check dates_info for type first
-    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
+    date_type = (
+        dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
+    )
 
     # For flexible dates, always return only day number (no dates)
     if date_type == "flexible":
@@ -84,8 +104,6 @@ def format_day_label(
     }
 
 
-
-
 def recompute_day_labels(
     days: list[Dict[str, Any]], dates_info: Optional[Dict[str, Any]] = None
 ) -> None:
@@ -104,7 +122,9 @@ def recompute_day_labels(
         days: List of day dicts to update
         dates_info: Dates metadata with type, start_date, end_date
     """
-    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
+    date_type = (
+        dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
+    )
 
     for idx, day in enumerate(days):
         # For flexible dates, ignore existing date - always use "Day X" format

@@ -9,23 +9,16 @@ Tests cover:
 """
 
 import datetime as dt
-import pytest
-from typing import Dict, Any, List, Tuple, Optional
 
 from app.services.vrp_utils import (
     parse_time_range_label,
     normalize_open_hours_value,
     parse_weekday_intervals,
-    get_all_open_intervals,
     compute_representative_interval,
     is_poi_open_on_date,
-    get_effective_windows,
-    extract_windows_for_date,
     WEEKDAYS,
 )
 from app.utils.validators import (
-    get_open_windows_for_date,
-    is_within_any_window,
     validate_poi_schedule_against_hours,
     validate_itinerary,
 )

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.supabase_client import get_supabase
 from app.utils.logger import get_logger
@@ -25,7 +25,7 @@ SESSION_DURATION_DAYS = 30
 
 
 # Request/Response Models
-EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class SignupRequest(BaseModel):
@@ -65,8 +65,10 @@ class UpdateProfileRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(alias="currentPassword")
+    new_password: str = Field(alias="newPassword")
+
+    model_config = {"populate_by_name": True}
 
     @field_validator("new_password")
     @classmethod
@@ -115,11 +117,13 @@ def create_session(user_id: str) -> str:
     token = generate_token()
     expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_DURATION_DAYS)
 
-    supabase.table("user_sessions").insert({
-        "user_id": user_id,
-        "token": token,
-        "expires_at": expires_at.isoformat(),
-    }).execute()
+    supabase.table("user_sessions").insert(
+        {
+            "user_id": user_id,
+            "token": token,
+            "expires_at": expires_at.isoformat(),
+        }
+    ).execute()
 
     return token
 
@@ -132,9 +136,13 @@ def get_user_from_token(token: str) -> Optional[dict]:
     supabase = get_supabase()
 
     # Get valid session
-    result = supabase.table("user_sessions").select(
-        "user_id, expires_at, is_valid"
-    ).eq("token", token).eq("is_valid", True).execute()
+    result = (
+        supabase.table("user_sessions")
+        .select("user_id, expires_at, is_valid")
+        .eq("token", token)
+        .eq("is_valid", True)
+        .execute()
+    )
 
     if not result.data:
         return None
@@ -145,11 +153,15 @@ def get_user_from_token(token: str) -> Optional[dict]:
     expires_at = datetime.fromisoformat(session["expires_at"].replace("Z", "+00:00"))
     if expires_at < datetime.now(timezone.utc):
         # Invalidate expired session
-        supabase.table("user_sessions").update({"is_valid": False}).eq("token", token).execute()
+        supabase.table("user_sessions").update({"is_valid": False}).eq(
+            "token", token
+        ).execute()
         return None
 
     # Get user
-    user_result = supabase.table("users").select("*").eq("id", session["user_id"]).execute()
+    user_result = (
+        supabase.table("users").select("*").eq("id", session["user_id"]).execute()
+    )
 
     if not user_result.data:
         return None
@@ -160,7 +172,9 @@ def get_user_from_token(token: str) -> Optional[dict]:
 def invalidate_session(token: str) -> bool:
     """Invalidate a session token."""
     supabase = get_supabase()
-    supabase.table("user_sessions").update({"is_valid": False}).eq("token", token).execute()
+    supabase.table("user_sessions").update({"is_valid": False}).eq(
+        "token", token
+    ).execute()
     return True
 
 
@@ -181,14 +195,16 @@ def format_user_response(user: dict) -> UserResponse:
 def signup(request: SignupRequest):
     """
     Create a new user account.
-    
+
     Returns user data and authentication token.
     """
     try:
         supabase = get_supabase()
 
         # Check if email already exists
-        existing_email = supabase.table("users").select("id").eq("email", request.email).execute()
+        existing_email = (
+            supabase.table("users").select("id").eq("email", request.email).execute()
+        )
         if existing_email.data:
             raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -199,21 +215,30 @@ def signup(request: SignupRequest):
         if len(base_username) < 3:
             base_username = base_username + "user"
         username = base_username[:30]  # Max 30 chars
-        
+
         # Check if this username exists and add suffix if needed
-        existing = supabase.table("users").select("id").eq("username", username).execute()
+        existing = (
+            supabase.table("users").select("id").eq("username", username).execute()
+        )
         if existing.data:
             import random
+
             username = f"{username[:25]}_{random.randint(1000, 9999)}"
 
         # Create user
         password_hash = hash_password(request.password)
-        result = supabase.table("users").insert({
-            "email": request.email,
-            "username": username,
-            "password_hash": password_hash,
-            "name": request.name or username,
-        }).execute()
+        result = (
+            supabase.table("users")
+            .insert(
+                {
+                    "email": request.email,
+                    "username": username,
+                    "password_hash": password_hash,
+                    "name": request.name or username,
+                }
+            )
+            .execute()
+        )
 
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to create user")
@@ -221,7 +246,7 @@ def signup(request: SignupRequest):
         user = result.data[0]
         token = create_session(user["id"])
 
-        logger.info(f"New user signup: {request.email}")
+        # logger.info(f"New user signup: {request.email}")
 
         return AuthResponse(
             user=format_user_response(user),
@@ -244,16 +269,23 @@ def login(request: LoginRequest):
         supabase = get_supabase()
 
         # Find user by email
-        result = supabase.table("users").select("*").eq("email", request.email).execute()
+        result = (
+            supabase.table("users").select("*").eq("email", request.email).execute()
+        )
 
         if not result.data:
-            raise HTTPException(status_code=401, detail="We couldn't find an account with that email. Please check and try again.")
+            raise HTTPException(
+                status_code=401,
+                detail="We couldn't find an account with that email. Please check and try again.",
+            )
 
         user = result.data[0]
 
         # Verify password
         if not verify_password(request.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+            raise HTTPException(
+                status_code=401, detail="Incorrect password. Please try again."
+            )
 
         # Check if user is active
         if not user.get("is_active", True):
@@ -262,7 +294,7 @@ def login(request: LoginRequest):
         # Create session
         token = create_session(user["id"])
 
-        logger.info(f"User login: {request.email}")
+        # logger.info(f"User login: {request.email}")
 
         return AuthResponse(
             user=format_user_response(user),
@@ -284,7 +316,11 @@ def logout(authorization: Optional[str] = Header(None)):
     if not authorization:
         return {"status": "ok"}
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     invalidate_session(token)
 
     return {"status": "ok"}
@@ -298,7 +334,11 @@ def get_current_user(authorization: Optional[str] = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     user = get_user_from_token(token)
 
     if not user:
@@ -308,14 +348,20 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 
 
 @router.put("/me", response_model=UserResponse)
-def update_profile(request: UpdateProfileRequest, authorization: Optional[str] = Header(None)):
+def update_profile(
+    request: UpdateProfileRequest, authorization: Optional[str] = Header(None)
+):
     """
     Update current user's profile.
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     user = get_user_from_token(token)
 
     if not user:
@@ -331,7 +377,12 @@ def update_profile(request: UpdateProfileRequest, authorization: Optional[str] =
             update_data["avatar"] = request.avatar
 
         if update_data:
-            result = supabase.table("users").update(update_data).eq("id", user["id"]).execute()
+            result = (
+                supabase.table("users")
+                .update(update_data)
+                .eq("id", user["id"])
+                .execute()
+            )
             if result.data:
                 user = result.data[0]
 
@@ -343,14 +394,20 @@ def update_profile(request: UpdateProfileRequest, authorization: Optional[str] =
 
 
 @router.post("/change-password")
-def change_password(request: ChangePasswordRequest, authorization: Optional[str] = Header(None)):
+def change_password(
+    request: ChangePasswordRequest, authorization: Optional[str] = Header(None)
+):
     """
     Change current user's password.
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     user = get_user_from_token(token)
 
     if not user:
@@ -365,14 +422,16 @@ def change_password(request: ChangePasswordRequest, authorization: Optional[str]
 
         # Update password
         new_hash = hash_password(request.new_password)
-        supabase.table("users").update({"password_hash": new_hash}).eq("id", user["id"]).execute()
+        supabase.table("users").update({"password_hash": new_hash}).eq(
+            "id", user["id"]
+        ).execute()
 
         # Invalidate all other sessions (keep current one)
         supabase.table("user_sessions").update({"is_valid": False}).eq(
             "user_id", user["id"]
         ).neq("token", token).execute()
 
-        logger.info(f"Password changed for user: {user['email']}")
+        # logger.info(f"Password changed for user: {user['email']}")
 
         return {"status": "ok"}
 
@@ -389,7 +448,11 @@ def delete_account(authorization: Optional[str] = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     user = get_user_from_token(token)
 
     if not user:
@@ -401,7 +464,7 @@ def delete_account(authorization: Optional[str] = Header(None)):
         # Delete user (cascade will delete sessions and itineraries)
         supabase.table("users").delete().eq("id", user["id"]).execute()
 
-        logger.info(f"Account deleted: {user['email']}")
+        # logger.info(f"Account deleted: {user['email']}")
 
         return {"status": "deleted"}
 
@@ -419,7 +482,11 @@ def get_optional_user_id(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
 
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     user = get_user_from_token(token)
 
     return user["id"] if user else None

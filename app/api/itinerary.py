@@ -7,7 +7,6 @@ from app.services.transformers import (
     transform_frontend_payload,
     transform_response_to_frontend,
     transform_poi_to_frontend,
-    transform_days_for_frontend,
     transform_itinerary_response_to_frontend,
 )
 from app.services.maut import run_maut
@@ -15,8 +14,8 @@ from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
 from app.services.vrp_model import vrp_config
 from app.services.osrm import osrm_client
-from app.utils.naming import transform_frontend_to_canonical, dict_to_camel_case
-from app.utils.date_utils import recompute_day_labels
+from app.utils.naming import transform_frontend_to_canonical
+from app.utils.date_utils import recompute_day_labels, time_to_minutes
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
@@ -41,7 +40,12 @@ def get_optional_user_id(authorization: Optional[str]) -> Optional[str]:
         return None
     try:
         from app.api.auth import get_user_from_token
-        token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+
+        token = (
+            authorization.replace("Bearer ", "")
+            if authorization.startswith("Bearer ")
+            else authorization
+        )
         user = get_user_from_token(token)
         return user["id"] if user else None
     except Exception:
@@ -55,11 +59,12 @@ try:
     from app.db.itinerary_storage import (
         save_itinerary_to_db,
         load_itinerary_from_db,
-        delete_itinerary_from_db,
-        itinerary_exists_in_db,
+        soft_delete_itinerary_for_user,
         list_itineraries_from_db,
         load_itinerary_for_user,
+        update_itinerary_plan_for_user,
     )
+
     DB_STORAGE_AVAILABLE = True
 except ImportError:
     DB_STORAGE_AVAILABLE = False
@@ -76,28 +81,30 @@ def get_storage_dir() -> str:
 
 
 def save_itinerary(itin_id: str, data: dict, user_id: Optional[str] = None) -> None:
-    """Persist itinerary to storage (database for logged-in users, file for anonymous)."""
+    """Persist itinerary to storage (database primary, with user_id if provided)."""
     # Add user_id to meta if provided
     if user_id:
         data.setdefault("meta", {})["user_id"] = user_id
-    
-    # Only save to database if user is logged in
-    if DB_STORAGE_AVAILABLE and user_id:
+
+    # Always try to save to database (works for both logged-in and anonymous users)
+    if DB_STORAGE_AVAILABLE:
         try:
             if save_itinerary_to_db(itin_id, data):
-                logger.info(f"Saved itinerary {itin_id} to database for user {user_id}")
+                # logger.info(f"Saved itinerary {itin_id} to database" + (f" for user {user_id}" if user_id else " (anonymous)"))
                 return
         except Exception as e:
-            logger.warning(f"Database save failed for {itin_id}, falling back to file: {e}")
-    
-    # File storage for anonymous users or as fallback
-    storage_dir = get_storage_dir()
-    os.makedirs(storage_dir, exist_ok=True)
+            logger.warning(
+                f"Database save failed for {itin_id}: {e}"
+            )
 
-    storage_path = os.path.join(storage_dir, f"{itin_id}.json")
-    with open(storage_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    logger.info(f"Saved itinerary {itin_id} to file storage (anonymous)")
+    # File storage for anonymous users or as fallback
+    # storage_dir = get_storage_dir()
+    # os.makedirs(storage_dir, exist_ok=True)
+
+    # storage_path = os.path.join(storage_dir, f"{itin_id}.json")
+    # with open(storage_path, "w", encoding="utf-8") as f:
+    #     json.dump(data, f, ensure_ascii=False, indent=2)
+    # logger.info(f"Saved itinerary {itin_id} to file storage (anonymous)")
 
 
 def load_itinerary(itin_id: str, user_id: Optional[str] = None) -> dict:
@@ -106,12 +113,10 @@ def load_itinerary(itin_id: str, user_id: Optional[str] = None) -> dict:
     if DB_STORAGE_AVAILABLE:
         try:
             data = load_itinerary_from_db(itin_id)
-            if data:
-                logger.info(f"Loaded itinerary {itin_id} from database")
-                return data
+            return data
         except Exception as e:
             logger.warning(f"Database load failed for {itin_id}, trying file: {e}")
-    
+
     # Fallback to file storage
     storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
 
@@ -120,39 +125,62 @@ def load_itinerary(itin_id: str, user_id: Optional[str] = None) -> dict:
 
     with open(storage_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    
+
     # Migrate file storage to database if available
     if DB_STORAGE_AVAILABLE:
         try:
             save_itinerary_to_db(itin_id, data)
-            logger.info(f"Migrated itinerary {itin_id} from file to database")
+            # logger.info(f"Migrated itinerary {itin_id} from file to database")
         except Exception as e:
             logger.warning(f"Failed to migrate {itin_id} to database: {e}")
-    
+
     return data
 
 
-def delete_itinerary(itin_id: str) -> bool:
-    """Delete itinerary from storage."""
-    deleted = False
+def load_itinerary_with_auth(itin_id: str, user_id: Optional[str]) -> dict:
+    """
+    Load itinerary with ownership verification.
     
-    # Delete from database
-    if DB_STORAGE_AVAILABLE:
-        try:
-            if delete_itinerary_from_db(itin_id):
-                deleted = True
-                logger.info(f"Deleted itinerary {itin_id} from database")
-        except Exception as e:
-            logger.warning(f"Database delete failed for {itin_id}: {e}")
+    For logged-in users: Uses RPC to verify ownership and return data.
+    For anonymous users: Falls back to regular load.
     
-    # Also delete from file storage if exists
-    storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
-    if os.path.exists(storage_path):
-        os.remove(storage_path)
-        deleted = True
-        logger.info(f"Deleted itinerary {itin_id} from file storage")
+    Raises:
+        HTTPException: 403 if not owner, 404 if not found
+    """
+    if DB_STORAGE_AVAILABLE and user_id:
+        data, error = load_itinerary_for_user(itin_id, user_id)
+        if error == "forbidden":
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have permission to access this itinerary",
+            )
+        if error == "not_found":
+            raise HTTPException(status_code=404, detail="Itinerary not found")
+        if data:
+            return data
     
-    return deleted
+    # Fallback to regular load for anonymous users
+    return load_itinerary(itin_id, user_id)
+
+
+def update_itinerary_plan(itin_id: str, plan: dict, user_id: Optional[str]) -> bool:
+    """
+    Update itinerary plan with ownership verification (for logged-in users).
+    
+    Raises:
+        HTTPException: 403 if not owner, 404 if not found
+    """
+    if DB_STORAGE_AVAILABLE and user_id:
+        success, error = update_itinerary_plan_for_user(itin_id, plan, user_id)
+        if error == "forbidden":
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have permission to modify this itinerary",
+            )
+        if error == "not_found":
+            raise HTTPException(status_code=404, detail="Itinerary not found")
+        return success
+    return False
 
 
 # API Endpoints
@@ -413,13 +441,9 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
                 }
                 if not any(p.get("id") == mandatory_poi["id"] for p in places):
                     places.append(mandatory_poi)
-                    logger.info(
-                        f"Added mandatory POI {mandatory_poi['name']} to places"
-                    )
+                    # logger.info(f"Added mandatory POI {mandatory_poi['name']} to places")
 
-            logger.info(
-                f"Processing {len(mandatory)} mandatory POIs from payload (canonicalized)"
-            )
+            # logger.info(f"Processing {len(mandatory)} mandatory POIs from payload (canonicalized)")
 
         # Update maut_output with enriched places
         maut_output["places"] = places
@@ -689,7 +713,7 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
 def get_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
     Retrieve an existing itinerary by ID.
-    
+
     Authorization check:
     - If itinerary has no owner (null user_id), anyone can access
     - If itinerary has an owner, only that user can access
@@ -706,16 +730,19 @@ def get_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
     try:
         user_id = get_optional_user_id(authorization)
-        
+
         # Try database first with ownership check
         if DB_STORAGE_AVAILABLE:
             data, error = load_itinerary_for_user(itin_id, user_id)
             if error == "forbidden":
-                raise HTTPException(status_code=403, detail="You don't have permission to access this itinerary")
+                raise HTTPException(
+                    status_code=403,
+                    detail="You don't have permission to access this itinerary",
+                )
             if data:
                 return transform_itinerary_response_to_frontend(data)
             # If not found in DB, fall through to file storage
-        
+
         # Fallback to file storage (legacy - no ownership check for file storage)
         data = load_itinerary(itin_id)
         return transform_itinerary_response_to_frontend(data)
@@ -732,7 +759,7 @@ def get_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
 def list_itineraries(authorization: Optional[str] = Header(None)):
     """
     List stored itineraries for the authenticated user.
-    
+
     For authenticated users: Returns their itineraries from database.
     For anonymous users: Returns empty list (they should use local storage).
 
@@ -741,7 +768,7 @@ def list_itineraries(authorization: Optional[str] = Header(None)):
     """
     try:
         user_id = get_optional_user_id(authorization)
-        
+
         # For authenticated users, get from database
         if DB_STORAGE_AVAILABLE and user_id:
             try:
@@ -752,15 +779,17 @@ def list_itineraries(authorization: Optional[str] = Header(None)):
                     # Load full itinerary for proper transformation
                     full_itin = load_itinerary_from_db(itin_summary.get("id"))
                     if full_itin:
-                        result.append(transform_itinerary_response_to_frontend(full_itin))
+                        result.append(
+                            transform_itinerary_response_to_frontend(full_itin)
+                        )
                 return result
             except Exception as e:
                 logger.warning(f"Database list failed for user {user_id}: {e}")
-        
+
         # For anonymous users, return empty (frontend uses local storage)
         if not user_id:
             return []
-        
+
         # Fallback: list from file storage (legacy)
         storage_dir = get_storage_dir()
         if not os.path.exists(storage_dir):
@@ -786,8 +815,8 @@ def list_itineraries(authorization: Optional[str] = Header(None)):
 @router.delete("/itinerary/{itin_id}")
 def delete_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
-    Delete an itinerary by ID.
-    
+    Delete an itinerary by ID (soft delete - sets status to 'deleted').
+
     Authorization check:
     - If itinerary has no owner (null user_id), anyone can delete
     - If itinerary has an owner, only that user can delete
@@ -804,20 +833,22 @@ def delete_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
     """
     try:
         user_id = get_optional_user_id(authorization)
-        
-        # Try database first with ownership check
+
+        # Try database first with ownership check and soft delete
         if DB_STORAGE_AVAILABLE:
-            # Check ownership first
-            data, error = load_itinerary_for_user(itin_id, user_id)
+            success, error = soft_delete_itinerary_for_user(itin_id, user_id)
             if error == "forbidden":
-                raise HTTPException(status_code=403, detail="You don't have permission to delete this itinerary")
-            if data:
-                # User owns it, proceed with delete
-                delete_itinerary_from_db(itin_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail="You don't have permission to delete this itinerary",
+                )
+            if error == "not_found":
+                # Fall through to file storage check
+                pass
+            elif success:
                 return {"status": "deleted", "itinId": itin_id}
-            # If not in DB, fall through to file storage
-        
-        # Fallback to file storage (legacy - no ownership check)
+
+        # Fallback to file storage (legacy - hard delete, no ownership check)
         storage_path = os.path.join(get_storage_dir(), f"{itin_id}.json")
 
         if not os.path.exists(storage_path):
@@ -834,7 +865,11 @@ def delete_itinerary(itin_id: str, authorization: Optional[str] = Header(None)):
 
 
 @router.post("/itinerary/{itin_id}/reorder")
-def reorder_itinerary_stops(itin_id: str, payload: dict):
+def reorder_itinerary_stops(
+    itin_id: str,
+    payload: dict,
+    authorization: Optional[str] = Header(None),
+):
     """
     Reorder itinerary stops with support for single-day and entire-trip scopes.
 
@@ -843,14 +878,18 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
     - dayIndex: required if scope == single_day
     - orderedPoiIds: list[str] desired order
     - moves: Optional[dict[str,int]] mapping poiId -> target dayIndex (for cross-day moves)
+    - targetPositions: Optional[dict[str,int]] mapping poiId -> target position index within day
+    - recalculateTimes: bool (default True) - whether to recalculate arrival/depart times
     - options: { respectTimeWindows?: bool (default True), allowOverflow?: bool (default True), idempotencyKey?: str }
 
     Behavior:
     - No-drop invariant: Do not drop any POIs.
     - Recompute per-day distance metrics.
+    - Recalculate times based on travel durations (if enabled).
     - Annotate basic flags (placeholders): overflow, time_window_violation, extended_hours.
     """
     try:
+        user_id = get_optional_user_id(authorization)
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
 
@@ -858,17 +897,24 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
         ordered = payload.get("ordered_poi_ids") or payload.get("poi_ids") or []
         options = payload.get("options") or {}
         moves = payload.get("moves") or {}
+        target_positions = payload.get("target_positions") or {}
+        recalculate_times = payload.get("recalculate_times", True)
 
         if not isinstance(ordered, list):
             raise HTTPException(
                 status_code=400, detail="ordered_poi_ids must be a list"
             )
 
-        data = load_itinerary(itin_id)
+        # Load with ownership verification for logged-in users
+        data = load_itinerary_with_auth(itin_id, user_id)
         if "plan" not in data or "days" not in data["plan"]:
             raise HTTPException(status_code=400, detail="Invalid itinerary structure")
 
         days = data["plan"]["days"]
+        pacing = data.get("meta", {}).get("preferences", {}).get("pacing", "balanced")
+        
+        # Track which days were affected for time recalculation
+        affected_days = set()
 
         if scope == "single_day":
             day_index = payload.get("day_index")
@@ -877,7 +923,8 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
                     status_code=400, detail="day_index is required and must be valid"
                 )
 
-            day = days[int(day_index)]
+            day_index = int(day_index)
+            day = days[day_index]
             stops = day.get("stops", [])
             # Build lookup and preserve depot/hotel/accommodation positions
             first = (
@@ -887,7 +934,8 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
             )
             last = (
                 stops[-1]
-                if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation")
+                if stops
+                and stops[-1].get("role") in ("depot", "hotel", "accommodation")
                 else None
             )
             core = (
@@ -907,6 +955,7 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
 
             new_stops = prefix + new_core + suffix
             day["stops"] = new_stops
+            affected_days.add(day_index)
 
             # Recompute metrics but DON'T sort - respect user's manual ordering
             _recompute_day_metrics(day)
@@ -920,32 +969,58 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
                     for s in d.get("stops", []):
                         idx_map.setdefault(s.get("poi_id"), []).append((d_i, s))
                 # Move each specified poi_id to target day
-                for poi_id, target_day in moves.items():
-                    if not isinstance(target_day, int) or not (
-                        0 <= target_day < len(days)
+                for poi_id, target_day_idx in moves.items():
+                    if not isinstance(target_day_idx, int) or not (
+                        0 <= target_day_idx < len(days)
                     ):
                         continue
                     locs = idx_map.get(poi_id) or []
-                    for src_day, stop in locs:
+                    for src_day_idx, stop in locs:
+                        # Track affected days
+                        affected_days.add(src_day_idx)
+                        affected_days.add(target_day_idx)
+                        
                         # Remove from source
-                        src_list = days[src_day].get("stops", [])
-                        days[src_day]["stops"] = [x for x in src_list if x is not stop]
-                        # Append to target
-                        days[target_day].setdefault("stops", [])
-                        days[target_day]["stops"].append(stop)
+                        src_list = days[src_day_idx].get("stops", [])
+                        days[src_day_idx]["stops"] = [x for x in src_list if x is not stop]
+                        
+                        # Get target position if specified
+                        target_pos = target_positions.get(poi_id)
+                        target_day = days[target_day_idx]
+                        target_day.setdefault("stops", [])
+                        
+                        if target_pos is not None and isinstance(target_pos, int):
+                            # Insert at specific position (respecting depot/hotel boundaries)
+                            stops = target_day["stops"]
+                            # Determine valid insertion range (after first depot, before last depot)
+                            min_pos = 1 if stops and stops[0].get("role") in ("depot", "hotel", "accommodation") else 0
+                            max_pos = len(stops) - 1 if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation") else len(stops)
+                            
+                            # Clamp position to valid range
+                            insert_pos = max(min_pos, min(target_pos, max_pos))
+                            target_day["stops"].insert(insert_pos, stop)
+                        else:
+                            # Append to end (before final depot if present)
+                            stops = target_day["stops"]
+                            if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation"):
+                                target_day["stops"].insert(len(stops) - 1, stop)
+                            else:
+                                target_day["stops"].append(stop)
 
             # Reorder within each day using the subsequence present
             present = set(ordered)
-            for d in days:
+            for d_idx, d in enumerate(days):
                 stops = d.get("stops", [])
                 first = (
                     stops[0]
-                    if stops and stops[0].get("role") in ("depot", "hotel", "accommodation")
+                    if stops
+                    and stops[0].get("role") in ("depot", "hotel", "accommodation")
                     else None
                 )
                 last = (
                     stops[-1]
-                    if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation")
+                    if stops
+                    and stops[-1].get("role") in ("depot", "hotel", "accommodation")
                     else None
                 )
                 core = (
@@ -963,9 +1038,16 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
                         new_core.append(s)
                 d["stops"] = prefix + new_core + suffix
                 _recompute_day_metrics(d)
+                affected_days.add(d_idx)
                 # DON'T sort - respect user's manual ordering
         else:
             raise HTTPException(status_code=400, detail="Invalid scope")
+
+        # Recalculate times for affected days if enabled
+        if recalculate_times:
+            for d_idx in affected_days:
+                if 0 <= d_idx < len(days):
+                    _recalculate_day_times(days[d_idx], pacing)
 
         # Annotate basic reorder flags in meta
         meta = data.setdefault("plan", {}).setdefault("meta", {})
@@ -980,8 +1062,10 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
             }
         )
 
-        save_itinerary(itin_id, data)
-        # logger.info(f"Reordered itinerary {itin_id} with scope={scope}")
+        # Log the new order before saving
+        # logger.info(f"Reorder {itin_id}: saving with days order = {[[s.get('poi_id') for s in d.get('stops', [])] for d in days]}")
+        save_itinerary(itin_id, data, user_id)
+        # logger.info(f"Reordered itinerary {itin_id} with scope={scope}, user_id={user_id}")
         return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
@@ -989,16 +1073,6 @@ def reorder_itinerary_stops(itin_id: str, payload: dict):
     except Exception as e:
         logger.exception(f"Failed to reorder itinerary {itin_id}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-def _time_to_minutes(t: str) -> int:
-    """Convert 'HH:MM' to minutes since midnight. Returns large value on error."""
-    try:
-        h, m = t.split(":")
-        return int(h) * 60 + int(m)
-    except Exception:
-        # Put invalid / missing times after valid ones
-        return 24 * 60 + 1
 
 
 def _sort_day_stops_by_time(day: dict) -> None:
@@ -1022,9 +1096,10 @@ def _sort_day_stops_by_time(day: dict) -> None:
     def sort_key(stop: dict):
         arrival = stop.get("arrival")
         if arrival:
-            return (0, _time_to_minutes(arrival))
+            # Use large default (24*60+1=1441) so invalid times sort last
+            return (0, time_to_minutes(arrival, default=24 * 60 + 1))
         # all-day / no time
-        return (1, _time_to_minutes("23:59"))
+        return (1, time_to_minutes("23:59", default=24 * 60 + 1))
 
     # Depot at start and/or end
     first_is_depot = is_depot(stops[0])
@@ -1080,10 +1155,122 @@ def _recompute_day_metrics(day: dict) -> None:
     day["total_distance"] = round(total, 2)
 
 
+def _recalculate_day_times(day: dict, pacing: str = "balanced") -> None:
+    """
+    Recalculate arrival/start_service/depart times for all stops in sequence.
+    
+    Uses OSRM for travel time between consecutive stops and respects
+    each POI's service time based on role and pacing.
+    
+    Performance: ~5-20ms per OSRM call with local OSRM server.
+    A day with 6 stops = ~5 calls = ~25-100ms total.
+    """
+    stops = day.get("stops", [])
+    if not stops:
+        return
+    
+    # Get service time config
+    service_times = vrp_config.service_time_min
+    
+    def get_service_duration(stop: dict) -> int:
+        """Get service duration in minutes for a stop."""
+        role = stop.get("role", "attraction")
+        # Check for custom duration first
+        custom_duration = stop.get("duration_min") or stop.get("service_time")
+        if custom_duration:
+            try:
+                return int(custom_duration)
+            except (ValueError, TypeError):
+                pass
+        # Use config-based duration
+        return service_times.get(role, {}).get(pacing, 60)
+    
+    def get_coords(stop: dict) -> tuple:
+        """Extract lat/lon from stop."""
+        lat = stop.get("coordinates", {}).get("lat") or stop.get("latitude")
+        lon = stop.get("coordinates", {}).get("lng") or stop.get("longitude")
+        return lat, lon
+    
+    def minutes_to_time(minutes: int) -> str:
+        """Convert minutes from midnight to HH:MM."""
+        minutes = max(0, min(minutes, 24 * 60 - 1))  # Clamp to valid range
+        return f"{minutes // 60:02d}:{minutes % 60:02d}"
+    
+    # Determine start time from first stop or use default based on pacing
+    first_stop = stops[0]
+    start_min = None
+    
+    # Try to get existing arrival time from first stop
+    if first_stop.get("arrival"):
+        try:
+            h, m = map(int, str(first_stop["arrival"]).split(":"))
+            start_min = h * 60 + m
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback to pacing-based start time
+    if start_min is None:
+        start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
+    
+    current_time = start_min
+    
+    for i, stop in enumerate(stops):
+        role = stop.get("role", "attraction")
+        
+        # Skip depot/hotel at start - they don't consume time
+        if i == 0 and role in ("depot", "hotel", "accommodation"):
+            # Set departure time for depot
+            stop["arrival"] = minutes_to_time(current_time)
+            stop["start_service"] = stop["arrival"]
+            stop["depart"] = stop["arrival"]  # Immediate departure
+            continue
+        
+        # Calculate travel time from previous stop
+        if i > 0:
+            prev_stop = stops[i - 1]
+            lat1, lon1 = get_coords(prev_stop)
+            lat2, lon2 = get_coords(stop)
+            
+            if None not in (lat1, lon1, lat2, lon2):
+                try:
+                    # Get travel time in seconds, convert to minutes
+                    travel_seconds = osrm_client.route(lat1, lon1, lat2, lon2)
+                    travel_minutes = int(travel_seconds / 60) + 1  # Round up
+                    current_time += travel_minutes
+                except Exception:
+                    # Fallback: assume 15 min travel time
+                    current_time += 15
+            else:
+                # No coordinates, assume 15 min travel time
+                current_time += 15
+        
+        # Skip time consumption for ending depot/hotel
+        if i == len(stops) - 1 and role in ("depot", "hotel", "accommodation"):
+            stop["arrival"] = minutes_to_time(current_time)
+            stop["start_service"] = stop["arrival"]
+            stop["depart"] = None  # End of day
+            continue
+        
+        # Set arrival and service times
+        arrival = current_time
+        service_duration = get_service_duration(stop)
+        depart = current_time + service_duration
+        
+        stop["arrival"] = minutes_to_time(arrival)
+        stop["start_service"] = minutes_to_time(arrival)
+        stop["depart"] = minutes_to_time(depart)
+        
+        # Move current time forward
+        current_time = depart
+
+
 @router.post("/itinerary/{itin_id}/schedule-poi")
-def schedule_poi(itin_id: str, payload: dict):
+def schedule_poi(
+    itin_id: str, payload: dict, authorization: Optional[str] = Header(None)
+):
     """
     Update POI schedule (time or move to different day) with strict input modes.
+    Also handles scheduling POIs from the ideas list.
 
     Allowed modes (camelCase from frontend):
     - allDay: true
@@ -1093,6 +1280,8 @@ def schedule_poi(itin_id: str, payload: dict):
     Reject payloads with only one of startTime/endTime.
     """
     try:
+        user_id = get_optional_user_id(authorization)
+
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
 
@@ -1103,7 +1292,8 @@ def schedule_poi(itin_id: str, payload: dict):
                 status_code=400, detail="poiId and dayIndex are required"
             )
 
-        data = load_itinerary(itin_id)
+        # Load with ownership verification for logged-in users
+        data = load_itinerary_with_auth(itin_id, user_id)
         if "plan" not in data or "days" not in data["plan"]:
             raise HTTPException(status_code=400, detail="Invalid itinerary structure")
 
@@ -1114,6 +1304,7 @@ def schedule_poi(itin_id: str, payload: dict):
 
         # Find and remove POI from current location (any day)
         poi_stop = None
+        from_ideas = False
         for day in days:
             stops = day.get("stops", [])
             for stop in stops:
@@ -1123,8 +1314,29 @@ def schedule_poi(itin_id: str, payload: dict):
                     break
             if poi_stop:
                 break
+
+        # If not found in days, check ideas list
         if not poi_stop:
-            raise HTTPException(status_code=404, detail="POI not found in itinerary")
+            ideas = data.get("meta", {}).get("ideas", [])
+            for idea in ideas:
+                if idea.get("id") == poi_id:
+                    from_ideas = True
+                    # Create a stop from the idea
+                    poi_stop = {
+                        "poi_id": idea.get("id"),
+                        "name": idea.get("name"),
+                        "role": idea.get("role") or "attraction",
+                        "location": idea.get("location"),
+                        "themes": idea.get("themes", []),
+                        "images": idea.get("images"),
+                        "coordinates": idea.get("coordinates"),
+                    }
+                    # Remove from ideas list
+                    data["meta"]["ideas"] = [i for i in ideas if i.get("id") != poi_id]
+                    break
+
+        if not poi_stop:
+            raise HTTPException(status_code=404, detail="POI not found in itinerary or ideas")
 
         # Mode validation
         all_day = bool(payload.get("all_day", False))
@@ -1132,10 +1344,55 @@ def schedule_poi(itin_id: str, payload: dict):
         end_time = payload.get("end_time")
         single_time = payload.get("single_time")
 
+        # Get pacing and role for duration calculation
+        pacing = data.get("meta", {}).get("preferences", {}).get("pacing", "balanced")
+        role = poi_stop.get("role", "attraction")
+        try:
+            duration_min = int(
+                vrp_config.service_time_min.get(role, {}).get(pacing, 60)
+            )
+        except Exception:
+            duration_min = 60
+
         if all_day:
-            poi_stop["arrival"] = None
-            poi_stop["start_service"] = None
-            poi_stop["depart"] = None
+            # For ideas being scheduled, assign a default time based on existing stops
+            target_day = days[day_index]
+            existing_stops = target_day.get("stops", [])
+
+            # Find the last stop with a depart time
+            last_depart = None
+            for stop in reversed(existing_stops):
+                if stop.get("depart"):
+                    last_depart = stop["depart"]
+                    break
+
+            if last_depart and from_ideas:
+                # Schedule after the last stop
+                try:
+                    h, m = map(int, str(last_depart).split(":"))
+                    start_min = h * 60 + m + 30  # 30 min buffer after last stop
+                    end_min = start_min + duration_min
+                    end_min = min(end_min, 22 * 60)  # Cap at 10 PM
+                    start_min = min(start_min, end_min - 30)  # Ensure at least 30 min
+                    poi_stop["arrival"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
+                    poi_stop["start_service"] = poi_stop["arrival"]
+                    poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
+                except Exception:
+                    # Default to 10 AM - 11 AM if parsing fails
+                    poi_stop["arrival"] = "10:00"
+                    poi_stop["start_service"] = "10:00"
+                    poi_stop["depart"] = f"{10 + duration_min // 60:02d}:{duration_min % 60:02d}"
+            elif from_ideas:
+                # No existing stops, default to 10 AM
+                end_min = 10 * 60 + duration_min
+                poi_stop["arrival"] = "10:00"
+                poi_stop["start_service"] = "10:00"
+                poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
+            else:
+                # Existing POI being set to "all day" - clear times
+                poi_stop["arrival"] = None
+                poi_stop["start_service"] = None
+                poi_stop["depart"] = None
         else:
             if (start_time and not end_time) or (end_time and not start_time):
                 raise HTTPException(
@@ -1148,15 +1405,6 @@ def schedule_poi(itin_id: str, payload: dict):
                 poi_stop["start_service"] = start_time
                 poi_stop["depart"] = end_time
             elif single_time:
-                # Infer duration from role and pacing
-                pacing = data.get("plan", {}).get("meta", {}).get("pacing", "balanced")
-                role = poi_stop.get("role", "attraction")
-                try:
-                    duration_min = int(
-                        vrp_config.service_time_min.get(role, {}).get(pacing, 60)
-                    )
-                except Exception:
-                    duration_min = 60
                 # Compute end time HH:MM
                 try:
                     h, m = map(int, str(single_time).split(":"))
@@ -1178,16 +1426,34 @@ def schedule_poi(itin_id: str, payload: dict):
                     detail="Provide allDay, both start/end times, or singleTime",
                 )
 
-        # Add to target day and sort
+        # Add to target day at specific position or end
         target_day = days[day_index]
         target_day.setdefault("stops", [])
-        target_day["stops"].append(poi_stop)
-
-        _sort_day_stops_by_time(target_day)
+        
+        # Check for target position
+        target_position = payload.get("target_position")
+        recalculate_times = payload.get("recalculate_times", True)
+        
+        if target_position is not None and isinstance(target_position, int):
+            # Insert at specific position (respecting depot/hotel boundaries)
+            stops = target_day["stops"]
+            min_pos = 1 if stops and stops[0].get("role") in ("depot", "hotel", "accommodation") else 0
+            max_pos = len(stops) - 1 if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation") else len(stops)
+            insert_pos = max(min_pos, min(target_position, max_pos))
+            target_day["stops"].insert(insert_pos, poi_stop)
+            
+            # Recalculate times for entire day to respect sequence
+            if recalculate_times:
+                _recalculate_day_times(target_day, pacing)
+        else:
+            # Append and sort by time (legacy behavior)
+            target_day["stops"].append(poi_stop)
+            _sort_day_stops_by_time(target_day)
+        
         _recompute_day_metrics(target_day)
 
-        save_itinerary(itin_id, data)
-        # logger.info(f"Scheduled POI {poi_id} in itinerary {itin_id}")
+        save_itinerary(itin_id, data, user_id)
+        # logger.info(f"Scheduled POI {poi_id} in itinerary {itin_id} (from_ideas={from_ideas})")
         return transform_itinerary_response_to_frontend(data)
 
     except HTTPException:
@@ -1198,19 +1464,24 @@ def schedule_poi(itin_id: str, payload: dict):
 
 
 @router.delete("/itinerary/{itin_id}/poi/{poi_id}")
-def delete_poi_from_itinerary(itin_id: str, poi_id: str):
+def delete_poi_from_itinerary(
+    itin_id: str, poi_id: str, authorization: Optional[str] = Header(None)
+):
     """
     Remove a POI from the itinerary.
 
     Args:
         itin_id: Itinerary identifier
         poi_id: POI identifier to remove
+        authorization: Optional Bearer token for ownership verification
 
     Returns:
         Updated itinerary data in camelCase format
     """
     try:
-        data = load_itinerary(itin_id)
+        user_id = get_optional_user_id(authorization)
+        # Load with ownership verification for logged-in users
+        data = load_itinerary_with_auth(itin_id, user_id)
 
         if "plan" not in data or "days" not in data["plan"]:
             raise HTTPException(status_code=400, detail="Invalid itinerary structure")
@@ -1227,7 +1498,7 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str):
         if not removed:
             raise HTTPException(status_code=404, detail="POI not found in itinerary")
 
-        save_itinerary(itin_id, data)
+        save_itinerary(itin_id, data, user_id)
         # logger.info(f"Deleted POI {poi_id} from itinerary {itin_id}")
 
         return transform_itinerary_response_to_frontend(data)
@@ -1239,8 +1510,55 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/itinerary/{itin_id}/idea/{idea_id}")
+def delete_idea_from_itinerary(
+    itin_id: str, idea_id: str, authorization: Optional[str] = Header(None)
+):
+    """
+    Remove an idea from the itinerary's ideas list.
+
+    Args:
+        itin_id: Itinerary identifier
+        idea_id: Idea/POI identifier to remove
+        authorization: Optional Bearer token for ownership verification
+
+    Returns:
+        Updated itinerary data in camelCase format
+    """
+    try:
+        user_id = get_optional_user_id(authorization)
+        # Load with ownership verification for logged-in users
+        data = load_itinerary_with_auth(itin_id, user_id)
+
+        if "meta" not in data:
+            data["meta"] = {}
+        if "ideas" not in data["meta"]:
+            data["meta"]["ideas"] = []
+
+        # Remove from ideas list
+        ideas = data["meta"]["ideas"]
+        original_len = len(ideas)
+        data["meta"]["ideas"] = [i for i in ideas if i.get("id") != idea_id]
+
+        if len(data["meta"]["ideas"]) == original_len:
+            raise HTTPException(status_code=404, detail="Idea not found in itinerary")
+
+        save_itinerary(itin_id, data, user_id)
+        # logger.info(f"Deleted idea {idea_id} from itinerary {itin_id}")
+
+        return transform_itinerary_response_to_frontend(data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to delete idea from itinerary {itin_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/itinerary/{itin_id}/update-meta")
-def update_itinerary_meta(itin_id: str, payload: dict):
+def update_itinerary_meta(
+    itin_id: str, payload: dict, authorization: Optional[str] = Header(None)
+):
     """
     Update itinerary metadata (dates, travelers, preferences, flags) and adjust plan days.
 
@@ -1250,6 +1568,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
 
     Args:
         itin_id: Itinerary identifier
+        authorization: Optional Bearer token for ownership verification
         payload (camelCase from frontend): {
             "dates": {...},
             "travelers": {...},
@@ -1261,13 +1580,29 @@ def update_itinerary_meta(itin_id: str, payload: dict):
         Updated itinerary data in camelCase format
 
     Raises:
-        HTTPException: 404 if not found, 400 for invalid payload, 500 for errors
+        HTTPException: 403 if not owner, 404 if not found, 400 for invalid payload, 500 for errors
     """
     try:
+        user_id = get_optional_user_id(authorization)
+
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
 
-        data = load_itinerary(itin_id)
+        # Load with ownership check if DB available
+        if DB_STORAGE_AVAILABLE:
+            data, error = load_itinerary_for_user(itin_id, user_id)
+            if error == "forbidden":
+                raise HTTPException(
+                    status_code=403,
+                    detail="You don't have permission to modify this itinerary",
+                )
+            if error == "not_found":
+                # Fall through to file storage
+                data = None
+            if data is None:
+                data = load_itinerary(itin_id)
+        else:
+            data = load_itinerary(itin_id)
 
         if "meta" not in data:
             data["meta"] = {}
@@ -1327,12 +1662,12 @@ def update_itinerary_meta(itin_id: str, payload: dict):
         # Update hotels if provided
         if "hotels" in payload:
             data["meta"]["hotels"] = payload["hotels"]
-            logger.info(f"Updated hotels for itinerary {itin_id}")
+            # logger.info(f"Updated hotels for itinerary {itin_id}")
 
         # Update mandatory POIs if provided
         if "mandatory_pois" in payload:
             data["meta"]["mandatory_pois"] = payload["mandatory_pois"]
-            logger.info(f"Updated mandatory_pois for itinerary {itin_id}")
+            # logger.info(f"Updated mandatory_pois for itinerary {itin_id}")
 
         # Adjust plan days if dates provided
         new_days = (
@@ -1350,9 +1685,7 @@ def update_itinerary_meta(itin_id: str, payload: dict):
                 # Append empty days
                 for _ in range(new_days - current_days):
                     days_list.append({"stops": []})
-                logger.info(
-                    f"Extended itinerary {itin_id} days: {current_days} -> {new_days}"
-                )
+                # logger.info(f"Extended itinerary {itin_id} days: {current_days} -> {new_days}")
             else:
                 # Move POIs from truncated days to ideas
                 _ensure_ideas(data)
@@ -1401,17 +1734,15 @@ def update_itinerary_meta(itin_id: str, payload: dict):
                         f"{moved} POIs were moved to ideas due to reduced trip days"
                     )
                 data["meta"]["notices"] = notices
-                logger.info(
-                    f"Trimmed itinerary {itin_id} days: {current_days} -> {new_days}, moved {moved} POIs to ideas"
-                )
+                # logger.info(f"Trimmed itinerary {itin_id} days: {current_days} -> {new_days}, moved {moved} POIs to ideas")
 
         # Recompute day labels (day number, date, weekday) based on updated dates
         if "dates" in payload and days_list:
             recompute_day_labels(days_list, data["meta"].get("dates"))
 
-        # Persist updated itinerary
-        save_itinerary(itin_id, data)
-        logger.info(f"Updated metadata for itinerary {itin_id}")
+        # Persist updated itinerary (pass user_id to save to database)
+        save_itinerary(itin_id, data, user_id)
+        # logger.info(f"Updated metadata for itinerary {itin_id}")
 
         return transform_itinerary_response_to_frontend(data)
 
@@ -1423,13 +1754,16 @@ def update_itinerary_meta(itin_id: str, payload: dict):
 
 
 @router.post("/itinerary/{itin_id}/add-poi")
-def add_poi_to_itinerary(itin_id: str, payload: dict):
+def add_poi_to_itinerary(
+    itin_id: str, payload: dict, authorization: Optional[str] = Header(None)
+):
     """
     Add a POI to an itinerary's ideas list.
 
     Args:
         itin_id: Itinerary identifier
         payload (camelCase from frontend): {"poiId": str, "day": int (optional)}
+        authorization: Optional Bearer token for ownership verification
 
     Returns:
         Updated itinerary data in camelCase format
@@ -1438,6 +1772,8 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
         HTTPException: 404 if itinerary not found, 400 for invalid payload, 500 for errors
     """
     try:
+        user_id = get_optional_user_id(authorization)
+
         # Convert payload from camelCase to snake_case
         payload = transform_frontend_to_canonical(payload)
 
@@ -1446,9 +1782,9 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
         if not poi_id:
             raise HTTPException(status_code=400, detail="poiId is required")
 
-        # Load existing itinerary
+        # Load existing itinerary with ownership verification
         try:
-            data = load_itinerary(itin_id)
+            data = load_itinerary_with_auth(itin_id, user_id)
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Itinerary not found")
 
@@ -1471,26 +1807,44 @@ def add_poi_to_itinerary(itin_id: str, payload: dict):
             # Check if POI already in ideas
             existing_ids = [item.get("id") for item in data["meta"]["ideas"]]
             if poi_id not in existing_ids:
-                # Add POI to ideas
-                idea_item = {
-                    "id": poi_details.get("id"),
-                    "name": poi_details.get("name"),
-                    "category": poi_details.get("category"),
-                    "categories": poi_details.get("categories"),
-                    "rating": poi_details.get("rating"),
-                    "reviews_count": poi_details.get("reviews_count"),
-                    "roles": poi_details.get("roles"),
-                    "themes": poi_details.get("themes"),
-                    "location": poi_details.get("location"),
-                    "images": poi_details.get("images", [None])[0],
-                }
-                data["meta"]["ideas"].append(idea_item)
+                # Also check if POI is already scheduled in any day
+                poi_in_days = False
+                for day in data.get("plan", {}).get("days", []):
+                    for stop in day.get("stops", []):
+                        if stop.get("poi_id") == poi_id:
+                            poi_in_days = True
+                            break
+                    if poi_in_days:
+                        break
 
-                # Save updated itinerary
-                save_itinerary(itin_id, data)
-                logger.info(f"Added POI {poi_id} to itinerary {itin_id}")
+                if poi_in_days:
+                    logger.info(f"POI {poi_id} already scheduled in itinerary {itin_id}")
+                else:
+                    # Add POI to ideas
+                    idea_item = {
+                        "id": poi_details.get("id"),
+                        "name": poi_details.get("name"),
+                        "category": poi_details.get("category"),
+                        "categories": poi_details.get("categories"),
+                        "rating": poi_details.get("rating"),
+                        "reviews_count": poi_details.get("reviews_count"),
+                        "roles": poi_details.get("roles"),
+                        "role": (poi_details.get("roles") or ["attraction"])[0],
+                        "themes": poi_details.get("themes"),
+                        "location": poi_details.get("location"),
+                        "images": poi_details.get("images", [None])[0],
+                        "coordinates": {
+                            "lat": poi_details.get("latitude"),
+                            "lng": poi_details.get("longitude"),
+                        },
+                    }
+                    data["meta"]["ideas"].append(idea_item)
+
+                    # Save updated itinerary
+                    save_itinerary(itin_id, data, user_id)
+                    # logger.info(f"Added POI {poi_id} to itinerary {itin_id}")
             else:
-                logger.info(f"POI {poi_id} already in itinerary {itin_id}")
+                logger.info(f"POI {poi_id} already in ideas for itinerary {itin_id}")
 
         except HTTPException:
             raise

@@ -4,9 +4,10 @@
     "dates": {
         "type": "specific",
         "start_date": "2026-03-01",
-        "end_date": "2026-03-05"
+        "end_date": "2026-03-03"
     },
     "travelers": {"adults": 2, "children": 1, "pets": 1},
+    "dietary_restrictions": "vegetarian",
     "preferences": {
         "pacing": "balanced",
         "interests": ["relax", "family", "food_culinary"]

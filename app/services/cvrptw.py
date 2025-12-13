@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 from app.services.osrm import tiered_round
@@ -24,36 +24,6 @@ def _is_food_like(node: Node) -> bool:
     if node.themes and "food_culinary" in node.themes:
         return True
     return False
-
-
-def _get_meal_window_penalty(arrival_min: int, cfg=vrp_config) -> int:
-    """
-    Calculate penalty for meal scheduled outside preferred windows.
-    Windows: breakfast (7-10am), lunch (12-2pm), dinner (6-9pm).
-    Returns penalty in cost units.
-    """
-    SOFT_TOL = 30  # Minutes before penalty applies
-
-    deltas = []
-    for w_start, w_end in cfg.meal_windows:
-        if w_start <= arrival_min <= w_end:
-            deltas.append(0)
-        elif arrival_min < w_start:
-            deltas.append(w_start - arrival_min)
-        else:
-            deltas.append(arrival_min - w_end)
-
-    best_delta = min(deltas) if deltas else cfg.meal_hard_tol_min + 1
-
-    # If too far from any meal window, apply large penalty
-    if best_delta > cfg.meal_hard_tol_min:
-        return cfg.penalty_meal_to_meal * 2  # Very high penalty
-
-    # Soft penalty for being outside tolerance but within hard limit
-    if best_delta > SOFT_TOL:
-        return int(30.0 * float(best_delta - SOFT_TOL))
-
-    return 0
 
 
 def solve_cvrptw(

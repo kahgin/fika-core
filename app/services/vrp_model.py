@@ -81,7 +81,7 @@ class VRPConfig(BaseModel):
 
     # Penalties (in 'minute-cost' units)
     penalty_meal_to_meal: int = Field(
-        default=5000, description="Penalty for consecutive meals"
+        default=3000, description="Penalty for consecutive meals"
     )
     penalty_same_theme: int = Field(
         default=500, description="Penalty for consecutive same-theme POIs"
@@ -91,10 +91,11 @@ class VRPConfig(BaseModel):
         description="High penalty for exceeding max attractions per theme per day",
     )
     drop_poi_penalty: int = Field(
-        default=2000, description="Base penalty for dropping a non-mandatory POI"
+        default=200, description="Base penalty for dropping a non-mandatory POI"
     )
     meal_shortfall_penalty: int = Field(
-        default=60 * 10, description="Penalty per missing meal"
+        default=200,
+        description="Penalty per missing meal (high to enforce min 2 meals)",
     )
     mandatory_miss_penalty: int = Field(
         default=60 * 24 * 7, description="Penalty for missing a mandatory POI"
@@ -147,7 +148,7 @@ def load_config(config_path: Optional[Path] = None) -> VRPConfig:
 
 def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     """
-    Save VRP configuration to YAML file.
+    Save VRP configuration to YAML file with clean formatting.
 
     Args:
         config: VRPConfig instance to save.
@@ -159,28 +160,44 @@ def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     if config_path is None:
         config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
 
-    # Only save ACS-tunable and penalty parameters (not complex nested dicts)
-    tunable_keys = [
-        "acs_n_ants",
-        "acs_n_iterations",
-        "acs_alpha",
-        "acs_beta",
-        "acs_evaporation_rate",
-        "acs_q",
-        "max_theme_per_day",
-        "penalty_meal_to_meal",
-        "penalty_same_theme",
-        "penalty_theme_limit_exceeded",
-        "drop_poi_penalty",
-        "meal_shortfall_penalty",
-        "mandatory_miss_penalty",
-        "poi_visit_bonus",
-    ]
+    # Round float values to 2 decimal places for cleaner output
+    def round_value(v):
+        if isinstance(v, float):
+            return round(v, 2)
+        return v
 
-    params = {k: getattr(config, k) for k in tunable_keys}
+    # Get values with rounding
+    acs_alpha = round_value(config.acs_alpha)
+    acs_beta = round_value(config.acs_beta)
+    acs_evaporation_rate = round_value(config.acs_evaporation_rate)
+    acs_q = round_value(config.acs_q)
+
+    # Write YAML with comments for better readability
+    yaml_content = f"""# ACS-specific algorithm parameters (tuned via Optuna)
+acs_alpha: {acs_alpha}
+acs_beta: {acs_beta}
+acs_evaporation_rate: {acs_evaporation_rate}
+acs_n_ants: {config.acs_n_ants}
+acs_n_iterations: {config.acs_n_iterations}
+acs_q: {acs_q}
+
+# Shared constraint parameters (used by both OR-Tools and ACS)
+max_theme_per_day: {config.max_theme_per_day}
+
+# POI coverage reward (ACS uses this to prioritize visiting more POIs)
+poi_bonus: {config.poi_visit_bonus}
+
+# Shared penalty parameters (used by both solvers)
+drop_poi_penalty: {config.drop_poi_penalty}
+mandatory_miss_penalty: {config.mandatory_miss_penalty}
+meal_shortfall_penalty: {config.meal_shortfall_penalty}
+penalty_meal_to_meal: {config.penalty_meal_to_meal}
+penalty_same_theme: {config.penalty_same_theme}
+penalty_theme_limit_exceeded: {config.penalty_theme_limit_exceeded}
+"""
 
     with open(config_path, "w") as f:
-        yaml.safe_dump(params, f, default_flow_style=False)
+        f.write(yaml_content)
 
     return config_path
 

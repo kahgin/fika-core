@@ -77,7 +77,9 @@ def recompute_itinerary(itin_id: str, payload: dict):
         from app.utils.date_utils import recompute_day_labels
 
         if result.get("plan", {}).get("days"):
-            recompute_day_labels(result["plan"]["days"], result.get("meta", {}).get("dates"))
+            recompute_day_labels(
+                result["plan"]["days"], result.get("meta", {}).get("dates")
+            )
 
         save_itinerary(itin_id, result)
         logger.info(f"Recomputed itinerary {itin_id} with mode={mode}")
@@ -419,17 +421,12 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
         }
 
     if not hotel:
-        raise HTTPException(status_code=400, detail="No hotel or reference point found for day")
+        raise HTTPException(
+            status_code=400, detail="No hotel or reference point found for day"
+        )
 
     # Build single-day problem
-    from datetime import date as _date, timedelta
-
     dates_info = meta.get("dates", {})
-    if dates_info.get("type") == "specific" and dates_info.get("start_date"):
-        start_date = _date.fromisoformat(str(dates_info["start_date"]).split("T")[0])
-        day_date = start_date + timedelta(days=day_index)
-    else:
-        day_date = _date.today()
 
     maut_output = {
         "status": "ok",
@@ -509,7 +506,7 @@ def _transform_poi_to_frontend(poi: dict) -> dict:
         "description": poi.get("description"),
         "coordinates": coords,
         "website": poi.get("website"),
-        "googleMapsUrl": poi.get("google_maps_url"),
+        "googleMapsUrl": poi.get("google_map_link"),
         "address": poi.get("address"),
         "phone": poi.get("phone"),
         "openHours": poi.get("open_hours"),

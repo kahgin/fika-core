@@ -5,6 +5,7 @@ from app.services.vrp_utils import (
     get_effective_windows,
     is_poi_open_on_date,
 )
+from app.utils.date_utils import time_to_minutes
 
 # Configuration
 
@@ -24,12 +25,6 @@ DEFAULT_HOURS = {
 MAX_DAY_OVERRUN_MIN = 60  # Allow 1 hour past day end
 
 # Helpers
-
-
-def time_to_minutes(time_str: str) -> int:
-    """Convert 'HH:MM' to minutes from midnight."""
-    h, m = map(int, time_str.split(":"))
-    return h * 60 + m
 
 
 def get_meal_type(arrival_min: int) -> str:

@@ -1,3 +1,15 @@
+"""
+ACS-based solver for CVRPTW (Capacitated Vehicle Routing Problem with Time Windows).
+
+This module implements an Ant Colony System algorithm optimized for multi-day
+itinerary planning with constraints including:
+- Time windows for each POI
+- Service times at each stop
+- Meal scheduling requirements (min 2 per day)
+- Theme diversity constraints
+- Mandatory POI requirements
+"""
+
 from __future__ import annotations
 
 import math
@@ -364,14 +376,30 @@ def _acs_optimize_day(
     best_cost = float("inf")
     best_order: List[int] = []
 
+    # Identify meal nodes in subset for prioritization
+    meal_local_indices = [i for i in range(m) if nodes[subset[i]].role == "meal"]
+
     for _ in range(cfg.acs_n_iterations):
         solutions = []
 
-        for _ in range(cfg.acs_n_ants):
+        for ant_idx in range(cfg.acs_n_ants):
             remaining = list(range(m))
-            current = random.choice(remaining)
+
+            # Strategy: Every 3rd ant starts with a meal node to encourage meal inclusion
+            if meal_local_indices and ant_idx % 3 == 0:
+                meal_starts = [i for i in meal_local_indices if i in remaining]
+                if meal_starts:
+                    current = random.choice(meal_starts)
+                else:
+                    current = random.choice(remaining)
+            else:
+                current = random.choice(remaining)
+
             tour_local = [current]
             remaining.remove(current)
+
+            # Track meals scheduled in this tour
+            meals_in_tour = 1 if nodes[subset[current]].role == "meal" else 0
 
             while remaining:
                 probs = []
@@ -379,7 +407,16 @@ def _acs_optimize_day(
                 for j in remaining:
                     tau = pheromone[current][j] ** cfg.acs_alpha
                     eta = heuristic[current][j] ** cfg.acs_beta
-                    val = tau * eta
+
+                    # Boost probability for meal nodes when we need more meals
+                    meal_boost = 1.0
+                    if (
+                        nodes[subset[j]].role == "meal"
+                        and meals_in_tour < meals_required
+                    ):
+                        meal_boost = 2.5  # 2.5x preference for meals when needed
+
+                    val = tau * eta * meal_boost
                     probs.append((j, val))
                     denom += val
 
@@ -397,6 +434,11 @@ def _acs_optimize_day(
 
                 tour_local.append(next_node)
                 remaining.remove(next_node)
+
+                # Track meals added
+                if nodes[subset[next_node]].role == "meal":
+                    meals_in_tour += 1
+
                 current = next_node
 
             day_order_indices = [subset[k] for k in tour_local]

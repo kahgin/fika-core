@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from datetime import date
 from app.utils.logger import get_logger
 from app.utils.naming import dict_to_camel_case
@@ -123,6 +123,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "destination": base_destination,
         "num_days": calculate_num_days(payload),
+        "dates": payload.get("dates"),  # Pass through for day spec creation
         "budget_tier": preferences.get("budget", "sensible"),
         "pacing": preferences.get("pacing", "balanced"),
         "interest_themes": preferences.get("interests", []),
@@ -193,11 +194,23 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
         "description": poi.get("description") or poi.get("descriptions"),
         "coordinates": coords,
         "website": poi.get("website"),
-        "googleMapsUrl": poi.get("google_maps_url") or poi.get("google_map_link"),
+        "googleMapsUrl": poi.get("google_map_link"),
         "address": poi.get("address"),
         "phone": poi.get("phone"),
         "openHours": poi.get("open_hours"),
         "priceLevel": poi.get("price_level"),
+        # Friendliness booleans
+        "kidsFriendly": poi.get("kids_friendly"),
+        "petsFriendly": poi.get("pets_friendly"),
+        # Dietary options
+        "halalFood": poi.get("halal_food"),
+        "veganOptions": poi.get("vegan_options"),
+        "vegetarianOptions": poi.get("vegetarian_options"),
+        # Accessibility
+        "wheelchairAccessibleEntrance": poi.get("wheelchair_accessible_entrance"),
+        "wheelchairAccessibleSeating": poi.get("wheelchair_accessible_seating"),
+        "wheelchairAccessibleToilet": poi.get("wheelchair_accessible_toilet"),
+        "wheelchairAccessibleCarPark": poi.get("wheelchair_accessible_car_park"),
     }
 
 

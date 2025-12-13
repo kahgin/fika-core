@@ -353,7 +353,6 @@ class TestMandatoryPoiApiParsing:
 
     def test_parse_flexible_dates_with_day(self):
         """Flexible dates mode: day field should be preserved."""
-        from app.api.itinerary import create_itinerary
 
         # This is a unit test for the parsing logic, not full API test
         payload = {
@@ -373,9 +372,6 @@ class TestMandatoryPoiApiParsing:
         }
 
         # Extract the parsing logic
-        dates_info = payload.get("dates", {})
-        is_specific_dates = dates_info.get("type") == "specific"
-
         poi = payload["mandatory_pois"][0]
         time_type = poi.get("time_type", "any_time")
         day = poi.get("day")
