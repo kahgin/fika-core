@@ -50,7 +50,7 @@ def basic_maut_output():
                 "name": "Marina Bay Sands",
                 "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["culture"],
+                "themes": ["cultural_history"],
             },
             {
                 "id": "attraction2",
@@ -83,9 +83,7 @@ def basic_maut_output():
 class TestMandatoryPoiSpecificDayTime:
     """Test Case 1: Mandatory POI with specific day and time window."""
 
-    def test_specific_day_and_time_creates_constrained_node(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_specific_day_and_time_creates_constrained_node(self, mock_osrm, basic_maut_output, hotel):
         """POI with day=2 and window=[10:00, 12:00] should only appear on day 1 (0-indexed)."""
         mandatory = {
             "mandatory_poi": {
@@ -146,9 +144,7 @@ class TestMandatoryPoiSpecificDayTime:
 class TestMandatoryPoiAllDay:
     """Test Case 2: Mandatory POI that blocks entire day."""
 
-    def test_all_day_blocks_entire_day_window(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_all_day_blocks_entire_day_window(self, mock_osrm, basic_maut_output, hotel):
         """All-day POI should have window spanning entire day budget."""
         mandatory = {
             "mandatory_poi": {
@@ -178,9 +174,7 @@ class TestMandatoryPoiAllDay:
         windows = mand_node.windows_by_day[1]
         assert windows[0] == (day_spec.start_min, day_spec.end_min)
 
-    def test_all_day_has_extended_service_time(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_all_day_has_extended_service_time(self, mock_osrm, basic_maut_output, hotel):
         """All-day POI should have service time filling most of the day."""
         mandatory = {
             "mandatory_poi": {
@@ -260,14 +254,8 @@ class TestMandatoryPoiAnyTime:
             day_idx = list(mand_node.windows_by_day.keys())[0]
             windows = mand_node.windows_by_day[day_idx]
             # Window should be within role defaults
-            assert (
-                windows[0][0] >= role_default[0]
-                or windows[0][0] >= day_specs[day_idx].start_min
-            )
-            assert (
-                windows[0][1] <= role_default[1]
-                or windows[0][1] <= day_specs[day_idx].end_min
-            )
+            assert windows[0][0] >= role_default[0] or windows[0][0] >= day_specs[day_idx].start_min
+            assert windows[0][1] <= role_default[1] or windows[0][1] <= day_specs[day_idx].end_min
 
     def test_any_time_with_day_constraint(self, mock_osrm, basic_maut_output, hotel):
         """any_time with day constraint should only appear on that day."""
@@ -295,9 +283,7 @@ class TestMandatoryPoiAnyTime:
 class TestMandatoryPoiFallback:
     """Test Case 4: Fallback to any_time when no time_type specified."""
 
-    def test_no_time_type_defaults_to_any_time(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_no_time_type_defaults_to_any_time(self, mock_osrm, basic_maut_output, hotel):
         """Missing time_type should default to any_time behavior."""
         mandatory = {
             "mandatory_poi": {
@@ -316,9 +302,7 @@ class TestMandatoryPoiFallback:
         mandatory_nodes = [n for n in nodes if n.is_mandatory]
         assert len(mandatory_nodes) == 3
 
-    def test_empty_mandatory_spec_still_marks_mandatory(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_empty_mandatory_spec_still_marks_mandatory(self, mock_osrm, basic_maut_output, hotel):
         """Empty spec {} should still mark POI as mandatory."""
         mandatory = {"mandatory_poi": {}}
 
@@ -430,201 +414,10 @@ class TestMandatoryPoiApiParsing:
         assert md_entry["all_day"] is True
 
 
-class TestMandatoryPoiMultiCity:
-    """Test mandatory POIs are correctly assigned to destination cities."""
-
-    def test_filter_mandatory_for_city_by_poi_destination(self):
-        """Mandatory POI with poi_destination should only appear in matching city."""
-        from app.services.pipeline import _filter_mandatory_for_city
-
-        mandatory = {
-            "johor_poi": {
-                "time_type": "any_time",
-                "poi_destination": "Johor",
-            },
-            "singapore_poi": {
-                "time_type": "specific",
-                "poi_destination": "Singapore",
-                "window": ["10:00", "12:00"],
-            },
-        }
-
-        # Filter for Singapore
-        sg_mandatory = _filter_mandatory_for_city(mandatory, "Singapore", [])
-        assert sg_mandatory is not None
-        assert "singapore_poi" in sg_mandatory
-        assert "johor_poi" not in sg_mandatory
-
-        # Filter for Johor
-        jb_mandatory = _filter_mandatory_for_city(mandatory, "Johor", [])
-        assert jb_mandatory is not None
-        assert "johor_poi" in jb_mandatory
-        assert "singapore_poi" not in jb_mandatory
-
-    def test_filter_mandatory_for_city_by_area_name(self):
-        """Mandatory POI without poi_destination uses area_name from places."""
-        from app.services.pipeline import _filter_mandatory_for_city
-
-        mandatory = {
-            "poi_in_johor": {"time_type": "any_time"},
-            "poi_in_singapore": {"time_type": "any_time"},
-        }
-
-        places = [
-            {"id": "poi_in_johor", "area_name": "Johor Bahru"},
-            {"id": "poi_in_singapore", "area_name": "Singapore"},
-        ]
-
-        # Filter for Johor (should match "Johor Bahru")
-        jb_mandatory = _filter_mandatory_for_city(mandatory, "Johor", places)
-        assert jb_mandatory is not None
-        assert "poi_in_johor" in jb_mandatory
-
-        # Filter for Singapore
-        sg_mandatory = _filter_mandatory_for_city(mandatory, "Singapore", places)
-        assert sg_mandatory is not None
-        assert "poi_in_singapore" in sg_mandatory
-
-    def test_filter_mandatory_no_destination_includes_all(self):
-        """Mandatory POI without destination info should be included in all cities."""
-        from app.services.pipeline import _filter_mandatory_for_city
-
-        mandatory = {
-            "poi_no_dest": {"time_type": "any_time"},  # No poi_destination
-        }
-
-        places = []  # No area_name lookup available
-
-        # Should be included in both cities
-        sg_mandatory = _filter_mandatory_for_city(mandatory, "Singapore", places)
-        assert sg_mandatory is not None
-        assert "poi_no_dest" in sg_mandatory
-
-        jb_mandatory = _filter_mandatory_for_city(mandatory, "Johor", places)
-        assert jb_mandatory is not None
-        assert "poi_no_dest" in jb_mandatory
-
-    def test_filter_mandatory_normalized_city_matching(self):
-        """City names should be normalized for matching (case-insensitive, comma handling)."""
-        from app.services.pipeline import _filter_mandatory_for_city
-
-        mandatory = {
-            "poi1": {"time_type": "any_time", "poi_destination": "johor"},  # lowercase
-            "poi2": {
-                "time_type": "any_time",
-                "poi_destination": "Singapore, SG",
-            },  # with comma
-        }
-
-        # Should match despite case difference
-        jb_mandatory = _filter_mandatory_for_city(mandatory, "Johor Bahru", [])
-        assert jb_mandatory is not None
-        assert "poi1" in jb_mandatory
-
-        # Should match despite comma in destination
-        sg_mandatory = _filter_mandatory_for_city(mandatory, "Singapore", [])
-        assert sg_mandatory is not None
-        assert "poi2" in sg_mandatory
-
-    def test_multi_city_mandatory_poi_integration(self, mock_osrm):
-        """Integration test: mandatory POIs assigned to correct city days."""
-        from app.services.vrp_utils import build_problem
-        from app.services.pipeline import _filter_mandatory_for_city
-
-        # Singapore POIs
-        sg_places = [
-            {
-                "id": "sg_attraction",
-                "name": "Marina Bay",
-                "roles": ["attraction"],
-                "coordinates": {"lat": 1.28, "lng": 103.85},
-                "area_name": "Singapore",
-                "themes": ["culture"],
-            },
-            {
-                "id": "sg_mandatory",
-                "name": "Singapore Zoo",
-                "roles": ["attraction"],
-                "coordinates": {"lat": 1.40, "lng": 103.79},
-                "area_name": "Singapore",
-                "themes": ["family"],
-            },
-        ]
-
-        # Johor POIs
-        jb_places = [
-            {
-                "id": "jb_attraction",
-                "name": "Legoland",
-                "roles": ["attraction"],
-                "coordinates": {"lat": 1.43, "lng": 103.63},
-                "area_name": "Johor Bahru",
-                "themes": ["family"],
-            },
-            {
-                "id": "jb_mandatory",
-                "name": "Hello Kitty Town",
-                "roles": ["attraction"],
-                "coordinates": {"lat": 1.42, "lng": 103.64},
-                "area_name": "Johor Bahru",
-                "themes": ["family"],
-            },
-        ]
-
-        # Full mandatory dict with poi_destination
-        mandatory = {
-            "sg_mandatory": {
-                "time_type": "any_time",
-                "poi_destination": "Singapore",
-            },
-            "jb_mandatory": {
-                "time_type": "specific",
-                "poi_destination": "Johor",
-                "day": 1,
-                "window": ["10:00", "14:00"],
-            },
-        }
-
-        # Filter for Singapore
-        sg_mandatory = _filter_mandatory_for_city(mandatory, "Singapore", sg_places)
-        assert sg_mandatory is not None
-        assert "sg_mandatory" in sg_mandatory
-        assert "jb_mandatory" not in sg_mandatory
-
-        # Filter for Johor
-        jb_mandatory = _filter_mandatory_for_city(mandatory, "Johor Bahru", jb_places)
-        assert jb_mandatory is not None
-        assert "jb_mandatory" in jb_mandatory
-        assert "sg_mandatory" not in jb_mandatory
-
-        # Build problem for Singapore with filtered mandatory
-        sg_hotel = {"id": "sg_hotel", "name": "SG Hotel", "lat": 1.30, "lon": 103.80}
-        sg_maut = {
-            "places": sg_places,
-            "meta": {"num_days": 2, "dates": {"type": "flexible", "days": 2}},
-        }
-
-        day_specs, nodes, travel = build_problem(
-            sg_maut, sg_hotel, pacing="balanced", mandatory=sg_mandatory
-        )
-
-        # Verify sg_mandatory is marked as mandatory
-        sg_mand_nodes = [
-            n for n in nodes if n.is_mandatory and "sg_mandatory" in n.poi_id
-        ]
-        assert len(sg_mand_nodes) > 0
-
-        # Verify jb_mandatory is NOT in Singapore nodes
-        jb_mand_nodes = [n for n in nodes if "jb_mandatory" in n.poi_id]
-        assert len(jb_mand_nodes) == 0
-
-
 class TestMandatoryPoiEdgeCases:
     """Edge cases and error handling for mandatory POIs."""
 
-    def test_invalid_window_format_falls_back(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_invalid_window_format_falls_back(self, mock_osrm, basic_maut_output, hotel):
         """Invalid window format should fall back to role defaults."""
         mandatory = {
             "mandatory_poi": {
@@ -645,9 +438,7 @@ class TestMandatoryPoiEdgeCases:
         # Should still create node with fallback windows
         assert len(mandatory_nodes) >= 1
 
-    def test_day_out_of_range_creates_no_node(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_day_out_of_range_creates_no_node(self, mock_osrm, basic_maut_output, hotel):
         """Day constraint beyond trip length should create no nodes."""
         mandatory = {
             "mandatory_poi": {
@@ -715,6 +506,4 @@ class TestMandatoryPoiEdgeCases:
 
         # POI 2 should have all-day window
         day_spec = day_specs[1]
-        assert poi_2_nodes[0].windows_by_day[1] == [
-            (day_spec.start_min, day_spec.end_min)
-        ]
+        assert poi_2_nodes[0].windows_by_day[1] == [(day_spec.start_min, day_spec.end_min)]

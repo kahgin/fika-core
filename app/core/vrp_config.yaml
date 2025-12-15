@@ -1,21 +1,19 @@
-# ACS-specific algorithm parameters (tuned via Optuna)
-acs_alpha: 2.33
-acs_beta: 3.39
-acs_evaporation_rate: 0.29
-acs_n_ants: 28
-acs_n_iterations: 117
-acs_q: 73.4
+# ACS-specific algorithm parameters
+acs_alpha: 4.09
+acs_beta: 4.59
+acs_evaporation_rate: 0.24
+acs_n_ants: 25
+acs_n_iterations: 50
+acs_q: 145.4
 
-# POI coverage reward (ACS uses this to prioritize visiting more POIs)
-poi_bonus: 120
-
-# Shared constraint parameters (used by both OR-Tools and ACS)
-max_theme_per_day: 2
+poi_visit_bonus: 800
+theme_diversity_bonus: 8
+theme_concentration_penalty: 176
+meal_window_bonus: 200
 
 # Shared penalty parameters (used by both solvers)
 drop_poi_penalty: 1041
 mandatory_miss_penalty: 13325
-meal_shortfall_penalty: 882
+meal_shortfall_penalty: 1703
 penalty_meal_to_meal: 7197
 penalty_same_theme: 681
-penalty_theme_limit_exceeded: 12081

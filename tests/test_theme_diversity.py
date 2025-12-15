@@ -1,10 +1,10 @@
 """
-Tests for theme diversity constraints in the VRP solvers.
+Tests for theme diversity in the VRP solvers.
 
-Constraints:
-- Max 2 attractions with same primary theme per day
+Theme balance uses SOFT PENALTIES, not hard limits:
 - Penalty for consecutive same-theme attractions
 - Theme distribution tracking
+- No hard cap on attractions per theme (user may want single-theme focus)
 """
 
 import pytest
@@ -17,15 +17,15 @@ from app.services.pipeline import validate_global_rules
 class TestThemeConfig:
     """Tests for theme-related configuration."""
 
-    def test_max_theme_per_day_defined(self):
-        """Test max theme per day is defined."""
-        assert hasattr(vrp_config, "max_theme_per_day")
-        assert vrp_config.max_theme_per_day >= 1
-
     def test_same_theme_penalty_defined(self):
         """Test penalty for same theme is defined."""
         assert hasattr(vrp_config, "penalty_same_theme")
         assert vrp_config.penalty_same_theme > 0
+
+    def test_theme_diversity_bonus_defined(self):
+        """Test theme diversity bonus is defined."""
+        assert hasattr(vrp_config, "theme_diversity_bonus")
+        assert vrp_config.theme_diversity_bonus > 0
 
 
 class TestThemeValidation:
@@ -37,8 +37,8 @@ class TestThemeValidation:
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                         {"role": "attraction", "themes": ["nature"]},
                     ]
                 }
@@ -49,24 +49,49 @@ class TestThemeValidation:
         validation = validate_global_rules(result)
         assert validation["ok"]
 
-    def test_three_same_theme_fails(self):
-        """Test 3 attractions with same theme fails."""
+    def test_three_same_theme_passes_no_hard_limit(self):
+        """Test 3 attractions with same theme passes - no hard theme limit."""
         result = {
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                     ]
                 }
             ],
             "meta": {},
         }
 
+        # Theme balance uses SOFT penalties, not hard limits
+        # Users should be able to select a single theme and get many attractions
         validation = validate_global_rules(result)
-        assert not validation["ok"]
-        assert any("theme" in e.lower() for e in validation["errors"])
+        assert validation["ok"]  # No error - soft penalty only
+
+    def test_many_same_theme_warns(self):
+        """Test many attractions with same theme generates warning."""
+        result = {
+            "days": [
+                {
+                    "stops": [
+                        {"role": "attraction", "themes": ["shopping"]},
+                        {"role": "attraction", "themes": ["shopping"]},
+                        {"role": "attraction", "themes": ["shopping"]},
+                        {"role": "attraction", "themes": ["shopping"]},
+                        {"role": "attraction", "themes": ["shopping"]},
+                    ]
+                }
+            ],
+            "meta": {},
+        }
+
+        # Should pass but with a warning about concentration
+        validation = validate_global_rules(result)
+        assert validation["ok"]  # Still passes - soft penalty only
+        assert "warnings" in validation
+        # High concentration should trigger a warning
+        assert any("shopping" in w.lower() for w in validation.get("warnings", []))
 
     def test_primary_theme_only(self):
         """Test only primary (first) theme is counted."""
@@ -74,11 +99,11 @@ class TestThemeValidation:
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture", "history"]},
-                        {"role": "attraction", "themes": ["culture", "art"]},
+                        {"role": "attraction", "themes": ["cultural_history", "history"]},
+                        {"role": "attraction", "themes": ["cultural_history", "art"]},
                         {
                             "role": "attraction",
-                            "themes": ["history", "culture"],
+                            "themes": ["history", "cultural_history"],
                         },  # history is primary
                     ]
                 }
@@ -86,7 +111,7 @@ class TestThemeValidation:
             "meta": {},
         }
 
-        # Only 2 have "culture" as primary
+        # Only 2 have "cultural_history" as primary
         validation = validate_global_rules(result)
         assert validation["ok"]
 
@@ -96,14 +121,14 @@ class TestThemeValidation:
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                     ]
                 },
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                     ]
                 },
             ],
@@ -142,7 +167,7 @@ class TestThemeValidation:
                         {"role": "meal", "themes": ["food"]},
                         {"role": "meal", "themes": ["food"]},
                         {"role": "meal", "themes": ["food"]},
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                     ]
                 }
             ],
@@ -165,11 +190,11 @@ class TestThemeDistribution:
 
         maut_output = {
             "places": [
-                {"id": "poi1", "name": "Museum", "themes": ["culture"]},
+                {"id": "poi1", "name": "Museum", "themes": ["cultural_history"]},
                 {"id": "poi2", "name": "Park", "themes": ["nature"]},
-                {"id": "poi3", "name": "Temple", "themes": ["culture", "history"]},
+                {"id": "poi3", "name": "Temple", "themes": ["cultural_history", "history"]},
             ],
-            "meta": {"selected_themes": ["culture", "nature"]},
+            "meta": {"selected_themes": ["cultural_history", "nature"]},
         }
 
         cvrptw_output = {
@@ -220,7 +245,7 @@ class TestThemeDistribution:
         result = validate_itinerary(cvrptw_output, maut_output)
 
         assert "theme_distribution" in result["stats"]
-        assert result["stats"]["theme_distribution"].get("culture", 0) >= 1
+        assert result["stats"]["theme_distribution"].get("cultural_history", 0) >= 1
         assert result["stats"]["theme_distribution"].get("nature", 0) >= 1
 
     def test_missing_themes_info(self):
@@ -229,9 +254,9 @@ class TestThemeDistribution:
 
         maut_output = {
             "places": [
-                {"id": "poi1", "name": "Museum", "themes": ["culture"]},
+                {"id": "poi1", "name": "Museum", "themes": ["cultural_history"]},
             ],
-            "meta": {"selected_themes": ["culture", "nature", "shopping"]},
+            "meta": {"selected_themes": ["cultural_history", "nature", "shopping"]},
         }
 
         cvrptw_output = {
@@ -271,9 +296,9 @@ class TestThemeDistribution:
         info_violations = [v for v in result["violations"] if v["severity"] == "info"]
         theme_info = [v for v in info_violations if v["type"] == "theme_imbalance"]
         assert len(theme_info) > 0
-        assert "nature" in theme_info[0].get(
+        assert "nature" in theme_info[0].get("missing_themes", []) or "shopping" in theme_info[0].get(
             "missing_themes", []
-        ) or "shopping" in theme_info[0].get("missing_themes", [])
+        )
 
 
 class TestThemeNodeCreation:
@@ -302,7 +327,7 @@ class TestThemeNodeCreation:
                     "name": "Museum",
                     "roles": ["attraction"],
                     "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "themes": ["culture", "history"],
+                    "themes": ["cultural_history", "history"],
                 },
             ],
             "meta": {"num_days": 1},
@@ -316,4 +341,4 @@ class TestThemeNodeCreation:
         assert len(attraction_nodes) > 0
 
         for node in attraction_nodes:
-            assert node.themes == ["culture", "history"]
+            assert node.themes == ["cultural_history", "history"]

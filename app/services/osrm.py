@@ -32,16 +32,11 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
     R = 6371.0
     dlat = radians(lat2 - lat1)
     dlon = radians(lon2 - lon1)
-    a = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    )
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
-def haversine_time_seconds(
-    lat1: float, lon1: float, lat2: float, lon2: float, speed_kmh: float = 30.0
-) -> float:
+def haversine_time_seconds(lat1: float, lon1: float, lat2: float, lon2: float, speed_kmh: float = 30.0) -> float:
     """Travel time in seconds assuming constant speed."""
     distance_km = haversine_distance_km(lat1, lon1, lat2, lon2)
     return (distance_km / speed_kmh) * 3600.0
@@ -63,9 +58,7 @@ def haversine_matrix(
             if i == j:
                 continue
             lat2, lon2 = coords[j]
-            sec = haversine_time_seconds(
-                lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh
-            )
+            sec = haversine_time_seconds(lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh)
             minutes = tiered_round(sec / 60.0)
             matrix[i][j] = minutes
 
@@ -111,10 +104,7 @@ class OSRMClient:
         """
         if self._check_osrm_available():
             try:
-                url = (
-                    f"{self.base_url}/route/v1/driving/"
-                    f"{lon1},{lat1};{lon2},{lat2}?overview=false"
-                )
+                url = f"{self.base_url}/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
                 resp = requests.get(url, timeout=self.timeout)
                 resp.raise_for_status()
                 data = resp.json()
@@ -149,10 +139,7 @@ class OSRMClient:
         """
         if self._check_osrm_available():
             try:
-                url = (
-                    f"{self.base_url}/route/v1/driving/"
-                    f"{lon1},{lat1};{lon2},{lat2}?overview=false"
-                )
+                url = f"{self.base_url}/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
                 resp = requests.get(url, timeout=self.timeout)
                 resp.raise_for_status()
                 data = resp.json()
@@ -165,9 +152,7 @@ class OSRMClient:
                     self.timeout,
                 )
             except requests.exceptions.ConnectionError:
-                logger.warning(
-                    "OSRM distance connection error, falling back to Haversine"
-                )
+                logger.warning("OSRM distance connection error, falling back to Haversine")
                 self._osrm_available = False
             except Exception as e:
                 logger.warning("OSRM distance error: %s, falling back to Haversine", e)
@@ -206,9 +191,7 @@ class OSRMClient:
         if self._check_osrm_available():
             try:
                 coord_str = ";".join(f"{lon},{lat}" for (lat, lon) in coords)
-                url = (
-                    f"{self.base_url}/table/v1/driving/{coord_str}?annotations=duration"
-                )
+                url = f"{self.base_url}/table/v1/driving/{coord_str}?annotations=duration"
                 resp = requests.get(url, timeout=self.timeout)
                 resp.raise_for_status()
                 data = resp.json()
@@ -234,9 +217,7 @@ class OSRMClient:
                     self.timeout,
                 )
             except requests.exceptions.ConnectionError:
-                logger.warning(
-                    "OSRM /table connection error, falling back to Haversine matrix"
-                )
+                logger.warning("OSRM /table connection error, falling back to Haversine matrix")
                 self._osrm_available = False
             except Exception as e:
                 logger.warning("OSRM /table error: %s, falling back to Haversine", e)
@@ -250,9 +231,7 @@ class OSRMClient:
                 if i == j:
                     continue
                 lat2, lon2 = coords[j]
-                sec = haversine_time_seconds(
-                    lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh
-                )
+                sec = haversine_time_seconds(lat1, lon1, lat2, lon2, speed_kmh=fallback_speed_kmh)
                 minutes = tiered_round(sec / 60.0)
                 matrix[i][j] = minutes
 

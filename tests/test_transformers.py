@@ -73,7 +73,7 @@ class TestTransformFrontendPayload:
         payload = {
             "destination": "Singapore",
             "dates": {"type": "flexible", "days": 3},
-            "preferences": {"pacing": "balanced", "interests": ["culture"]},
+            "preferences": {"pacing": "balanced", "interests": ["cultural_history"]},
             "flags": {},
         }
 
@@ -82,7 +82,7 @@ class TestTransformFrontendPayload:
         assert result["destination"] == "Singapore"
         assert result["num_days"] == 3
         assert result["pacing"] == "balanced"
-        assert result["interest_themes"] == ["culture"]
+        assert result["interest_themes"] == ["cultural_history"]
 
     def test_muslim_flag_excludes_nightlife(self):
         """Test is_muslim flag adds nightlife to excluded themes."""
@@ -217,7 +217,7 @@ class TestTransformPoiToFrontend:
             "id": "poi1",
             "name": "Marina Bay",
             "roles": ["attraction"],
-            "themes": ["culture"],
+            "themes": ["cultural_history"],
             "rating": 4.5,
             "review_count": 1000,
             "coordinates": {"lat": 1.3, "lng": 103.8},
@@ -230,7 +230,7 @@ class TestTransformPoiToFrontend:
         assert result["id"] == "poi1"
         assert result["name"] == "Marina Bay"
         assert result["roles"] == ["attraction"]
-        assert result["themes"] == ["culture"]
+        assert result["themes"] == ["cultural_history"]
         assert result["rating"] == 4.5
         assert result["reviewCount"] == 1000
         assert result["openHours"] == {"Monday": ["10 am-9 pm"]}
@@ -317,7 +317,7 @@ class TestNamingConventions:
 
     def test_to_camel_case(self):
         """Test snake_case to camelCase conversion."""
-        from app.services.transformers import to_camel_case
+        from app.utils.naming import to_camel_case
 
         assert to_camel_case("open_hours") == "openHours"
         assert to_camel_case("review_count") == "reviewCount"

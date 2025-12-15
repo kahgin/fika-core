@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, List, Optional, Tuple
 
 # NOTE: Canonical naming convention is snake_case across API, backend, and DB.
@@ -31,6 +31,32 @@ class POI(BaseModel):
     coordinates: Optional[Coordinates] = None
     open_hours: Optional[Dict[str, Any]] = None
     price_level: Optional[int] = None
+
+    @field_validator("images", mode="before")
+    @classmethod
+    def filter_none_images(cls, v):
+        """Normalize images into a list of non-empty strings.
+
+        Upstream sources sometimes return `None`, a single string, or lists that
+        contain `None` values. Pydantic v2 is strict about `List[str]`.
+        """
+        if v is None:
+            return []
+
+        if isinstance(v, str):
+            s = v.strip()
+            return [s] if s else []
+
+        if not isinstance(v, list):
+            return []
+
+        out: List[str] = []
+        for img in v:
+            if isinstance(img, str):
+                s = img.strip()
+                if s:
+                    out.append(s)
+        return out
 
 
 class DatesFlexible(BaseModel):
@@ -101,16 +127,6 @@ class MandatoryPoiSpec(BaseModel):
     day: Optional[int] = None
     window: Optional[Tuple[str, str]] = None
     all_day: Optional[bool] = None
-
-
-class UserHotel(BaseModel):
-    """User-provided hotel (used in multi-city pinning and depot selection)."""
-
-    id: str
-    name: str
-    lat: float
-    lon: float
-    source: str = "user"
 
 
 class ReorderItineraryRequest(BaseModel):

@@ -26,7 +26,7 @@ def basic_maut_output():
                 "name": "Marina Bay",
                 "roles": ["attraction"],
                 "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["culture"],
+                "themes": ["cultural_history"],
             },
             {
                 "id": "meal1",
@@ -38,7 +38,7 @@ def basic_maut_output():
         "meta": {
             "num_days": 2,
             "dates": {"type": "flexible", "days": 2},
-            "selected_themes": ["culture"],
+            "selected_themes": ["cultural_history"],
         },
     }
 
@@ -107,9 +107,7 @@ class TestBuildProblemDepot:
         for i in range(n):
             assert travel[i][i] == 0
 
-    def test_build_problem_pacing_affects_windows(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_build_problem_pacing_affects_windows(self, mock_osrm, basic_maut_output, hotel):
         """Test that pacing affects day windows."""
         day_specs_relaxed, _, _ = build_problem(
             basic_maut_output,
@@ -128,9 +126,7 @@ class TestBuildProblemDepot:
         packed_duration = day_specs_packed[0].end_min - day_specs_packed[0].start_min
         assert packed_duration > relaxed_duration
 
-    def test_build_problem_nodes_have_windows(
-        self, mock_osrm, basic_maut_output, hotel
-    ):
+    def test_build_problem_nodes_have_windows(self, mock_osrm, basic_maut_output, hotel):
         """Test that all nodes have time windows."""
         day_specs, nodes, travel = build_problem(
             basic_maut_output,

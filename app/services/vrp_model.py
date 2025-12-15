@@ -34,6 +34,7 @@ class Node:
     themes: Optional[List[str]]
     windows_by_day: Dict[int, List[Tuple[int, int]]]
     is_mandatory: bool = False
+    maut_score: float = 0.0  # MAUT score for review/quality prioritization
 
 
 class VRPConfig(BaseModel):
@@ -42,21 +43,21 @@ class VRPConfig(BaseModel):
     # Pacing and Service Times
     pace_day_budget_min: Dict[str, int] = Field(
         default={
-            "relaxed": 8 * 60,
-            "balanced": 11 * 60,
-            "packed": 14 * 60,
+            "relaxed": 12 * 60,
+            "balanced": 12 * 60,
+            "packed": 16 * 60,
         }
     )
     pace_day_start_min: Dict[str, int] = Field(
         default={
             "relaxed": 10 * 60,
-            "balanced": 9 * 60,
+            "balanced": 10 * 60,
             "packed": 8 * 60,
         }
     )
     service_time_min: Dict[str, Dict[str, int]] = Field(
         default={
-            "attraction": {"relaxed": 120, "balanced": 90, "packed": 60},
+            "attraction": {"relaxed": 210, "balanced": 150, "packed": 90},
             "meal": {"relaxed": 90, "balanced": 75, "packed": 60},
             "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
         }
@@ -80,31 +81,33 @@ class VRPConfig(BaseModel):
     )
 
     # Penalties (in 'minute-cost' units)
-    penalty_meal_to_meal: int = Field(
-        default=3000, description="Penalty for consecutive meals"
-    )
-    penalty_same_theme: int = Field(
-        default=500, description="Penalty for consecutive same-theme POIs"
-    )
-    penalty_theme_limit_exceeded: int = Field(
-        default=10000,
-        description="High penalty for exceeding max attractions per theme per day",
-    )
-    drop_poi_penalty: int = Field(
-        default=200, description="Base penalty for dropping a non-mandatory POI"
-    )
+    penalty_meal_to_meal: int = Field(default=3000, description="Penalty for consecutive meals")
+    penalty_same_theme: int = Field(default=500, description="Penalty for consecutive same-theme POIs")
+    drop_poi_penalty: int = Field(default=200, description="Base penalty for dropping a non-mandatory POI")
     meal_shortfall_penalty: int = Field(
         default=200,
         description="Penalty per missing meal (high to enforce min 2 meals)",
     )
-    mandatory_miss_penalty: int = Field(
-        default=60 * 24 * 7, description="Penalty for missing a mandatory POI"
-    )
+    mandatory_miss_penalty: int = Field(default=60 * 24 * 7, description="Penalty for missing a mandatory POI")
 
     # ACS POI coverage bonus (negative cost = reward for visiting)
     poi_visit_bonus: int = Field(
         default=120,
         description="Bonus (cost reduction) per POI visited to encourage more visits",
+    )
+
+    # Theme balance bonus - reward balanced coverage of user-selected themes
+    theme_diversity_bonus: int = Field(
+        default=100,
+        description="Bonus per user-selected theme covered in a day",
+    )
+    theme_concentration_penalty: int = Field(
+        default=50,
+        description="Penalty when theme distribution is heavily skewed",
+    )
+    meal_window_bonus: int = Field(
+        default=150,
+        description="Bonus per meal scheduled within preferred time window",
     )
 
     # Solver-Specific Parameters
@@ -114,11 +117,6 @@ class VRPConfig(BaseModel):
     acs_beta: float = Field(default=2.0, description="Heuristic importance")
     acs_evaporation_rate: float = Field(default=0.5)
     acs_q: float = Field(default=100.0, description="Pheromone deposit factor")
-
-    # Shared constraint parameters (used by both OR-Tools and ACS)
-    max_theme_per_day: int = Field(
-        default=2, description="Max attractions with same primary theme per day"
-    )
 
     @property
     def meal_windows(self) -> List[Tuple[int, int]]:
@@ -173,28 +171,27 @@ def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     acs_q = round_value(config.acs_q)
 
     # Write YAML with comments for better readability
-    yaml_content = f"""# ACS-specific algorithm parameters (tuned via Optuna)
-acs_alpha: {acs_alpha}
-acs_beta: {acs_beta}
-acs_evaporation_rate: {acs_evaporation_rate}
-acs_n_ants: {config.acs_n_ants}
-acs_n_iterations: {config.acs_n_iterations}
-acs_q: {acs_q}
+    yaml_content = f"""
+    # ACS-specific algorithm parameters
+    acs_alpha: {acs_alpha}
+    acs_beta: {acs_beta}
+    acs_evaporation_rate: {acs_evaporation_rate}
+    acs_n_ants: {config.acs_n_ants}
+    acs_n_iterations: {config.acs_n_iterations}
+    acs_q: {acs_q}
 
-# Shared constraint parameters (used by both OR-Tools and ACS)
-max_theme_per_day: {config.max_theme_per_day}
+    # POI coverage reward (ACS uses this to prioritize visiting more POIs)
+    poi_visit_bonus: {config.poi_visit_bonus}
+    theme_diversity_bonus: {config.theme_diversity_bonus}
+    theme_concentration_penalty: {config.theme_concentration_penalty}
 
-# POI coverage reward (ACS uses this to prioritize visiting more POIs)
-poi_bonus: {config.poi_visit_bonus}
-
-# Shared penalty parameters (used by both solvers)
-drop_poi_penalty: {config.drop_poi_penalty}
-mandatory_miss_penalty: {config.mandatory_miss_penalty}
-meal_shortfall_penalty: {config.meal_shortfall_penalty}
-penalty_meal_to_meal: {config.penalty_meal_to_meal}
-penalty_same_theme: {config.penalty_same_theme}
-penalty_theme_limit_exceeded: {config.penalty_theme_limit_exceeded}
-"""
+    # Shared penalty parameters (used by both solvers)
+    drop_poi_penalty: {config.drop_poi_penalty}
+    mandatory_miss_penalty: {config.mandatory_miss_penalty}
+    meal_shortfall_penalty: {config.meal_shortfall_penalty}
+    penalty_meal_to_meal: {config.penalty_meal_to_meal}
+    penalty_same_theme: {config.penalty_same_theme}
+    """
 
     with open(config_path, "w") as f:
         f.write(yaml_content)

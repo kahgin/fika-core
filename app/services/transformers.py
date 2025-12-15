@@ -1,21 +1,9 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 from datetime import date
 from app.utils.logger import get_logger
 from app.utils.naming import dict_to_camel_case
 
 logger = get_logger(__name__)
-
-# Role mapping constants
-ROLE_DEPOT = "depot"  # Internal VRP role
-ROLE_ACCOMMODATION = "accommodation"  # Canonical role for output
-
-# Frontend role mapping - maps internal roles to UI-friendly roles
-FRONTEND_ROLE_MAP = {
-    "depot": "accommodation",  # Map depot to accommodation for frontend
-    "accommodation": "accommodation",
-    "attraction": "attraction",
-    "meal": "meal",
-}
 
 # Frontend → Backend Transformation
 
@@ -79,16 +67,10 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     dietary_restrictions_raw = payload.get("dietary_restrictions", [])
     if isinstance(dietary_restrictions_raw, str):
         dietary_restrictions = (
-            [dietary_restrictions_raw]
-            if dietary_restrictions_raw and dietary_restrictions_raw != "none"
-            else []
+            [dietary_restrictions_raw] if dietary_restrictions_raw and dietary_restrictions_raw != "none" else []
         )
     else:
-        dietary_restrictions = (
-            dietary_restrictions_raw
-            if isinstance(dietary_restrictions_raw, list)
-            else []
-        )
+        dietary_restrictions = dietary_restrictions_raw if isinstance(dietary_restrictions_raw, list) else []
 
     # Flags normalization for is_muslim
     user_excluded = payload.get("excluded_themes")
@@ -101,8 +83,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if raw_flags.get("is_muslim"):
         halal_explicitly_false = any(
-            isinstance(item, dict) and item.get("halal") is False
-            for item in dietary_restrictions
+            isinstance(item, dict) and item.get("halal") is False for item in dietary_restrictions
         )
         if "halal" not in dietary_restrictions and not halal_explicitly_false:
             dietary_restrictions.append("halal")
@@ -113,17 +94,14 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         cities = [d.get("city") for d in payload.get("destinations") if d.get("city")]
         if cities:
             base_destination = cities[0]
-            logger.info(
-                f"Multi-destination request: cities={cities}, base_destination={base_destination}"
-            )
+            logger.info(f"Multi-destination request: cities={cities}, base_destination={base_destination}")
     if not base_destination:
         base_destination = "Singapore"
 
-    # Build internal request
     return {
         "destination": base_destination,
         "num_days": calculate_num_days(payload),
-        "dates": payload.get("dates"),  # Pass through for day spec creation
+        "dates": payload.get("dates"),
         "budget_tier": preferences.get("budget", "sensible"),
         "pacing": preferences.get("pacing", "balanced"),
         "interest_themes": preferences.get("interests", []),
@@ -136,12 +114,6 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # Backend → Frontend Transformation
-
-
-def to_camel_case(snake_str: str) -> str:
-    """Convert snake_case to camelCase."""
-    components = snake_str.split("_")
-    return components[0] + "".join(x.title() for x in components[1:])
 
 
 def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
@@ -214,76 +186,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def map_stop_role_for_frontend(role: str) -> str:
-    """
-    Map internal stop role to frontend-compatible role.
-
-    Args:
-        role: Internal role string
-
-    Returns:
-        Frontend-compatible role string
-    """
-    return FRONTEND_ROLE_MAP.get(role, role)
-
-
-def transform_stop_for_frontend(stop: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Transform a single stop dict for frontend consumption.
-
-    Maps internal roles to frontend roles and ensures consistent field naming.
-
-    Args:
-        stop: Internal stop dict
-
-    Returns:
-        Frontend-compatible stop dict
-    """
-    stop_copy = stop.copy()
-
-    # Map role to frontend role
-    if "role" in stop_copy:
-        stop_copy["role"] = map_stop_role_for_frontend(stop_copy["role"])
-
-    return stop_copy
-
-
-def transform_day_for_frontend(day: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Transform a single day dict for frontend consumption.
-
-    Transforms all stops within the day.
-
-    Args:
-        day: Internal day dict
-
-    Returns:
-        Frontend-compatible day dict
-    """
-    day_copy = day.copy()
-
-    # Transform stops
-    if "stops" in day_copy:
-        day_copy["stops"] = [
-            transform_stop_for_frontend(stop) for stop in day_copy["stops"]
-        ]
-
-    return day_copy
-
-
-def transform_days_for_frontend(days: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Transform all days for frontend consumption.
-
-    Args:
-        days: List of internal day dicts
-
-    Returns:
-        List of frontend-compatible day dicts
-    """
-    return [transform_day_for_frontend(day) for day in days]
-
-
 def transform_response_to_frontend(
     output: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -302,7 +204,6 @@ def transform_response_to_frontend(
     for poi in output.get("items") or output.get("places") or []:
         items.append(transform_poi_to_frontend(poi))
 
-    # Build plan structure
     return {
         "status": output.get("status", "ok"),
         "items": items,

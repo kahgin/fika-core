@@ -37,9 +37,6 @@ def test_maut_pipeline():
     assert maut_output["status"] == "ok"
     assert len(places) > 0
 
-    # Themes selected
-    assert len(meta.get("selected_themes", [])) > 0
-
     # Hotel selected
     assert meta.get("selected_hotel") is not None
 

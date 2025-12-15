@@ -17,19 +17,12 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Role mapping for consistency - internal uses 'accommodation', frontend uses 'accommodation'
-# 'depot' is only used internally for VRP solver, mapped to 'accommodation' in output
-ROLE_DEPOT = "depot"  # Internal VRP role
-ROLE_ACCOMMODATION = "accommodation"  # Canonical role for output
-
 # Performance guardrails
 MAX_CITIES_PER_REQUEST = 2
 MAX_POIS_PER_CITY = 300
 
 
-def _log_event(
-    event: str, payload: Dict[str, Any], request_id: Optional[str] = None
-) -> None:
+def _log_event(event: str, payload: Dict[str, Any], request_id: Optional[str] = None) -> None:
     """Emit structured JSON log with event name and request_id."""
     log_data = {"event": event, **payload}
     if request_id:
@@ -37,9 +30,7 @@ def _log_event(
     logger.info(json.dumps(log_data))
 
 
-def segment_by_city(
-    maut_output: Dict[str, Any], request_id: Optional[str] = None
-) -> Dict[str, Dict[str, Any]]:
+def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """
     Segment POIs by city using hierarchical fallback strategy.
 
@@ -94,18 +85,11 @@ def segment_by_city(
             lat = coords.get("lat")
             lng = coords.get("lng")
 
-            if (
-                lat is not None
-                and lng is not None
-                and math.isfinite(lat)
-                and math.isfinite(lng)
-            ):
+            if lat is not None and lng is not None and math.isfinite(lat) and math.isfinite(lng):
                 coords_list.append([lat, lng])
                 valid_pois.append(poi)
             else:
-                logger.warning(
-                    f"segment_by_city: POI {poi.get('id', 'unknown')} has invalid coordinates, skipping"
-                )
+                logger.warning(f"segment_by_city: POI {poi.get('id', 'unknown')} has invalid coordinates, skipping")
 
         if coords_list:
             try:
@@ -127,9 +111,7 @@ def segment_by_city(
                         cluster_name = f"cluster_{label}"
                         city_groups.setdefault(cluster_name, []).append(valid_pois[idx])
             except ImportError:
-                logger.warning(
-                    "sklearn not available, grouping uncategorized POIs as single cluster"
-                )
+                logger.warning("sklearn not available, grouping uncategorized POIs as single cluster")
                 city_groups.setdefault("cluster_0", []).extend(valid_pois)
 
     # Build city suboutputs
@@ -152,7 +134,7 @@ def segment_by_city(
         #     {
         #         "area_name": area_name,
         #         "poi_count": len(city_pois),
-        #         "accommodation_count": accommodation_count,
+        #         "request_id": request_id,
         #     },
         # )
 
@@ -162,221 +144,6 @@ def segment_by_city(
         raise ValueError("segment_by_city: No cities identified from MAUT output")
 
     return result
-
-
-def allocate_days_proportionally(
-    cities: Dict[str, Dict[str, Any]],
-    total_days: int,
-    user_input: Optional[Dict[str, Any]] = None,
-    request_id: Optional[str] = None,
-) -> Dict[str, int]:
-    """
-    Allocate days proportionally across cities based on POI count.
-
-    This ensures the total allocated days equals exactly total_days,
-    preventing extra days from being generated.
-
-    Args:
-        cities: Dict of area_name -> maut_suboutput
-        total_days: Total number of days for the trip
-        user_input: Optional user preferences including days_per_city
-        request_id: Optional request ID for logging
-
-    Returns:
-        Dict mapping area_name -> allocated_days
-    """
-    if not cities or total_days <= 0:
-        return {}
-
-    # Case A: user-specified days per city - use those directly
-    if user_input and user_input.get("days_per_city"):
-        dpc = user_input["days_per_city"]
-        allocated: Dict[str, int] = {}
-        remaining_days = total_days
-        unspecified_cities: List[str] = []
-
-        for area_name in cities.keys():
-            days = None
-            # Exact match
-            if area_name in dpc:
-                days = dpc[area_name]
-            else:
-                # Approximate matching
-                cname_l = area_name.lower()
-                for k, v in dpc.items():
-                    kl = str(k).lower()
-                    if kl in cname_l or cname_l in kl:
-                        days = v
-                        break
-
-            if days is not None:
-                days = max(1, int(days))
-                allocated[area_name] = days
-                remaining_days -= days
-            else:
-                unspecified_cities.append(area_name)
-
-        # Distribute remaining days to unspecified cities
-        if unspecified_cities and remaining_days > 0:
-            per_city = max(1, remaining_days // len(unspecified_cities))
-            for area_name in unspecified_cities:
-                allocated[area_name] = min(per_city, remaining_days)
-                remaining_days -= allocated[area_name]
-
-        return allocated
-
-    # Case B: Proportional allocation based on POI count
-    poi_counts: Dict[str, int] = {}
-    total_pois = 0
-
-    for area_name, city_data in cities.items():
-        count = len(city_data.get("places", []))
-        poi_counts[area_name] = count
-        total_pois += count
-
-    if total_pois == 0:
-        # Equal distribution if no POIs
-        per_city = max(1, total_days // len(cities))
-        return {city: per_city for city in cities.keys()}
-
-    # Allocate proportionally, ensuring at least 1 day per city with POIs
-    allocated: Dict[str, int] = {}
-    remaining_days = total_days
-
-    # First pass: allocate proportionally (floor)
-    for area_name, count in poi_counts.items():
-        if count == 0:
-            allocated[area_name] = 0
-            continue
-        proportion = count / total_pois
-        days = max(1, int(proportion * total_days))
-        allocated[area_name] = days
-        remaining_days -= days
-
-    # Second pass: distribute remaining days to cities with most POIs
-    if remaining_days > 0:
-        sorted_cities = sorted(
-            [(c, poi_counts[c]) for c in cities.keys() if poi_counts[c] > 0],
-            key=lambda x: x[1],
-            reverse=True,
-        )
-        for area_name, _ in sorted_cities:
-            if remaining_days <= 0:
-                break
-            allocated[area_name] += 1
-            remaining_days -= 1
-
-    # Third pass: trim if over-allocated
-    while sum(allocated.values()) > total_days:
-        # Find city with most days that has more than 1
-        sorted_cities = sorted(
-            [(c, d) for c, d in allocated.items() if d > 1],
-            key=lambda x: x[1],
-            reverse=True,
-        )
-        if sorted_cities:
-            allocated[sorted_cities[0][0]] -= 1
-        else:
-            break
-
-    # for area_name, days in allocated.items():
-    #     _log_event(
-    #         "days_allocated",
-    #         {
-    #             "area_name": area_name,
-    #             "allocated_days": days,
-    #             "method": "proportional",
-    #             "poi_count": poi_counts.get(area_name, 0),
-    #             "total_days": total_days,
-    #         },
-    #         request_id,
-    #     )
-
-    return allocated
-
-
-def allocate_days_per_city(
-    maut_suboutput: Dict[str, Any],
-    user_input: Optional[Dict[str, Any]] = None,
-    request_id: Optional[str] = None,
-) -> int:
-    """
-    Allocate days for a single city based on user input or capacity estimation.
-
-    NOTE: This function is kept for backward compatibility but should not be used
-    in multi-city scenarios. Use allocate_days_proportionally() instead.
-
-    Args:
-        maut_suboutput: City-specific MAUT output
-        user_input: Optional user preferences including days_per_city
-        request_id: Optional request ID for logging
-
-    Returns:
-        Number of days allocated (>= 1 if city has POIs)
-    """
-    meta = maut_suboutput.get("meta", {})
-    area_name = meta.get("area_name", "unknown")
-    places = maut_suboutput.get("places", [])
-
-    if not places:
-        return 0
-
-    # Case A: user-specified days per city
-    if user_input and user_input.get("days_per_city"):
-        dpc = user_input["days_per_city"]
-        days = None
-        # Exact match
-        if area_name in dpc:
-            days = dpc[area_name]
-        else:
-            # Approximate matching (e.g., 'Johor' vs 'Johor Bahru')
-            cname_l = area_name.lower()
-            for k, v in dpc.items():
-                kl = str(k).lower()
-                if kl in cname_l or cname_l in kl:
-                    days = v
-                    break
-        if days is not None:
-            days = int(days)
-            _log_event(
-                "days_allocated",
-                {
-                    "area_name": area_name,
-                    "allocated_days": days,
-                    "method": "user_specified",
-                    "timezone": meta.get("timezone", "UTC"),
-                },
-                request_id,
-            )
-            return max(1, days)
-
-    # Case B: capacity estimation (NOT using meta.num_days to avoid giving each city full trip days)
-    if "num_days" in meta:
-        days = int(meta["num_days"])
-        method = "meta_num_days"
-    else:
-        # Capacity estimation based on total POIs and city population
-        total_pois = len(places)
-        city_population = meta.get("city_population", 0)
-        if city_population > 8_000_000:
-            realistic_capacity = 5
-        else:
-            realistic_capacity = 6
-        days = math.ceil(total_pois / realistic_capacity)
-        days = max(1, min(days, 14))
-        method = "capacity_estimation"
-
-    _log_event(
-        "days_allocated",
-        {
-            "area_name": area_name,
-            "allocated_days": days,
-            "method": method,
-            "timezone": meta.get("timezone", "UTC"),
-        },
-        request_id,
-    )
-    return days
 
 
 def _find_global_fallback_hotel(
@@ -399,9 +166,7 @@ def _find_global_fallback_hotel(
     places = maut_output.get("places", [])
 
     # Find all accommodations across all POIs
-    all_accommodations = [
-        poi for poi in places if "accommodation" in poi.get("roles", [])
-    ]
+    all_accommodations = [poi for poi in places if "accommodation" in poi.get("roles", [])]
 
     if not all_accommodations:
         return None
@@ -424,15 +189,15 @@ def _find_global_fallback_hotel(
         "source": "global_fallback",
     }
 
-    _log_event(
-        "global_fallback_hotel_found",
-        {
-            "hotel_id": hotel["id"],
-            "hotel_name": hotel["name"],
-            "coords": {"lat": lat, "lng": lon},
-        },
-        request_id,
-    )
+    # _log_event(
+    #     "global_fallback_hotel_found",
+    #     {
+    #         "hotel_id": hotel["id"],
+    #         "hotel_name": hotel["name"],
+    #         "coords": {"lat": lat, "lng": lon},
+    #     },
+    #     request_id,
+    # )
 
     return hotel
 
@@ -555,11 +320,7 @@ def select_hotel_for_city(
         lat = user_hotel.get("lat")
         lon = user_hotel.get("lon") or user_hotel.get("lng")
 
-        if (
-            lat is None
-            or lon is None
-            or not (math.isfinite(lat) and math.isfinite(lon))
-        ):
+        if lat is None or lon is None or not (math.isfinite(lat) and math.isfinite(lon)):
             _log_event(
                 "hotel_selected",
                 {
@@ -600,12 +361,7 @@ def select_hotel_for_city(
         lat = coords.get("lat")
         lon = coords.get("lng")
 
-        if (
-            lat is not None
-            and lon is not None
-            and math.isfinite(lat)
-            and math.isfinite(lon)
-        ):
+        if lat is not None and lon is not None and math.isfinite(lat) and math.isfinite(lon):
             hotel = {
                 "id": selected_hotel["id"],
                 "name": selected_hotel["name"],
@@ -639,12 +395,7 @@ def select_hotel_for_city(
         lat = coords.get("lat")
         lon = coords.get("lng")
 
-        if (
-            lat is not None
-            and lon is not None
-            and math.isfinite(lat)
-            and math.isfinite(lon)
-        ):
+        if lat is not None and lon is not None and math.isfinite(lat) and math.isfinite(lon):
             hotel = {
                 "id": best_hotel["id"],
                 "name": best_hotel["name"],
@@ -746,9 +497,7 @@ def validate_global_rules(
         # Check 1: Meal count
         meal_count = sum(1 for s in stops if s.get("role") == "meal")
         if meal_count > meals_max:
-            errors.append(
-                f"Day {day_idx + 1}: {meal_count} meals exceeds max {meals_max}"
-            )
+            errors.append(f"Day {day_idx + 1}: {meal_count} meals exceeds max {meals_max}")
 
         # Check 2: Theme repetition
         theme_counts: Dict[str, int] = {}
@@ -761,9 +510,7 @@ def validate_global_rules(
 
         for theme, count in theme_counts.items():
             if count > 2:
-                errors.append(
-                    f"Day {day_idx + 1}: {count} attractions with theme '{theme}' exceeds max 2"
-                )
+                errors.append(f"Day {day_idx + 1}: {count} attractions with theme '{theme}' exceeds max 2")
 
     # Check 3: Mandatory POIs
     meta = result.get("meta", {})
@@ -787,106 +534,6 @@ def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
     if "," in name:
         name = name.split(",")[0].strip()
     return name
-
-
-def _filter_mandatory_for_city(
-    mandatory: Optional[Dict[str, Dict]],
-    city_name: str,
-    places: List[Dict[str, Any]],
-    city_day_offset: int = 0,
-    city_num_days: int = 0,
-) -> Optional[Dict[str, Dict]]:
-    """
-    Filter mandatory POIs for a specific city and adjust day indices to city-local.
-
-    Matches mandatory POIs to city by:
-    1. poi_destination field in mandatory spec
-    2. area_name of the POI in places list
-
-    Args:
-        mandatory: Full mandatory dict {poi_id: spec}
-        city_name: Target city name
-        places: POIs in the city (to lookup area_name)
-        city_day_offset: The global day offset for this city (0-based).
-                        E.g., if Singapore gets days 1-2 and Johor gets days 3-4,
-                        Singapore has offset=0, Johor has offset=2.
-        city_num_days: Number of days allocated to this city
-
-    Returns:
-        Filtered mandatory dict for this city only, with adjusted local day indices
-    """
-    if not mandatory:
-        return None
-
-    city_norm = _normalize_city_name(city_name)
-    if not city_norm:
-        return mandatory  # Can't filter, return all
-
-    # Build lookup of poi_id -> area_name from places
-    poi_area_lookup: Dict[str, str] = {}
-    for poi in places:
-        poi_id = poi.get("id")
-        area = poi.get("area_name")
-        if poi_id and area:
-            poi_area_lookup[poi_id] = area
-
-    filtered: Dict[str, Dict] = {}
-    for poi_id, spec in mandatory.items():
-        spec = spec or {}
-
-        # Check poi_destination in spec
-        poi_dest = spec.get("poi_destination")
-        matches_city = False
-
-        if poi_dest:
-            dest_norm = _normalize_city_name(poi_dest)
-            if dest_norm and (dest_norm in city_norm or city_norm in dest_norm):
-                matches_city = True
-
-        # Check area_name from places lookup
-        if not matches_city:
-            poi_area = poi_area_lookup.get(poi_id)
-            if poi_area:
-                area_norm = _normalize_city_name(poi_area)
-                if area_norm and (area_norm in city_norm or city_norm in area_norm):
-                    matches_city = True
-
-        # If no destination info, include in all cities (fallback)
-        if not matches_city and not poi_dest and not poi_area:
-            matches_city = True
-
-        if matches_city:
-            # Create a copy and adjust the day to city-local index
-            spec_copy = spec.copy()
-            global_day = spec_copy.get("day")
-
-            if global_day is not None:
-                # Convert global 1-based day to city-local 1-based day
-                # global_day=2, offset=0 → local_day=2 (for first city)
-                # global_day=3, offset=2 → local_day=1 (for second city starting at global day 3)
-                local_day = int(global_day) - city_day_offset
-
-                # Validate the local day is within this city's range
-                # Only validate if city_num_days > 0 (otherwise skip validation for tests)
-                if city_num_days > 0 and not (1 <= local_day <= city_num_days):
-                    # Day is outside this city's range - skip this POI for this city
-                    # This is a user error: they assigned a POI to a day that doesn't belong to its city
-                    logger.warning(
-                        f"Mandatory POI {poi_id} (day {global_day}) skipped for {city_name}: "
-                        f"local_day={local_day} not in range [1, {city_num_days}] "
-                        f"(city offset={city_day_offset}). "
-                        f"User assigned this POI to a day that doesn't belong to this city."
-                    )
-                    continue
-
-                spec_copy["day"] = local_day
-                spec_copy["_original_global_day"] = global_day  # Keep for debugging
-                filtered[poi_id] = spec_copy
-            else:
-                # No day constraint - include as-is (can be scheduled on any day)
-                filtered[poi_id] = spec_copy
-
-    return filtered if filtered else None
 
 
 def _filter_mandatory_for_segment(
@@ -1104,12 +751,8 @@ def run_full_pipeline(
                 if place_cities:
                     user_hotels_by_city = {}
                     for h in meta_hotels:
-                        hlat = h.get("latitude") or (h.get("coordinates") or {}).get(
-                            "lat"
-                        )
-                        hlon = h.get("longitude") or (h.get("coordinates") or {}).get(
-                            "lng"
-                        )
+                        hlat = h.get("latitude") or (h.get("coordinates") or {}).get("lat")
+                        hlon = h.get("longitude") or (h.get("coordinates") or {}).get("lng")
                         if hlat is None or hlon is None:
                             continue
                         # Find nearest city centroid among POIs
@@ -1122,11 +765,8 @@ def run_full_pipeline(
                                 best_city = cname
                         if best_city:
                             user_hotels_by_city[best_city] = {
-                                "id": h.get("id")
-                                or h.get("poi_id")
-                                or f"user_hotel_{best_city}",
-                                "name": h.get("name")
-                                or h.get("poi_name", "User Hotel"),
+                                "id": h.get("id") or h.get("poi_id") or f"user_hotel_{best_city}",
+                                "name": h.get("name") or h.get("poi_name", "User Hotel"),
                                 "lat": float(hlat),
                                 "lon": float(hlon),
                                 "source": "user",
@@ -1172,11 +812,7 @@ def run_full_pipeline(
                     # Find matching city in our cities dict
                     for city_name in cities.keys():
                         city_norm = _normalize_city_name(city_name)
-                        if (
-                            city_norm
-                            and dest_norm
-                            and (city_norm in dest_norm or dest_norm in city_norm)
-                        ):
+                        if city_norm and dest_norm and (city_norm in dest_norm or dest_norm in city_norm):
                             poi_city_lookup[poi_id] = city_name
                             break
 
@@ -1207,9 +843,7 @@ def run_full_pipeline(
         global_fallback_hotel = _find_global_fallback_hotel(maut_output, request_id)
 
         # Build list of all accommodations for nearest-search fallback
-        all_accommodations = [
-            poi for poi in places if "accommodation" in poi.get("roles", [])
-        ]
+        all_accommodations = [poi for poi in places if "accommodation" in poi.get("roles", [])]
 
         # Process cities in the order they appear in the trip (may repeat if non-contiguous)
         # Group consecutive days by city for batch processing
@@ -1262,9 +896,7 @@ def run_full_pipeline(
             )
             if hotel_city.get("status") == "error":
                 failed_cities.append(area_name)
-                logger.error(
-                    f"Hotel selection failed for {area_name}: {hotel_city.get('error')}"
-                )
+                logger.error(f"Hotel selection failed for {area_name}: {hotel_city.get('error')}")
                 continue
 
             try:
@@ -1364,9 +996,7 @@ def run_full_pipeline(
 
                     # Calculate the global day number for this day in the segment
                     global_day_num = (
-                        segment_days[idx]
-                        if idx < len(segment_days)
-                        else segment_days[-1] + idx - len(segment_days) + 1
+                        segment_days[idx] if idx < len(segment_days) else segment_days[-1] + idx - len(segment_days) + 1
                     )
 
                     if segment_start_date is not None:
@@ -1461,9 +1091,7 @@ def run_full_pipeline(
                             "roles": [spec.get("role", "attraction")],
                             "themes": spec.get("themes", []),
                             "location": spec.get("poi_destination", ""),
-                            "images": spec.get("images", [None])[0]
-                            if spec.get("images")
-                            else None,
+                            "images": spec.get("images", [None])[0] if spec.get("images") else None,
                             "reason_not_scheduled": "Mandatory POI could not fit in itinerary due to time/day constraints",
                             "requested_day": spec.get("day"),
                             "time_type": spec.get("time_type"),
@@ -1699,12 +1327,8 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
         # Try multiple coordinate field formats
         lat1 = stops[i].get("coordinates", {}).get("lat") or stops[i].get("latitude")
         lon1 = stops[i].get("coordinates", {}).get("lng") or stops[i].get("longitude")
-        lat2 = stops[i + 1].get("coordinates", {}).get("lat") or stops[i + 1].get(
-            "latitude"
-        )
-        lon2 = stops[i + 1].get("coordinates", {}).get("lng") or stops[i + 1].get(
-            "longitude"
-        )
+        lat2 = stops[i + 1].get("coordinates", {}).get("lat") or stops[i + 1].get("latitude")
+        lon2 = stops[i + 1].get("coordinates", {}).get("lng") or stops[i + 1].get("longitude")
 
         if all(x is not None for x in (lat1, lon1, lat2, lon2)):
             try:
@@ -1715,9 +1339,7 @@ def _calculate_day_distance(stops: List[Dict[str, Any]]) -> float:
     return round(total, 2)
 
 
-def _add_weekdays_to_days(
-    days: List[Dict[str, Any]], maut_output: Dict[str, Any]
-) -> None:
+def _add_weekdays_to_days(days: List[Dict[str, Any]], maut_output: Dict[str, Any]) -> None:
     """
     Add weekday field to each day based on dates.
 
@@ -1745,288 +1367,3 @@ def _add_weekdays_to_days(
     else:
         for idx, day in enumerate(days):
             day["weekday"] = f"Day {idx + 1}"
-
-
-def _normalize_stop_roles(stops: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Normalize stop roles for consistency.
-
-    Maps internal 'depot' role to 'accommodation' for frontend consistency.
-    The 'depot' role is only used internally by VRP solvers.
-
-    Args:
-        stops: List of stop dicts
-
-    Returns:
-        List of stops with normalized roles
-    """
-    normalized = []
-    for stop in stops:
-        stop_copy = stop.copy()
-        role = stop_copy.get("role", "")
-
-        # Map depot to accommodation for output
-        if role == ROLE_DEPOT:
-            stop_copy["role"] = ROLE_ACCOMMODATION
-
-        normalized.append(stop_copy)
-
-    return normalized
-
-
-def _apply_checkin_checkout_logic(
-    all_days: List[Dict[str, Any]],
-    city_hotels: Dict[str, Dict[str, Any]],
-    pacing: str = "balanced",
-) -> List[Dict[str, Any]]:
-    """
-    Apply check-in/check-out logic to the itinerary days.
-
-    Rules:
-    A) First day of entire trip:
-       - No required start depot (route may start at any POI)
-       - Must have check-in node at night (hotel/accommodation)
-
-    B) Changing cities (intermediate days):
-       - Day N ends with check-out from Day N hotel
-       - Day N+1 starts with check-out from Day N hotel (transfer)
-       - Day N+1 ends with check-in at Day N+1 hotel
-       - Transfer starts after check-out (10:00 for packed, 11:00 for relaxed)
-
-    C) Last day:
-       - Only depot node in the morning (for check-out)
-       - Can continue to travel for the day
-       - No hotel check-in block at end
-
-    Args:
-        all_days: List of day dicts with stops
-        city_hotels: Dict mapping city name → hotel dict
-        pacing: Trip pacing for timing calculations
-
-    Returns:
-        Modified list of days with proper check-in/check-out stops
-    """
-    if not all_days:
-        return all_days
-
-    # Checkout times based on pacing
-    checkout_times = {
-        "packed": "10:00",
-        "balanced": "10:30",
-        "relaxed": "11:00",
-    }
-    checkout_time = checkout_times.get(pacing, "10:30")
-
-    # Check-in time (standard hotel check-in)
-    checkin_time = "15:00"
-
-    result_days = []
-    total_days = len(all_days)
-
-    for day_idx, day in enumerate(all_days):
-        day_copy = day.copy()
-        stops = day_copy.get("stops", [])[:]
-        current_city = day_copy.get("area_name") or day_copy.get("destination")
-        current_hotel = city_hotels.get(current_city, {}) if current_city else {}
-
-        is_first_day = day_idx == 0
-        is_last_day = day_idx == total_days - 1
-
-        # Get next day's city for city change detection
-        next_city = None
-        if not is_last_day and day_idx + 1 < total_days:
-            next_day = all_days[day_idx + 1]
-            next_city = next_day.get("area_name") or next_day.get("destination")
-
-        # Get previous day's city for city change detection
-        prev_city = None
-        prev_hotel = None
-        if not is_first_day and day_idx > 0:
-            prev_day = all_days[day_idx - 1]
-            prev_city = prev_day.get("area_name") or prev_day.get("destination")
-            prev_hotel = city_hotels.get(prev_city, {}) if prev_city else {}
-
-        # Detect city changes
-        is_city_change_from_prev = (
-            prev_city and current_city and prev_city != current_city
-        )
-        is_city_change_to_next = (
-            next_city and current_city and current_city != next_city
-        )
-
-        # Process stops
-        new_stops = []
-
-        # A) First day: No depot at start, add check-in at end
-        if is_first_day:
-            # Skip the start depot entirely (first day starts from arrival, not hotel)
-            if stops and stops[0].get("role") in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                stops = stops[1:]  # Remove start depot
-
-            # Add all non-depot middle stops
-            for stop in stops:
-                if stop.get("role") not in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                    new_stops.append(stop)
-
-            # Add check-in at end of first day (user checks into hotel)
-            if current_hotel:
-                checkin_stop = {
-                    "poi_id": current_hotel.get("id", "hotel"),
-                    "name": current_hotel.get("name", "Hotel"),
-                    "role": ROLE_ACCOMMODATION,
-                    "check_in": True,
-                    "arrival": checkin_time,
-                    "start_service": checkin_time,
-                    "depart": checkin_time,
-                    "latitude": current_hotel.get("lat"),
-                    "longitude": current_hotel.get("lon"),
-                }
-                new_stops.append(checkin_stop)
-
-        # C) Last day: Check-out at start, NO depot at end (trip ends)
-        elif is_last_day:
-            # Start with check-out from hotel
-            if current_hotel:
-                checkout_stop = {
-                    "poi_id": current_hotel.get("id", "hotel"),
-                    "name": current_hotel.get("name", "Hotel"),
-                    "role": ROLE_ACCOMMODATION,
-                    "check_out": True,
-                    "arrival": checkout_time,
-                    "start_service": checkout_time,
-                    "depart": checkout_time,
-                    "latitude": current_hotel.get("lat"),
-                    "longitude": current_hotel.get("lon"),
-                }
-                new_stops.append(checkout_stop)
-
-            # Add all non-depot middle stops
-            for stop in stops:
-                if stop.get("role") not in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                    new_stops.append(stop)
-
-            # NO check-in/depot at end of last day - trip ends after last activity
-
-        # B) Intermediate days with city change
-        elif is_city_change_from_prev:
-            # Day starts with check-out from PREVIOUS city's hotel (transfer day)
-            if prev_hotel:
-                checkout_stop = {
-                    "poi_id": prev_hotel.get("id", "hotel"),
-                    "name": prev_hotel.get("name", "Hotel"),
-                    "role": ROLE_ACCOMMODATION,
-                    "check_out": True,
-                    "transfer_start": True,
-                    "arrival": checkout_time,
-                    "start_service": checkout_time,
-                    "depart": checkout_time,
-                    "latitude": prev_hotel.get("lat"),
-                    "longitude": prev_hotel.get("lon"),
-                }
-                new_stops.append(checkout_stop)
-
-            # Add middle stops (skip depot stops)
-            for stop in stops:
-                if stop.get("role") not in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                    new_stops.append(stop)
-
-            # End with check-in at current city's hotel
-            if current_hotel:
-                checkin_stop = {
-                    "poi_id": current_hotel.get("id", "hotel"),
-                    "name": current_hotel.get("name", "Hotel"),
-                    "role": ROLE_ACCOMMODATION,
-                    "check_in": True,
-                    "arrival": checkin_time,
-                    "start_service": checkin_time,
-                    "depart": checkin_time,
-                    "latitude": current_hotel.get("lat"),
-                    "longitude": current_hotel.get("lon"),
-                }
-                new_stops.append(checkin_stop)
-
-        # Regular intermediate day (same city)
-        else:
-            # Start with check-out from current hotel
-            if current_hotel:
-                checkout_stop = {
-                    "poi_id": current_hotel.get("id", "hotel"),
-                    "name": current_hotel.get("name", "Hotel"),
-                    "role": ROLE_ACCOMMODATION,
-                    "check_out": True,
-                    "arrival": checkout_time,
-                    "start_service": checkout_time,
-                    "depart": checkout_time,
-                    "latitude": current_hotel.get("lat"),
-                    "longitude": current_hotel.get("lon"),
-                }
-                new_stops.append(checkout_stop)
-            elif stops and stops[0].get("role") in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                # Use existing depot as checkout
-                first_stop = stops[0].copy()
-                first_stop["check_out"] = True
-                new_stops.append(first_stop)
-                stops = stops[1:]
-
-            # Add middle stops (skip depot stops)
-            for stop in stops:
-                if stop.get("role") not in (ROLE_DEPOT, ROLE_ACCOMMODATION):
-                    new_stops.append(stop)
-
-            # End with check-in at current hotel (unless changing cities tomorrow)
-            if not is_city_change_to_next:
-                if current_hotel:
-                    checkin_stop = {
-                        "poi_id": current_hotel.get("id", "hotel"),
-                        "name": current_hotel.get("name", "Hotel"),
-                        "role": ROLE_ACCOMMODATION,
-                        "check_in": True,
-                        "arrival": checkin_time,
-                        "start_service": checkin_time,
-                        "depart": checkin_time,
-                        "latitude": current_hotel.get("lat"),
-                        "longitude": current_hotel.get("lon"),
-                    }
-                    new_stops.append(checkin_stop)
-            else:
-                # Changing cities tomorrow - check-in at current hotel
-                if current_hotel:
-                    checkin_stop = {
-                        "poi_id": current_hotel.get("id", "hotel"),
-                        "name": current_hotel.get("name", "Hotel"),
-                        "role": ROLE_ACCOMMODATION,
-                        "check_in": True,
-                        "arrival": checkin_time,
-                        "start_service": checkin_time,
-                        "depart": checkin_time,
-                        "latitude": current_hotel.get("lat"),
-                        "longitude": current_hotel.get("lon"),
-                    }
-                    new_stops.append(checkin_stop)
-
-        day_copy["stops"] = new_stops
-        result_days.append(day_copy)
-
-    return result_days
-
-
-def _map_roles_for_frontend(days: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Map internal roles to frontend-compatible roles.
-
-    Ensures 'depot' is mapped to 'accommodation' for frontend display.
-
-    Args:
-        days: List of day dicts
-
-    Returns:
-        Days with frontend-compatible roles
-    """
-    result = []
-    for day in days:
-        day_copy = day.copy()
-        stops = day_copy.get("stops", [])
-        day_copy["stops"] = _normalize_stop_roles(stops)
-        result.append(day_copy)
-
-    return result

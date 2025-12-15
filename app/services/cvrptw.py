@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import List, Dict, Optional
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
-from app.services.osrm import tiered_round
 from app.services.vrp_model import DaySpec, Node, vrp_config
 from app.services.vrp_utils import build_problem, format_time_minutes
 from app.utils.logger import get_logger
@@ -17,15 +16,6 @@ def _get_primary_theme(themes: Optional[List[str]]) -> Optional[str]:
     return themes[0] if themes else None
 
 
-def _is_food_like(node: Node) -> bool:
-    """Check if a node is meal or has food_culinary theme (for food streak)."""
-    if node.role == "meal":
-        return True
-    if node.themes and "food_culinary" in node.themes:
-        return True
-    return False
-
-
 def solve_cvrptw(
     day_specs: List[DaySpec],
     nodes: List[Node],
@@ -33,6 +23,7 @@ def solve_cvrptw(
     meals_required: int = 2,
     time_limit_sec: int = 15,
     slack_wait_min: int = 120,
+    user_themes: Optional[List[str]] = None,
 ) -> dict:
     """
     Solve CVRPTW using OR-Tools.
@@ -56,34 +47,44 @@ def solve_cvrptw(
     manager = pywrapcp.RoutingIndexManager(N, V, 0)
     routing = pywrapcp.RoutingModel(manager)
 
-    # Transit callback with penalties
-    def transit_cb(from_index, to_index):
-        i, j = manager.IndexToNode(from_index), manager.IndexToNode(to_index)
-        base_travel_cost = tiered_round(travel[i][j] / 60.0) + nodes[i].service
+    routing_idx_to_node = [manager.IndexToNode(i) for i in range(manager.GetNumberOfIndices())]
+
+    # Time callback (minutes): travel + service. No penalties.
+    def time_cb(from_index, to_index):
+        i = routing_idx_to_node[from_index]
+        j = routing_idx_to_node[to_index]
+        return int(travel[i][j] + nodes[i].service)
+
+    # Cost callback (minutes): time + soft penalties.
+    user_theme_set = set(user_themes or [])
+
+    def cost_cb(from_index, to_index):
+        i = routing_idx_to_node[from_index]
+        j = routing_idx_to_node[to_index]
+        base_cost = int(travel[i][j] + nodes[i].service)
         penalty = 0
 
-        # Penalize consecutive meals
+        # Penalize consecutive meals (strong penalty to prevent back-to-back meals)
         if nodes[i].role == "meal" and nodes[j].role == "meal":
-            penalty += vrp_config.penalty_meal_to_meal
+            penalty += vrp_config.penalty_meal_to_meal * 2
 
-        # Penalize consecutive food-like POIs (meals + food_culinary attractions)
-        if _is_food_like(nodes[i]) and _is_food_like(nodes[j]):
-            penalty += vrp_config.penalty_same_theme  # Use same penalty as theme
-
-        # Penalize consecutive POIs with the same primary theme
+        # Penalize consecutive POIs with the same primary theme.
+        # If the user explicitly picked a single theme, don't penalize repeating it.
         theme_i = _get_primary_theme(nodes[i].themes)
         theme_j = _get_primary_theme(nodes[j].themes)
         if theme_i and theme_j and theme_i == theme_j:
-            penalty += vrp_config.penalty_same_theme
+            if not (len(user_theme_set) == 1 and theme_i in user_theme_set):
+                penalty += vrp_config.penalty_same_theme
 
-        return base_travel_cost + penalty
+        return base_cost + penalty
 
-    t_idx = routing.RegisterTransitCallback(transit_cb)
-    routing.SetArcCostEvaluatorOfAllVehicles(t_idx)
+    time_idx = routing.RegisterTransitCallback(time_cb)
+    cost_idx = routing.RegisterTransitCallback(cost_cb)
+    routing.SetArcCostEvaluatorOfAllVehicles(cost_idx)
 
     # Time dimension
     routing.AddDimension(
-        t_idx,
+        time_idx,
         slack_wait_min,  # waiting/slack
         max(d.end_min for d in day_specs),
         False,
@@ -123,18 +124,14 @@ def solve_cvrptw(
             base_id = n.poi_id.rsplit("_day", 1)[0]
             by_poi.setdefault(base_id, []).append(i)
 
-    for poi_id, idxs in by_poi.items():
+    for _, idxs in by_poi.items():
         is_mand = any(nodes[i].is_mandatory for i in idxs)
-        penalty = (
-            vrp_config.mandatory_miss_penalty
-            if is_mand
-            else vrp_config.drop_poi_penalty
-        )
+        penalty = vrp_config.mandatory_miss_penalty if is_mand else vrp_config.drop_poi_penalty
         routing.AddDisjunction([manager.NodeToIndex(i) for i in idxs], penalty, 1)
 
     # Meals dimension (min/max meals per day, cap 3)
     def meal_cb(from_index, to_index):
-        j = manager.IndexToNode(to_index)
+        j = routing_idx_to_node[to_index]
         return 1 if nodes[j].role == "meal" else 0
 
     meal_idx = routing.RegisterTransitCallback(meal_cb)
@@ -143,78 +140,24 @@ def solve_cvrptw(
         0,
         3,
         True,
-        "Meals",  # Max 3 meals per day
+        "Meals",
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
-    # Theme dimension to enforce max attractions with same theme per day
-    # Note: We only add dimensions for themes with many POIs to avoid solver overload
-    unique_themes = list(
-        set(
-            _get_primary_theme(n.themes)
-            for n in nodes
-            if n.role == "attraction" and _get_primary_theme(n.themes)
-        )
-    )
+    # Theme balance and food streak handled via soft penalties in cost callback
 
-    # Count POIs per theme
-    theme_counts = {}
-    for n in nodes:
-        if n.role == "attraction":
-            t = _get_primary_theme(n.themes)
-            if t:
-                theme_counts[t] = theme_counts.get(t, 0) + 1
-
-    def make_theme_cb(target_theme: str):
-        """Create a theme callback with captured theme value."""
-
-        def theme_cb(from_index, to_index):
-            j = manager.IndexToNode(to_index)
-            node_j = nodes[j]
-            if (
-                node_j.role == "attraction"
-                and _get_primary_theme(node_j.themes) == target_theme
-            ):
-                return 1
-            return 0
-
-        return theme_cb
-
-    # Only add theme dimension for themes that have more than max_per_day POIs
-    # This avoids solver overload while still enforcing limits where needed
-    for theme in unique_themes:
-        if theme_counts.get(theme, 0) > vrp_config.max_theme_per_day:
-            theme_transit_idx = routing.RegisterTransitCallback(make_theme_cb(theme))
-            routing.AddDimension(
-                theme_transit_idx,
-                0,  # No slack
-                vrp_config.max_theme_per_day,  # Max per day (shared config)
-                True,  # Start cumul to zero
-                f"theme_{theme}",
-            )
-
-    # Note: Food streak (consecutive food items) is handled via soft penalty in transit_cb
-    # OR-Tools dimensions track cumulative values, not consecutive sequences
-
-    # Set meal requirements per day
+    # Soft meal bounds (allows finding feasible solutions when time windows are tight)
     if meals_required > 0:
         for v in range(V):
-            # Count available meal nodes for the specific day
-            available_meals_today = sum(
-                1 for n in nodes if n.role == "meal" and v in n.windows_by_day
-            )
+            available_meals_today = sum(1 for n in nodes if n.role == "meal" and v in n.windows_by_day)
             req = min(meals_required, available_meals_today)
             if req > 0:
-                meal_dim.CumulVar(routing.End(v)).SetRange(req, 3)
+                meal_dim.SetCumulVarSoftLowerBound(routing.End(v), req, vrp_config.meal_shortfall_penalty)
 
     # Search parameters
     params = pywrapcp.DefaultRoutingSearchParameters()
-    params.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    )
-    params.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    )
+    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
+    params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     params.time_limit.FromSeconds(time_limit_sec)
     params.log_search = False
     routing.SetFixedCostOfAllVehicles(0)
@@ -299,13 +242,11 @@ def run_cvrptw(
     """
     Run CVRPTW on MAUT output using OR-Tools.
 
-    This version uses the shared VRP model and configuration, enforcing constraints
+    Uses the shared VRP model and configuration, enforcing constraints
     like meal times and theme repetition through the OR-Tools routing model.
     """
     try:
-        day_specs, nodes, travel = build_problem(
-            maut_output, hotel, pacing=pacing, mandatory=mandatory
-        )
+        day_specs, nodes, travel = build_problem(maut_output, hotel, pacing=pacing, mandatory=mandatory)
 
         if not day_specs:
             return {
@@ -324,11 +265,10 @@ def run_cvrptw(
             }
 
         meal_nodes = sum(1 for n in nodes if n.role == "meal")
-        meals_required = (
-            min(3, meal_nodes // len(day_specs))
-            if meal_nodes > 0 and len(day_specs) > 0
-            else 0
-        )
+        meals_required = min(3, meal_nodes // len(day_specs)) if meal_nodes > 0 and len(day_specs) > 0 else 0
+
+        selected_themes = maut_output.get("meta", {}).get("selected_themes") or []
+        user_themes = [str(t) for t in selected_themes if t] if isinstance(selected_themes, list) else None
 
         result = solve_cvrptw(
             day_specs,
@@ -337,18 +277,8 @@ def run_cvrptw(
             meals_required=meals_required,
             time_limit_sec=time_limit_sec,
             slack_wait_min=120,
+            user_themes=user_themes,
         )
-        # Fallback: relax constraints if infeasible (no days)
-        if not result.get("days"):
-            result = solve_cvrptw(
-                day_specs,
-                nodes,
-                travel,
-                meals_required=0,
-                time_limit_sec=max(10, time_limit_sec),
-                slack_wait_min=300,
-            )
-            logger.info("CVRPTW: Fallback solve with relaxed meal constraints used.")
         return result
     except Exception as e:
         return {"days": [], "note": f"Exception in run_cvrptw: {str(e)}"}

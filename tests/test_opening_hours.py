@@ -146,36 +146,28 @@ class TestValidatePoiScheduleAgainstHours:
     def test_valid_schedule(self):
         poi = {"open_hours": {"Monday": ["10 am-9 pm"]}}
         date = dt.date(2024, 1, 15)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 11 * 60, 13 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 11 * 60, 13 * 60, date, "attraction")
         assert is_valid
         assert error == ""
 
     def test_poi_closed_on_date(self):
         poi = {"open_hours": {"Sunday": ["Closed"]}}
         date = dt.date(2024, 1, 14)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 11 * 60, 13 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 11 * 60, 13 * 60, date, "attraction")
         assert not is_valid
         assert "closed" in error.lower()
 
     def test_visit_outside_hours(self):
         poi = {"open_hours": {"Monday": ["10 am-5 pm"]}}
         date = dt.date(2024, 1, 15)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 18 * 60, 20 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 18 * 60, 20 * 60, date, "attraction")
         assert not is_valid
         assert "outside hours" in error.lower()
 
     def test_24_hour_always_valid(self):
         poi = {"open_hours": {"Monday": ["Open 24 hours"]}}
         date = dt.date(2024, 1, 15)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 3 * 60, 5 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 3 * 60, 5 * 60, date, "attraction")
         assert is_valid
 
 
@@ -199,7 +191,7 @@ class TestValidateItinerary:
                     "id": "poi1",
                     "name": "Museum",
                     "open_hours": {"Monday": ["10:00 am-6:00 pm"]},
-                    "themes": ["culture"],
+                    "themes": ["cultural_history"],
                 },
                 {
                     "id": "poi2",
@@ -216,9 +208,7 @@ class TestValidateItinerary:
                     "date": "2024-01-15",
                     "stops": [
                         self._make_stop("hotel", "Hotel", "hotel", "09:00", "09:00"),
-                        self._make_stop(
-                            "poi1", "Museum", "attraction", "10:30", "12:00"
-                        ),
+                        self._make_stop("poi1", "Museum", "attraction", "10:30", "12:00"),
                         self._make_stop("poi2", "Restaurant", "meal", "12:30", "13:30"),
                         self._make_stop("hotel", "Hotel", "hotel", "14:00", "14:00"),
                     ],
@@ -237,7 +227,7 @@ class TestValidateItinerary:
                     "id": "poi1",
                     "name": "Museum",
                     "open_hours": {"Sunday": ["Closed"]},
-                    "themes": ["culture"],
+                    "themes": ["cultural_history"],
                 }
             ],
             "meta": {},
@@ -248,9 +238,7 @@ class TestValidateItinerary:
                     "date": "2024-01-14",
                     "stops": [
                         self._make_stop("hotel", "Hotel", "hotel", "09:00", "09:00"),
-                        self._make_stop(
-                            "poi1", "Museum", "attraction", "10:00", "12:00"
-                        ),
+                        self._make_stop("poi1", "Museum", "attraction", "10:00", "12:00"),
                         self._make_stop("hotel", "Hotel", "hotel", "13:00", "13:00"),
                     ],
                 }
@@ -278,18 +266,14 @@ class TestValidateItinerary:
                     "date": "2024-01-15",
                     "stops": [
                         self._make_stop("hotel", "Hotel", "hotel", "09:00", "09:00"),
-                        self._make_stop(
-                            "poi1", "24h Store", "attraction", "03:00", "04:00"
-                        ),
+                        self._make_stop("poi1", "24h Store", "attraction", "03:00", "04:00"),
                         self._make_stop("hotel", "Hotel", "hotel", "05:00", "05:00"),
                     ],
                 }
             ]
         }
         result = validate_itinerary(cvrptw_output, maut_output)
-        outside_hours = [
-            v for v in result["violations"] if v["type"] == "outside_hours"
-        ]
+        outside_hours = [v for v in result["violations"] if v["type"] == "outside_hours"]
         assert len(outside_hours) == 0
 
 
@@ -310,7 +294,7 @@ class TestSchedulingIntegration:
                         "Monday": ["Closed"],
                         "Tuesday": ["10:00 am-6:00 pm"],
                     },
-                    "themes": ["culture"],
+                    "themes": ["cultural_history"],
                 },
                 {
                     "id": "poi2",
@@ -349,17 +333,13 @@ class TestEdgeCases:
     def test_empty_open_hours_dict(self):
         poi = {"open_hours": {}}
         date = dt.date(2024, 1, 15)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 11 * 60, 13 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 11 * 60, 13 * 60, date, "attraction")
         assert is_valid
 
     def test_nature_poi_default_24h(self):
         poi = {"themes": ["nature"]}
         date = dt.date(2024, 1, 15)
-        is_valid, error = validate_poi_schedule_against_hours(
-            poi, 5 * 60, 6 * 60, date, "attraction"
-        )
+        is_valid, error = validate_poi_schedule_against_hours(poi, 5 * 60, 6 * 60, date, "attraction")
         assert is_valid
 
     def test_poi_id_with_day_suffix(self):
@@ -369,7 +349,7 @@ class TestEdgeCases:
                     "id": "poi1",
                     "name": "Museum",
                     "open_hours": {"Monday": ["10:00 am-6:00 pm"]},
-                    "themes": ["culture"],
+                    "themes": ["cultural_history"],
                 }
             ],
             "meta": {},

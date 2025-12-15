@@ -5,7 +5,7 @@ def _base_payload():
     return {
         "destination": "Singapore",
         "dates": {"type": "flexible", "days": 3},
-        "preferences": {"interests": ["culture", "nature"], "pacing": "balanced"},
+        "preferences": {"interests": ["cultural_history", "nature"], "pacing": "balanced"},
         "flags": {},
     }
 

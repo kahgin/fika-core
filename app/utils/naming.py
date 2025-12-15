@@ -10,13 +10,6 @@ from typing import Any
 #   - Incoming requests (camelCase) -> snake_case for backend processing
 #   - Outgoing responses (snake_case) -> camelCase for frontend consumption
 
-_SNAKE_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-
-
-def is_snake_case_key(key: str) -> bool:
-    """Return True if key is snake_case (lowercase letters, digits, underscores; must start with a letter)."""
-    return bool(_SNAKE_KEY_RE.fullmatch(key))
-
 
 def to_camel_case(snake_str: str) -> str:
     """Convert snake_case string to camelCase."""

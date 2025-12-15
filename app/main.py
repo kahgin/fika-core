@@ -10,8 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 
-
-
 app = FastAPI(title="Fika API", version="0.1.0")
 
 app.add_middleware(

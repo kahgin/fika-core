@@ -131,7 +131,7 @@ class TestNode:
             lat=1.3,
             lon=103.8,
             service=60,
-            themes=["culture"],
+            themes=["cultural_history"],
             windows_by_day={0: [(10 * 60, 18 * 60)]},
         )
 
@@ -142,7 +142,7 @@ class TestNode:
         assert node.lat == 1.3
         assert node.lon == 103.8
         assert node.service == 60
-        assert node.themes == ["culture"]
+        assert node.themes == ["cultural_history"]
 
     def test_node_mandatory_default(self):
         """Test Node is_mandatory defaults to False."""
@@ -253,6 +253,12 @@ class TestConfigValues:
         """Test meal tolerance is positive."""
         assert vrp_config.meal_hard_tol_min >= 0
 
-    def test_max_theme_per_day_positive(self):
-        """Test max theme per day is positive."""
-        assert vrp_config.max_theme_per_day >= 1
+    def test_theme_diversity_bonus_defined(self):
+        """Test theme diversity bonus is defined and positive."""
+        assert hasattr(vrp_config, "theme_diversity_bonus")
+        assert vrp_config.theme_diversity_bonus >= 0
+
+    def test_theme_concentration_penalty_defined(self):
+        """Test theme concentration penalty is defined and positive."""
+        assert hasattr(vrp_config, "theme_concentration_penalty")
+        assert vrp_config.theme_concentration_penalty >= 0

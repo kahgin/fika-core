@@ -44,12 +44,7 @@ def list_pois(
         total = data[0]["total_count"] if data else 0
 
         # Transform POIs to frontend format (camelCase)
-        pois = [
-            transform_poi_to_frontend(
-                {k: v for k, v in p.items() if k != "total_count"}
-            )
-            for p in data
-        ]
+        pois = [transform_poi_to_frontend({k: v for k, v in p.items() if k != "total_count"}) for p in data]
 
         return {
             "status": "success",
@@ -94,12 +89,7 @@ def search_pois(
         total = data[0]["total_count"] if data else 0
 
         # Transform POIs to frontend format (camelCase)
-        pois = [
-            transform_poi_to_frontend(
-                {k: v for k, v in p.items() if k != "total_count"}
-            )
-            for p in data
-        ]
+        pois = [transform_poi_to_frontend({k: v for k, v in p.items() if k != "total_count"}) for p in data]
 
         return {
             "status": "success",
@@ -184,9 +174,7 @@ def search_locations(
             return {"status": "success", "data": []}
 
         supabase = get_supabase()
-        resp = supabase.rpc(
-            "rpc_search_locations", {"p_query": q, "p_limit": limit}
-        ).execute()
+        resp = supabase.rpc("rpc_search_locations", {"p_query": q, "p_limit": limit}).execute()
 
         data = resp.data or []
 

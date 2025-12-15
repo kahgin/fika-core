@@ -17,13 +17,8 @@ from datetime import date
 
 from app.services.pipeline import (
     segment_by_city,
-    allocate_days_per_city,
-    allocate_days_proportionally,
     select_hotel_for_city,
     validate_global_rules,
-    _normalize_stop_roles,
-    _map_roles_for_frontend,
-    ROLE_ACCOMMODATION,
 )
 from app.services.city_day_allocator import (
     allocate_days_to_cities,
@@ -187,16 +182,8 @@ class TestSegmentByCity:
         result = segment_by_city(maut_output)
 
         # Verify accommodations are in correct cities
-        sg_accommodations = [
-            p
-            for p in result["Singapore"]["places"]
-            if "accommodation" in p.get("roles", [])
-        ]
-        johor_accommodations = [
-            p
-            for p in result["Johor"]["places"]
-            if "accommodation" in p.get("roles", [])
-        ]
+        sg_accommodations = [p for p in result["Singapore"]["places"] if "accommodation" in p.get("roles", [])]
+        johor_accommodations = [p for p in result["Johor"]["places"] if "accommodation" in p.get("roles", [])]
         assert len(sg_accommodations) == 1
         assert len(johor_accommodations) == 1
 
@@ -227,150 +214,6 @@ class TestSegmentByCity:
         # Only valid POI should be included
         total_pois = sum(len(city["places"]) for city in result.values())
         assert total_pois == 1
-
-
-class TestAllocateDaysPerCity:
-    """Tests for allocate_days_per_city function."""
-
-    def test_allocate_days_by_capacity(self):
-        """Test day allocation by capacity estimation."""
-        maut_suboutput = {
-            "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"area_name": "Singapore"},
-        }
-
-        days = allocate_days_per_city(maut_suboutput)
-
-        # 16 POIs / 6 capacity = 2.67 -> ceil = 3
-        assert days == 3
-
-    def test_allocate_days_user_specified(self):
-        """Test day allocation with user-specified days."""
-        maut_suboutput = {
-            "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"area_name": "Singapore"},
-        }
-        user_input = {"days_per_city": {"Singapore": 5}}
-
-        days = allocate_days_per_city(maut_suboutput, user_input)
-
-        assert days == 5
-
-    def test_allocate_days_minimum_one(self):
-        """Test that minimum 1 day is allocated for cities with POIs."""
-        maut_suboutput = {
-            "places": [{"id": "poi1"}],
-            "meta": {"area_name": "Singapore"},
-        }
-
-        days = allocate_days_per_city(maut_suboutput)
-
-        assert days >= 1
-
-    def test_allocate_days_empty_city(self):
-        """Test that 0 days allocated for empty cities."""
-        maut_suboutput = {
-            "places": [],
-            "meta": {"area_name": "Singapore"},
-        }
-
-        days = allocate_days_per_city(maut_suboutput)
-
-        assert days == 0
-
-    def test_allocate_days_large_city_capacity(self):
-        """Test capacity adjustment for large cities."""
-        maut_suboutput = {
-            "places": [{"id": f"poi{i}"} for i in range(10)],
-            "meta": {"area_name": "Tokyo", "city_population": 14_000_000},
-        }
-
-        days = allocate_days_per_city(maut_suboutput)
-
-        # 10 POIs / 5 capacity (large city) = 2
-        assert days == 2
-
-    def test_allocate_days_from_meta_num_days(self):
-        """Test day allocation from meta.num_days."""
-        maut_suboutput = {
-            "places": [{"id": f"poi{i}"} for i in range(16)],
-            "meta": {"area_name": "Singapore", "num_days": 4},
-        }
-
-        days = allocate_days_per_city(maut_suboutput)
-
-        assert days == 4
-
-    def test_allocate_days_approximate_city_match(self):
-        """Test approximate city name matching for user-specified days."""
-        maut_suboutput = {
-            "places": [{"id": f"poi{i}"} for i in range(10)],
-            "meta": {"area_name": "Johor Bahru"},
-        }
-        user_input = {"days_per_city": {"Johor": 3}}
-
-        days = allocate_days_per_city(maut_suboutput, user_input)
-
-        # Should match "Johor" to "Johor Bahru"
-        assert days == 3
-
-
-class TestAllocateDaysProportionally:
-    """Tests for allocate_days_proportionally function."""
-
-    def test_proportional_allocation_equal_pois(self):
-        """Test proportional allocation with equal POI counts."""
-        cities = {
-            "Singapore": {"places": [{"id": f"sg{i}"} for i in range(10)]},
-            "Johor": {"places": [{"id": f"jh{i}"} for i in range(10)]},
-        }
-
-        result = allocate_days_proportionally(cities, total_days=4)
-
-        assert result["Singapore"] == 2
-        assert result["Johor"] == 2
-        assert sum(result.values()) == 4
-
-    def test_proportional_allocation_unequal_pois(self):
-        """Test proportional allocation with unequal POI counts."""
-        cities = {
-            "Singapore": {"places": [{"id": f"sg{i}"} for i in range(30)]},
-            "Johor": {"places": [{"id": f"jh{i}"} for i in range(10)]},
-        }
-
-        result = allocate_days_proportionally(cities, total_days=4)
-
-        # Singapore should get more days (3:1 ratio)
-        assert result["Singapore"] >= 2
-        assert result["Johor"] >= 1
-        assert sum(result.values()) == 4
-
-    def test_proportional_allocation_user_override(self):
-        """Test that user-specified days override proportional allocation."""
-        cities = {
-            "Singapore": {"places": [{"id": f"sg{i}"} for i in range(10)]},
-            "Johor": {"places": [{"id": f"jh{i}"} for i in range(10)]},
-        }
-        user_input = {"days_per_city": {"Singapore": 3, "Johor": 1}}
-
-        result = allocate_days_proportionally(
-            cities, total_days=4, user_input=user_input
-        )
-
-        assert result["Singapore"] == 3
-        assert result["Johor"] == 1
-
-    def test_proportional_allocation_minimum_one_day(self):
-        """Test that cities with POIs get at least 1 day."""
-        cities = {
-            "Singapore": {"places": [{"id": f"sg{i}"} for i in range(50)]},
-            "Johor": {"places": [{"id": "jh1"}]},  # Only 1 POI
-        }
-
-        result = allocate_days_proportionally(cities, total_days=4)
-
-        assert result["Johor"] >= 1
-        assert sum(result.values()) == 4
 
 
 class TestCityDayAllocator:
@@ -806,9 +649,7 @@ class TestSelectHotelForCity:
             "source": "global_fallback",
         }
 
-        hotel = select_hotel_for_city(
-            maut_suboutput, 3, global_fallback_hotel=global_fallback
-        )
+        hotel = select_hotel_for_city(maut_suboutput, 3, global_fallback_hotel=global_fallback)
 
         assert hotel["id"] == "fallback_hotel"
         assert hotel["source"] == "global_fallback"
@@ -862,15 +703,15 @@ class TestValidateGlobalRules:
         assert not validation["ok"]
         assert any("meals" in e.lower() for e in validation["errors"])
 
-    def test_validate_global_rules_themes(self):
-        """Test theme repetition validation."""
+    def test_validate_global_rules_themes_no_hard_limit(self):
+        """Test theme concentration no longer fails validation (soft penalty only)."""
         result = {
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},
-                        {"role": "attraction", "themes": ["culture"]},  # 3 same theme
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},  # 3 same theme
                     ]
                 }
             ],
@@ -879,8 +720,9 @@ class TestValidateGlobalRules:
 
         validation = validate_global_rules(result)
 
-        assert not validation["ok"]
-        assert any("theme" in e.lower() for e in validation["errors"])
+        # Theme balance uses SOFT penalties now, not hard limits
+        # Users should be able to select single theme and get many attractions
+        assert validation["ok"]  # No hard theme limit anymore
 
     def test_validate_global_rules_mandatory(self):
         """Test mandatory POI validation."""
@@ -900,7 +742,7 @@ class TestValidateGlobalRules:
             "days": [
                 {
                     "stops": [
-                        {"role": "attraction", "themes": ["culture"]},
+                        {"role": "attraction", "themes": ["cultural_history"]},
                         {"role": "meal"},
                         {"role": "attraction", "themes": ["nature"]},
                         {"role": "meal"},
@@ -914,48 +756,6 @@ class TestValidateGlobalRules:
 
         assert validation["ok"]
         assert len(validation["errors"]) == 0
-
-
-class TestRoleNormalization:
-    """Tests for role normalization (depot → accommodation)."""
-
-    def test_normalize_stop_roles_depot_to_accommodation(self):
-        """Test that depot role is normalized to accommodation."""
-        stops = [
-            {"poi_id": "hotel1", "role": "depot", "name": "Hotel"},
-            {"poi_id": "poi1", "role": "attraction", "name": "Attraction"},
-            {"poi_id": "hotel1", "role": "depot", "name": "Hotel"},
-        ]
-
-        normalized = _normalize_stop_roles(stops)
-
-        assert normalized[0]["role"] == ROLE_ACCOMMODATION
-        assert normalized[1]["role"] == "attraction"
-        assert normalized[2]["role"] == ROLE_ACCOMMODATION
-
-    def test_map_roles_for_frontend(self):
-        """Test that all days have roles mapped for frontend."""
-        days = [
-            {
-                "stops": [
-                    {"poi_id": "hotel1", "role": "depot"},
-                    {"poi_id": "poi1", "role": "attraction"},
-                ]
-            },
-            {
-                "stops": [
-                    {"poi_id": "hotel1", "role": "depot"},
-                    {"poi_id": "poi2", "role": "meal"},
-                ]
-            },
-        ]
-
-        result = _map_roles_for_frontend(days)
-
-        # All depot roles should be mapped to accommodation
-        for day in result:
-            for stop in day["stops"]:
-                assert stop["role"] != "depot"
 
 
 class TestDepotRoutingRules:
@@ -1072,60 +872,6 @@ class TestDepotRoutingRules:
 class TestMultiCityIntegration:
     """Integration tests for multi-city itinerary generation."""
 
-    def test_multi_city_generates_days_for_each_city(self):
-        """Test that multi-city request generates days for each city."""
-        maut_output = {
-            "places": [
-                {
-                    "id": "sg_hotel",
-                    "name": "Singapore Hotel",
-                    "area_name": "Singapore",
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "roles": ["accommodation"],
-                    "_score": 0.9,
-                },
-                {
-                    "id": "sg_poi1",
-                    "name": "Singapore Attraction",
-                    "area_name": "Singapore",
-                    "coordinates": {"lat": 1.31, "lng": 103.81},
-                    "roles": ["attraction"],
-                },
-                {
-                    "id": "jh_hotel",
-                    "name": "Johor Hotel",
-                    "area_name": "Johor",
-                    "coordinates": {"lat": 1.5, "lng": 103.8},
-                    "roles": ["accommodation"],
-                    "_score": 0.8,
-                },
-                {
-                    "id": "jh_poi1",
-                    "name": "Johor Attraction",
-                    "area_name": "Johor",
-                    "coordinates": {"lat": 1.51, "lng": 103.81},
-                    "roles": ["attraction"],
-                },
-            ],
-            "meta": {
-                "num_days": 4,
-                "dates": {"type": "flexible", "days": 4},
-            },
-        }
-
-        # Segment cities
-        cities = segment_by_city(maut_output)
-
-        assert "Singapore" in cities
-        assert "Johor" in cities
-
-        # Allocate days
-        days_allocation = allocate_days_proportionally(cities, total_days=4)
-
-        assert sum(days_allocation.values()) == 4
-        assert days_allocation.get("Singapore", 0) >= 1
-        assert days_allocation.get("Johor", 0) >= 1
-
     def test_hotels_with_area_name_not_clustered(self):
         """Test that hotels with area_name are not put into cluster_0."""
         maut_output = {
@@ -1163,16 +909,8 @@ class TestMultiCityIntegration:
         assert "Johor" in result
 
         # Hotels should be in their respective cities
-        sg_hotels = [
-            p
-            for p in result["Singapore"]["places"]
-            if "accommodation" in p.get("roles", [])
-        ]
-        jh_hotels = [
-            p
-            for p in result["Johor"]["places"]
-            if "accommodation" in p.get("roles", [])
-        ]
+        sg_hotels = [p for p in result["Singapore"]["places"] if "accommodation" in p.get("roles", [])]
+        jh_hotels = [p for p in result["Johor"]["places"] if "accommodation" in p.get("roles", [])]
         assert len(sg_hotels) == 1
         assert len(jh_hotels) == 1
 

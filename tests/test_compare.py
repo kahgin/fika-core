@@ -13,6 +13,7 @@ Metrics aligned with methodology document:
 
 import os
 import json
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Any, Set, Tuple
 
@@ -49,15 +50,7 @@ def _is_within_meal_window(start_min: int) -> Tuple[bool, str]:
     return False, "none"
 
 
-def _is_food_like(stop: Dict) -> bool:
-    """Check if stop is meal or food-related attraction."""
-    if stop.get("role") == "meal":
-        return True
-    themes = stop.get("themes", [])
-    return "food_culinary" in themes
-
-
-# METRICS FROM METHODOLOGY
+# METRICS
 
 
 @dataclass
@@ -69,12 +62,12 @@ class SolverMetrics:
     # Execution Time (critical for comparison)
     execution_time_sec: float  # Time taken to solve
 
-    # Time Window Satisfaction (from methodology)
+    # Time Window Satisfaction
     time_window_satisfaction_rate: float  # % of POIs within opening hours
     pois_within_windows: int
     pois_outside_windows: int
 
-    # Time Utilisation Score (TUS) (from methodology)
+    # Time Utilisation Score (TUS)
     time_utilisation_score: float  # Average D_k / T_max_k across days
     daily_utilisation: List[float]  # Per-day utilisation
 
@@ -129,25 +122,12 @@ def _calculate_time_window_satisfaction(days: List[Dict]) -> Tuple[float, int, i
     return rate, within, outside
 
 
-def _calculate_tus(
-    days: List[Dict], pacing: str = "balanced"
-) -> Tuple[float, List[float]]:
+def _calculate_tus(days: List[Dict], pacing: str = "balanced") -> Tuple[float, List[float]]:
     """
-    Calculate Time Utilisation Score (TUS) from methodology.
+    Calculate Time Utilisation Score (TUS).
     Formula: (1/n * sum(D_k / T_max_k)) * 100
-
-    Where:
-    - D_k = total time used on day k (arrival to departure)
-    - T_max_k = pacing-specific daily limit
-    - n = number of days
     """
-    pace_budgets = {
-        "relaxed": 8 * 60,  # 8 hours
-        "balanced": 11 * 60,  # 11 hours
-        "packed": 14 * 60,  # 14 hours
-    }
-    t_max = pace_budgets.get(pacing, 11 * 60)
-
+    t_max = vrp_config.pace_day_budget_min.get(pacing, 12 * 60)
     daily_utilisation = []
 
     for day in days:
@@ -156,17 +136,13 @@ def _calculate_tus(
             daily_utilisation.append(0.0)
             continue
 
-        # D_k = time from first departure to last arrival
         first_depart = time_to_minutes(stops[0].get("depart", "00:00"))
         last_arrival = time_to_minutes(stops[-1].get("arrival", "00:00"))
-
         d_k = max(0, last_arrival - first_depart)
         utilisation = (d_k / t_max) * 100 if t_max > 0 else 0
         daily_utilisation.append(utilisation)
 
-    avg_tus = (
-        sum(daily_utilisation) / len(daily_utilisation) if daily_utilisation else 0
-    )
+    avg_tus = sum(daily_utilisation) / len(daily_utilisation) if daily_utilisation else 0
     return avg_tus, daily_utilisation
 
 
@@ -188,9 +164,7 @@ def _calculate_travel_efficiency(days: List[Dict]) -> Tuple[int, float]:
         total_minutes += day_duration
 
         # Count non-depot stops
-        poi_count += sum(
-            1 for s in stops if s.get("role") not in ("depot", "accommodation", "hotel")
-        )
+        poi_count += sum(1 for s in stops if s.get("role") not in ("depot", "accommodation", "hotel"))
 
     avg_per_poi = total_minutes / poi_count if poi_count > 0 else 0
     return total_minutes, avg_per_poi
@@ -238,9 +212,7 @@ def _check_time_sequence(days: List[Dict]) -> Tuple[bool, List[str]]:
             next_arrival = time_to_minutes(stops[i + 1].get("arrival", "00:00"))
 
             if next_arrival < curr_depart:
-                violations.append(
-                    f"Day {day_idx + 1}: Stop {i}->{i + 1} arrival before departure"
-                )
+                violations.append(f"Day {day_idx + 1}: Stop {i}->{i + 1} arrival before departure")
 
     return len(violations) == 0, violations
 
@@ -291,34 +263,32 @@ def _check_meal_constraints(days: List[Dict]) -> Tuple[bool, float, List[str]]:
                 total_meals += 1
 
                 # Check if in preferred window
-                start_time = time_to_minutes(
-                    stop.get("start_service", stop.get("arrival", "00:00"))
-                )
+                start_time = time_to_minutes(stop.get("start_service", stop.get("arrival", "00:00")))
                 in_window, window_name = _is_within_meal_window(start_time)
                 if in_window:
                     meals_in_window += 1
 
                 # Check consecutive meals
                 if i > 0 and stops[i - 1].get("role") == "meal":
-                    violations.append(
-                        f"Day {day_idx + 1}: Consecutive meals at stop {i}"
-                    )
+                    violations.append(f"Day {day_idx + 1}: Consecutive meals at stop {i}")
 
         if day_meals > 3:
             violations.append(f"Day {day_idx + 1}: {day_meals} meals (max 3)")
 
-    window_compliance = (
-        (meals_in_window / total_meals * 100) if total_meals > 0 else 100.0
-    )
+    window_compliance = (meals_in_window / total_meals * 100) if total_meals > 0 else 100.0
     return len(violations) == 0, window_compliance, violations
 
 
-def _check_theme_constraints(
-    days: List[Dict], max_per_theme: int = None
-) -> Tuple[bool, List[str]]:
-    """Check theme diversity: max attractions per theme per day."""
+def _check_theme_constraints(days: List[Dict], max_per_theme: int = None) -> Tuple[bool, List[str]]:
+    """Check theme diversity: track theme concentration per day.
+
+    Note: This is no longer a hard constraint - theme balance uses soft penalties.
+    Returns info about theme concentration for evaluation purposes.
+    """
+    # Theme balance uses soft penalties, not hard limits
+    # We track theme counts for informational purposes only
     if max_per_theme is None:
-        max_per_theme = vrp_config.max_theme_per_day
+        max_per_theme = 99  # No hard limit
 
     violations = []
 
@@ -334,11 +304,10 @@ def _check_theme_constraints(
                 primary_theme = themes[0]
                 theme_counts[primary_theme] = theme_counts.get(primary_theme, 0) + 1
 
+        # Only log high concentration as info, don't count as violation
         for theme, count in theme_counts.items():
-            if count > max_per_theme:
-                violations.append(
-                    f"Day {day_idx + 1}: {count} attractions with theme '{theme}' (max {max_per_theme})"
-                )
+            if count > 5:  # Very high concentration - just informational
+                violations.append(f"Day {day_idx + 1}: {count} attractions with theme '{theme}' (high concentration)")
 
     return len(violations) == 0, violations
 
@@ -356,7 +325,7 @@ def _check_food_streak(days: List[Dict]) -> Tuple[bool, List[str]]:
                 streak = 0
                 continue
 
-            if _is_food_like(stop):
+            if stop.get("role") == "meal":
                 streak += 1
                 if streak > 2:
                     violations.append(f"Day {day_idx + 1}: Food streak > 2 at stop {i}")
@@ -490,14 +459,11 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
     # TUS
     winner = (
         "OR-Tools"
-        if 80 <= ortools.time_utilisation_score <= 100
-        and not (80 <= acs.time_utilisation_score <= 100)
+        if 80 <= ortools.time_utilisation_score <= 100 and not (80 <= acs.time_utilisation_score <= 100)
         else "ACS"
-        if 80 <= acs.time_utilisation_score <= 100
-        and not (80 <= ortools.time_utilisation_score <= 100)
+        if 80 <= acs.time_utilisation_score <= 100 and not (80 <= ortools.time_utilisation_score <= 100)
         else "OR-Tools"
-        if abs(ortools.time_utilisation_score - 90)
-        < abs(acs.time_utilisation_score - 90)
+        if abs(ortools.time_utilisation_score - 90) < abs(acs.time_utilisation_score - 90)
         else "ACS"
     )
     print(
@@ -524,9 +490,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         if ortools.total_distance_km < acs.total_distance_km
         else "Tie"
     )
-    print(
-        f"{'Total Distance (km)':<40} {ortools.total_distance_km:>14.2f} {acs.total_distance_km:>14.2f} {winner:>10}"
-    )
+    print(f"{'Total Distance (km)':<40} {ortools.total_distance_km:>14.2f} {acs.total_distance_km:>14.2f} {winner:>10}")
 
     # POI Coverage
     winner = (
@@ -536,9 +500,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         if ortools.unique_pois > acs.unique_pois
         else "Tie"
     )
-    print(
-        f"{'Unique POIs Visited':<40} {ortools.unique_pois:>15} {acs.unique_pois:>15} {winner:>10}"
-    )
+    print(f"{'Unique POIs Visited':<40} {ortools.unique_pois:>15} {acs.unique_pois:>15} {winner:>10}")
 
     # Meals
     winner = (
@@ -548,9 +510,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         if ortools.meals_scheduled > acs.meals_scheduled
         else "Tie"
     )
-    print(
-        f"{'Meals Scheduled':<40} {ortools.meals_scheduled:>15} {acs.meals_scheduled:>15} {winner:>10}"
-    )
+    print(f"{'Meals Scheduled':<40} {ortools.meals_scheduled:>15} {acs.meals_scheduled:>15} {winner:>10}")
 
     # Meal Window Compliance
     winner = (
@@ -588,9 +548,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         f"{'Meal Constraints (max 3, no consec)':<40} {'✅' if ortools.meal_constraints_valid else '❌':>15} {'✅' if acs.meal_constraints_valid else '❌':>15}"
     )
     print(
-        f"{'Theme Constraints (max {}/theme)':<40} {'✅' if ortools.theme_constraints_valid else '❌':>15} {'✅' if acs.theme_constraints_valid else '❌':>15}".format(
-            vrp_config.max_theme_per_day
-        )
+        f"{'Theme Distribution (soft penalties)':<40} {'✅' if ortools.theme_constraints_valid else '❌':>15} {'✅' if acs.theme_constraints_valid else '❌':>15}"
     )
     print(
         f"{'Food Streak (max 2 consecutive)':<40} {'✅' if ortools.food_streak_valid else '❌':>15} {'✅' if acs.food_streak_valid else '❌':>15}"
@@ -601,12 +559,8 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
 
     # Feasibility Summary
     print("-" * 80)
-    print(
-        f"{'OVERALL FEASIBLE':<40} {'✅' if ortools.feasible else '❌':>15} {'✅' if acs.feasible else '❌':>15}"
-    )
-    print(
-        f"{'Total Violations':<40} {len(ortools.violations):>15} {len(acs.violations):>15}"
-    )
+    print(f"{'OVERALL FEASIBLE':<40} {'✅' if ortools.feasible else '❌':>15} {'✅' if acs.feasible else '❌':>15}")
+    print(f"{'Total Violations':<40} {len(ortools.violations):>15} {len(acs.violations):>15}")
 
     if ortools.violations:
         print(f"\n⚠️  OR-Tools Violations ({len(ortools.violations)}):")
@@ -628,9 +582,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
     for i, (ot, ac) in enumerate(zip(ortools.daily_utilisation, acs.daily_utilisation)):
         status_ot = "⚠️" if ot > 100 else "✅" if ot >= 70 else "📉"
         status_ac = "⚠️" if ac > 100 else "✅" if ac >= 70 else "📉"
-        print(
-            f"{'Day ' + str(i + 1):<10} {ot:>13.1f}% {status_ot} {ac:>13.1f}% {status_ac}"
-        )
+        print(f"{'Day ' + str(i + 1):<10} {ot:>13.1f}% {status_ot} {ac:>13.1f}% {status_ac}")
 
     # Overall Weighted Score Calculation
     # Weights reflect capstone priorities for itinerary quality
@@ -654,14 +606,10 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
 
         # POI Coverage: normalize by max POIs between solvers
         max_pois = max(m.unique_pois, other.unique_pois)
-        scores["poi_coverage"] = (
-            (m.unique_pois / max_pois * 100) if max_pois > 0 else 100
-        )
+        scores["poi_coverage"] = (m.unique_pois / max_pois * 100) if max_pois > 0 else 100
 
         # Constraint Compliance: 100 if feasible, penalize for violations
-        scores["constraint_compliance"] = (
-            100 if m.feasible else max(0, 100 - len(m.violations) * 10)
-        )
+        scores["constraint_compliance"] = 100 if m.feasible else max(0, 100 - len(m.violations) * 10)
 
         # Meal Window Compliance: direct percentage
         scores["meal_compliance"] = m.meal_window_compliance
@@ -670,16 +618,12 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         # Best score at 90%, decreases as you move away
         tus_ideal = 90
         tus_deviation = abs(m.time_utilisation_score - tus_ideal)
-        scores["tus_quality"] = max(
-            0, 100 - tus_deviation * 2
-        )  # -2 points per % away from 90
+        scores["tus_quality"] = max(0, 100 - tus_deviation * 2)  # -2 points per % away from 90
 
         # Efficiency: normalize by max distance (lower is better)
         max_dist = max(m.total_distance_km, other.total_distance_km)
         if max_dist > 0:
-            scores["efficiency"] = (
-                1 - m.total_distance_km / max_dist
-            ) * 100 + 50  # 50-100 scale
+            scores["efficiency"] = (1 - m.total_distance_km / max_dist) * 100 + 50  # 50-100 scale
             scores["efficiency"] = min(100, scores["efficiency"])
         else:
             scores["efficiency"] = 100
@@ -706,24 +650,12 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
     for key, weight in weights.items():
         ot_score = ortools_scores[key]
         ac_score = acs_scores[key]
-        winner_mark = (
-            "◀" if ot_score > ac_score else ("▶" if ac_score > ot_score else "")
-        )
-        print(
-            f"{key.replace('_', ' ').title():<30} {weight:>7}% {ot_score:>11.1f} {ac_score:>11.1f} {winner_mark}"
-        )
+        winner_mark = "◀" if ot_score > ac_score else ("▶" if ac_score > ot_score else "")
+        print(f"{key.replace('_', ' ').title():<30} {weight:>7}% {ot_score:>11.1f} {ac_score:>11.1f} {winner_mark}")
 
     print("-" * 65)
-    overall_winner = (
-        "OR-Tools"
-        if ortools_total > acs_total
-        else "ACS"
-        if acs_total > ortools_total
-        else "Tie"
-    )
-    print(
-        f"{'WEIGHTED TOTAL':<30} {'100%':>8} {ortools_total:>11.1f} {acs_total:>11.1f}"
-    )
+    overall_winner = "OR-Tools" if ortools_total > acs_total else "ACS" if acs_total > ortools_total else "Tie"
+    print(f"{'WEIGHTED TOTAL':<30} {'100%':>8} {ortools_total:>11.1f} {acs_total:>11.1f}")
     print(f"\n🏆 OVERALL WINNER: {overall_winner}")
     print(f"   OR-Tools: {ortools_total:.1f}/100 | ACS: {acs_total:.1f}/100")
 
@@ -740,7 +672,7 @@ def test_compare_solvers():
     - Same OSRM travel matrix
     - Same pacing
 
-    Evaluation Metrics (from Methodology):
+    Evaluation Metrics:
     1. Time Window Satisfaction Rate
     2. Time Utilisation Score (TUS)
     3. Constraint Compliance
@@ -787,9 +719,7 @@ def test_compare_solvers():
         time_limit_sec=20,
     )
     ortools_time = time.time() - ortools_start
-    assert ortools_output.get("status") == "success", (
-        f"OR-Tools failed: {ortools_output}"
-    )
+    assert ortools_output.get("status") == "success", f"OR-Tools failed: {ortools_output}"
 
     # Run ACS with timing
     acs_start = time.time()
@@ -883,13 +813,9 @@ def test_compare_solvers():
     # 3. Both should be reasonably feasible (allow some soft constraint violations)
     # This is a comparison test, so we log issues rather than fail
     if not ortools_eval.feasible:
-        print(
-            f"\n⚠️  OR-Tools has {len(ortools_eval.violations)} violations (logged, not failing)"
-        )
+        print(f"\n⚠️  OR-Tools has {len(ortools_eval.violations)} violations (logged, not failing)")
     if not acs_eval.feasible:
-        print(
-            f"\n⚠️  ACS has {len(acs_eval.violations)} violations (logged, not failing)"
-        )
+        print(f"\n⚠️  ACS has {len(acs_eval.violations)} violations (logged, not failing)")
 
 
 def test_compare_solvers_multiple_pacings():
@@ -931,6 +857,7 @@ def test_compare_solvers_multiple_pacings():
         }
 
         try:
+            t0 = time.perf_counter()
             ortools_output = run_full_pipeline(
                 maut_output=maut_output,
                 hotel=hotel,
@@ -938,20 +865,30 @@ def test_compare_solvers_multiple_pacings():
                 solver="ortools",
                 time_limit_sec=15,
             )
+            ortools_time_sec = time.perf_counter() - t0
 
+            t1 = time.perf_counter()
             acs_output = run_full_pipeline(
                 maut_output=maut_output,
                 hotel=hotel,
                 pacing=pacing,
                 solver="acs",
             )
+            acs_time_sec = time.perf_counter() - t1
 
-            if (
-                ortools_output.get("status") == "success"
-                and acs_output.get("status") == "success"
-            ):
-                ortools_eval = evaluate_solution(ortools_output, "OR-Tools", pacing)
-                acs_eval = evaluate_solution(acs_output, "ACS", pacing)
+            if ortools_output.get("status") == "success" and acs_output.get("status") == "success":
+                ortools_eval = evaluate_solution(
+                    ortools_output,
+                    "OR-Tools",
+                    pacing,
+                    execution_time_sec=ortools_time_sec,
+                )
+                acs_eval = evaluate_solution(
+                    acs_output,
+                    "ACS",
+                    pacing,
+                    execution_time_sec=acs_time_sec,
+                )
                 print_comparison_report(ortools_eval, acs_eval, pacing)
             else:
                 print(f"⚠️  Solver failed for {pacing}")

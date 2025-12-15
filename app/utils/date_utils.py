@@ -4,6 +4,39 @@ from datetime import date, timedelta
 from typing import Dict, Any, Optional
 
 
+def compute_num_days(dates: Dict[str, Any]) -> Optional[int]:
+    """
+    Compute number of days from dates dict.
+
+    Args:
+        dates: Dict with type ('flexible' or 'specific') and relevant fields
+
+    Returns:
+        Number of days, or None if cannot be computed
+    """
+    if not isinstance(dates, dict):
+        return None
+
+    date_type = dates.get("type")
+
+    if date_type == "flexible":
+        try:
+            d = int(dates.get("days") or 0)
+            return max(1, min(30, d)) if d > 0 else None
+        except (ValueError, TypeError):
+            return None
+
+    if date_type == "specific" and dates.get("start_date") and dates.get("end_date"):
+        try:
+            start = date.fromisoformat(str(dates["start_date"]).split("T")[0])
+            end = date.fromisoformat(str(dates["end_date"]).split("T")[0])
+            return max(1, (end - start).days + 1)
+        except (ValueError, TypeError):
+            return None
+
+    return None
+
+
 def time_to_minutes(time_str: str, default: int = 9 * 60) -> int:
     """
     Parse HH:MM time string to minutes since midnight.
@@ -48,9 +81,7 @@ def format_day_label(
     day_num = day_index + 1
 
     # Check dates_info for type first
-    date_type = (
-        dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
-    )
+    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
 
     # For flexible dates, always return only day number (no dates)
     if date_type == "flexible":
@@ -104,9 +135,7 @@ def format_day_label(
     }
 
 
-def recompute_day_labels(
-    days: list[Dict[str, Any]], dates_info: Optional[Dict[str, Any]] = None
-) -> None:
+def recompute_day_labels(days: list[Dict[str, Any]], dates_info: Optional[Dict[str, Any]] = None) -> None:
     """
     Recompute day labels for all days in-place.
 
@@ -122,9 +151,7 @@ def recompute_day_labels(
         days: List of day dicts to update
         dates_info: Dates metadata with type, start_date, end_date
     """
-    date_type = (
-        dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
-    )
+    date_type = dates_info.get("type") if dates_info and isinstance(dates_info, dict) else None
 
     for idx, day in enumerate(days):
         # For flexible dates, ignore existing date - always use "Day X" format

@@ -56,7 +56,7 @@ class TestAcsSolver:
                 lat=1.31,
                 lon=103.81,
                 service=60,
-                themes=["culture"],
+                themes=["cultural_history"],
                 windows_by_day={0: [(10 * 60, 18 * 60)]},
             ),
             Node(
@@ -119,9 +119,7 @@ class TestAcsSolver:
         assert "stops" in day
         assert len(day["stops"]) >= 1  # At least depot
 
-    def test_acs_respects_time_windows(
-        self, simple_nodes, simple_day_specs, simple_travel
-    ):
+    def test_acs_respects_time_windows(self, simple_nodes, simple_day_specs, simple_travel):
         """Test ACS respects time windows."""
         result = run_acs_cvrptw(
             day_specs=simple_day_specs,
@@ -138,9 +136,7 @@ class TestAcsSolver:
             arrival_min = h * 60 + m
 
             # Should be within day bounds
-            assert (
-                arrival_min >= simple_day_specs[0].start_min - 1
-            )  # Allow 1 min tolerance
+            assert arrival_min >= simple_day_specs[0].start_min - 1  # Allow 1 min tolerance
             assert arrival_min <= simple_day_specs[0].end_min + 1
 
     def test_acs_empty_nodes(self, simple_day_specs):
@@ -208,7 +204,7 @@ class TestAcsMandatory:
                 lat=1.31,
                 lon=103.81,
                 service=60,
-                themes=["culture"],
+                themes=["cultural_history"],
                 windows_by_day={0: [(10 * 60, 18 * 60)]},
                 is_mandatory=True,
             ),
@@ -284,7 +280,7 @@ class TestAcsMandatory:
                 lat=1.31,
                 lon=103.81,
                 service=120,  # 2 hours - won't fit
-                themes=["culture"],
+                themes=["cultural_history"],
                 windows_by_day={0: [(9 * 60, 10 * 60)]},
                 is_mandatory=True,
             ),
@@ -343,7 +339,7 @@ class TestAcsMultiDay:
                     lat=1.31 + idx * 0.01,
                     lon=103.81 + idx * 0.01,
                     service=60,
-                    themes=["culture"],
+                    themes=["cultural_history"],
                     windows_by_day={day: [(10 * 60, 18 * 60)]},
                 )
             )
@@ -406,3 +402,257 @@ class TestAcsMultiDay:
 
         # No duplicates
         assert len(all_visited) == len(set(all_visited))
+
+
+class TestAcsUserThemes:
+    """Tests for user_themes parameter in ACS solver."""
+
+    @pytest.fixture
+    def nodes_with_themes(self):
+        """Nodes with different themes for testing user_themes."""
+        return [
+            Node(
+                idx=0,
+                poi_id="hotel1",
+                name="Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 20 * 60)]},
+            ),
+            Node(
+                idx=1,
+                poi_id="poi1_day0",
+                name="Museum",
+                role="attraction",
+                lat=1.31,
+                lon=103.81,
+                service=60,
+                themes=["cultural_history"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+            ),
+            Node(
+                idx=2,
+                poi_id="poi2_day0",
+                name="Nature Park",
+                role="attraction",
+                lat=1.32,
+                lon=103.82,
+                service=60,
+                themes=["nature"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+            ),
+            Node(
+                idx=3,
+                poi_id="poi3_day0",
+                name="Temple",
+                role="attraction",
+                lat=1.33,
+                lon=103.83,
+                service=60,
+                themes=["cultural_history"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+            ),
+        ]
+
+    @pytest.fixture
+    def day_specs(self):
+        return [
+            DaySpec(
+                day_index=0,
+                date=dt.date(2025, 1, 15),
+                start_min=9 * 60,
+                end_min=20 * 60,
+                depot_id="hotel1",
+            )
+        ]
+
+    @pytest.fixture
+    def travel(self):
+        return [
+            [0, 10, 10, 10],
+            [10, 0, 10, 10],
+            [10, 10, 0, 10],
+            [10, 10, 10, 0],
+        ]
+
+    def test_acs_accepts_user_themes(self, nodes_with_themes, day_specs, travel):
+        """Test ACS accepts user_themes parameter."""
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes_with_themes,
+            travel=travel,
+            meals_required=0,
+            user_themes={"cultural_history", "nature"},
+        )
+
+        assert "days" in result
+        assert len(result["days"]) == 1
+
+    def test_acs_works_without_user_themes(self, nodes_with_themes, day_specs, travel):
+        """Test ACS works when user_themes is None."""
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes_with_themes,
+            travel=travel,
+            meals_required=0,
+            user_themes=None,
+        )
+
+        assert "days" in result
+        assert len(result["days"]) == 1
+
+    def test_acs_works_with_empty_user_themes(self, nodes_with_themes, day_specs, travel):
+        """Test ACS works when user_themes is empty set."""
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes_with_themes,
+            travel=travel,
+            meals_required=0,
+            user_themes=set(),
+        )
+
+        assert "days" in result
+        assert len(result["days"]) == 1
+
+    def test_acs_single_user_theme(self, nodes_with_themes, day_specs, travel):
+        """Test ACS works with single user theme."""
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes_with_themes,
+            travel=travel,
+            meals_required=0,
+            user_themes={"cultural_history"},
+        )
+
+        assert "days" in result
+        assert len(result["days"]) == 1
+        # With only "cultural_history" theme, solver should favor cultural_history POIs
+        day = result["days"][0]
+        assert len(day["stops"]) >= 1
+
+    def test_acs_single_theme_allows_many_attractions(self, day_specs):
+        """Test that single theme mode allows many same-theme attractions."""
+        # Create 5 attractions all with the same theme
+        nodes = [
+            Node(
+                idx=0,
+                poi_id="hotel1",
+                name="Test Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 20 * 60)]},
+            ),
+        ]
+        # Add 5 attractions all with "shopping" theme
+        for i in range(5):
+            nodes.append(
+                Node(
+                    idx=i + 1,
+                    poi_id=f"shop{i}_day0",
+                    name=f"Shopping {i}",
+                    role="attraction",
+                    lat=1.3 + i * 0.01,
+                    lon=103.8 + i * 0.01,
+                    service=60,
+                    themes=["shopping"],
+                    windows_by_day={0: [(9 * 60, 20 * 60)]},
+                )
+            )
+
+        travel = [[10] * 6 for _ in range(6)]
+        for i in range(6):
+            travel[i][i] = 0
+
+        # With single theme "shopping", should allow many shopping attractions
+        # Theme balance uses SOFT penalties, NOT hard limits
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes,
+            travel=travel,
+            meals_required=0,
+            user_themes=["shopping"],  # Single theme
+        )
+
+        day = result["days"][0]
+        # Count shopping attractions visited (exclude depot)
+        shopping_stops = [s for s in day["stops"] if s.get("role") == "attraction"]
+
+        # Should have multiple attractions - no hard theme limit
+        # The solver should visit as many POIs as time permits
+        assert len(shopping_stops) >= 3, f"Should allow many same-theme attractions, got {len(shopping_stops)}"
+
+    def test_acs_food_culinary_theme_is_not_meal_like(self, day_specs):
+        """Food-themed attractions must not be treated as meals (no hard skipping via food streak)."""
+        nodes = [
+            Node(
+                idx=0,
+                poi_id="hotel1",
+                name="Test Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 22 * 60)]},
+            ),
+            Node(
+                idx=1,
+                poi_id="meal0_day0",
+                name="Meal 0",
+                role="meal",
+                lat=1.31,
+                lon=103.81,
+                service=45,
+                themes=["food_culinary"],
+                windows_by_day={0: [(11 * 60, 14 * 60)]},
+            ),
+            Node(
+                idx=2,
+                poi_id="meal1_day0",
+                name="Meal 1",
+                role="meal",
+                lat=1.32,
+                lon=103.82,
+                service=60,
+                themes=["food_culinary"],
+                windows_by_day={0: [(17 * 60, 20 * 60)]},
+            ),
+        ]
+
+        for i in range(5):
+            nodes.append(
+                Node(
+                    idx=3 + i,
+                    poi_id=f"food{i}_day0",
+                    name=f"Food Attraction {i}",
+                    role="attraction",
+                    lat=1.3 + i * 0.005,
+                    lon=103.8 + i * 0.005,
+                    service=60,
+                    themes=["food_culinary"],
+                    windows_by_day={0: [(9 * 60, 22 * 60)]},
+                )
+            )
+
+        n = len(nodes)
+        travel = [[10] * n for _ in range(n)]
+        for i in range(n):
+            travel[i][i] = 0
+
+        result = run_acs_cvrptw(
+            day_specs=day_specs,
+            nodes=nodes,
+            travel=travel,
+            meals_required=0,
+            user_themes=["food_culinary"],
+        )
+
+        day = result["days"][0]
+        attractions = [s for s in day["stops"] if s.get("role") == "attraction"]
+        assert len(attractions) >= 3, f"Expected multiple food attractions, got {len(attractions)}"

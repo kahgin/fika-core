@@ -231,11 +231,7 @@ def _count_pois_per_city(
                 for city in cities:
                     city_lower = city.lower()
                     dest_lower = city_norm.lower()
-                    if (
-                        city_lower == dest_lower
-                        or city_lower in dest_lower
-                        or dest_lower in city_lower
-                    ):
+                    if city_lower == dest_lower or city_lower in dest_lower or dest_lower in city_lower:
                         mand, opt = counts.get(city, (0, 0))
                         counts[city] = (mand + 1, opt)
                         counted_mandatory.add(poi_id)
@@ -250,9 +246,7 @@ def _count_pois_per_city(
                         counts[lookup_city] = (mand + 1, opt)
                         counted_mandatory.add(poi_id)
 
-    logger.debug(
-        f"POI counts per city: {counts}, mandatory_ids={mandatory_ids}, counted={counted_mandatory}"
-    )
+    logger.debug(f"POI counts per city: {counts}, mandatory_ids={mandatory_ids}, counted={counted_mandatory}")
 
     return counts
 
@@ -429,9 +423,7 @@ def _build_contiguous_blocks(
 
     # Segment before first fixed day
     if sorted_fixed_days[0] > 1:
-        segments.append(
-            (1, sorted_fixed_days[0] - 1, None, fixed[sorted_fixed_days[0]].city)
-        )
+        segments.append((1, sorted_fixed_days[0] - 1, None, fixed[sorted_fixed_days[0]].city))
 
     # Segments between fixed days
     for i in range(len(sorted_fixed_days) - 1):
@@ -544,11 +536,7 @@ def _build_contiguous_blocks(
                     best_city = city
 
             if best_city is None:
-                best_city = (
-                    city_order[0]
-                    if city_order
-                    else list(target_days_per_city.keys())[0]
-                )
+                best_city = city_order[0] if city_order else list(target_days_per_city.keys())[0]
 
             assign_day(day, best_city)
 
@@ -611,12 +599,7 @@ def _smooth_contiguity(
             next_city = result.get(day + 1)
 
             # If this day creates a switch, try to smooth it
-            if (
-                prev_city
-                and next_city
-                and prev_city == next_city
-                and current_city != prev_city
-            ):
+            if prev_city and next_city and prev_city == next_city and current_city != prev_city:
                 # Check if we can move this day to match neighbors
                 # Only if it doesn't violate target counts too much
                 counts = count_per_city()
@@ -735,9 +718,7 @@ def allocate_days_to_cities(
             city = fixed[day].city
             if city not in fixed_order:
                 fixed_order.append(city)
-        city_order = fixed_order + [
-            c for c in sorted(cities.keys()) if c not in fixed_order
-        ]
+        city_order = fixed_order + [c for c in sorted(cities.keys()) if c not in fixed_order]
     else:
         # No fixed days, no user order - use alphabetical
         city_order = sorted(cities.keys())
@@ -745,9 +726,7 @@ def allocate_days_to_cities(
     # Count fixed days per city
     fixed_days_per_city: Dict[str, int] = {}
     for assignment in fixed.values():
-        fixed_days_per_city[assignment.city] = (
-            fixed_days_per_city.get(assignment.city, 0) + 1
-        )
+        fixed_days_per_city[assignment.city] = fixed_days_per_city.get(assignment.city, 0) + 1
 
     # Compute target days per city
     if user_input and user_input.get("days_per_city"):
@@ -787,9 +766,7 @@ def allocate_days_to_cities(
                         target_days[city] += 1
                         diff -= 1
             elif diff < 0:
-                for city in sorted(
-                    city_order, key=lambda c: target_days.get(c, 0), reverse=True
-                ):
+                for city in sorted(city_order, key=lambda c: target_days.get(c, 0), reverse=True):
                     if diff >= 0:
                         break
                     if target_days.get(city, 0) > fixed_days_per_city.get(city, 0):

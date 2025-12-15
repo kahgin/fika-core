@@ -38,9 +38,7 @@ def get_meal_type(arrival_min: int) -> str:
     return "other"
 
 
-def get_default_window_for_role(
-    role: str, themes: Optional[List[str]] = None
-) -> Tuple[int, int]:
+def get_default_window_for_role(role: str, themes: Optional[List[str]] = None) -> Tuple[int, int]:
     """Get default time window based on POI role and themes."""
     if themes and "nature" in themes:
         return DEFAULT_HOURS["nature"]
@@ -88,9 +86,7 @@ def get_open_windows_for_date(
     return (False, [default_window])
 
 
-def is_within_any_window(
-    arrival_min: int, depart_min: int, windows: List[Tuple[int, int]]
-) -> bool:
+def is_within_any_window(arrival_min: int, depart_min: int, windows: List[Tuple[int, int]]) -> bool:
     """Check if [arrival_min, depart_min] fits inside at least one (start,end) window."""
     for start, end in windows:
         if arrival_min >= start and depart_min <= end:
@@ -133,9 +129,7 @@ def validate_poi_schedule_against_hours(
         windows = intervals if intervals else [default_window]
     else:
         # Unknown-day: use effective windows with representative interval
-        is_open, windows = get_effective_windows(
-            open_hours, None, default_window, use_representative=True
-        )
+        is_open, windows = get_effective_windows(open_hours, None, default_window, use_representative=True)
         if not is_open:
             return (False, "POI is closed")
 
@@ -202,9 +196,7 @@ def validate_itinerary(
         meals_today = 0
         prev_stop = None
 
-        stats["total_stops"] += len(
-            [s for s in stops if s.get("role") not in ("hotel", "depot")]
-        )
+        stats["total_stops"] += len([s for s in stops if s.get("role") not in ("hotel", "depot")])
 
         for stop_idx, stop in enumerate(stops):
             poi_id_base = stop["poi_id"].rsplit("_day", 1)[0]
@@ -223,8 +215,7 @@ def validate_itinerary(
                             "type": "day_overrun",
                             "severity": "warning",
                             "message": (
-                                f"Day {day_num} ({weekday_short}) ends "
-                                f"{overrun} min past limit ({stop['arrival']})"
+                                f"Day {day_num} ({weekday_short}) ends {overrun} min past limit ({stop['arrival']})"
                             ),
                             "day": day_num,
                             "weekday": weekday_short,
@@ -236,18 +227,12 @@ def validate_itinerary(
                 continue
 
             # 1. Consecutive meals
-            if (
-                prev_stop
-                and prev_stop.get("role") == "meal"
-                and stop.get("role") == "meal"
-            ):
+            if prev_stop and prev_stop.get("role") == "meal" and stop.get("role") == "meal":
                 violations.append(
                     {
                         "type": "consecutive_meals",
                         "severity": "error",
-                        "message": (
-                            f"Consecutive meals ({prev_stop.get('name')} → {stop.get('name')})"
-                        ),
+                        "message": (f"Consecutive meals ({prev_stop.get('name')} → {stop.get('name')})"),
                         "day": day_num,
                         "weekday": weekday_short,
                         "poi": stop.get("name"),
@@ -263,10 +248,7 @@ def validate_itinerary(
                         {
                             "type": "meal_timing",
                             "severity": "warning",
-                            "message": (
-                                f"Meal at unusual time ({stop['arrival']}) - "
-                                f"{stop.get('name')}"
-                            ),
+                            "message": (f"Meal at unusual time ({stop['arrival']}) - {stop.get('name')}"),
                             "day": day_num,
                             "weekday": weekday_short,
                             "poi": stop.get("name"),
@@ -303,16 +285,12 @@ def validate_itinerary(
                                 "type": "outside_hours",
                                 "severity": "warning",
                                 "message": (
-                                    f"Visit outside hours "
-                                    f"({stop['arrival']}-{stop['depart']}) - "
-                                    f"{stop.get('name')}"
+                                    f"Visit outside hours ({stop['arrival']}-{stop['depart']}) - {stop.get('name')}"
                                 ),
                                 "day": day_num,
                                 "weekday": weekday_short,
                                 "poi": stop.get("name"),
-                                "expected_hours": error_msg.replace(
-                                    "Visit outside hours, expected ", ""
-                                ),
+                                "expected_hours": error_msg.replace("Visit outside hours, expected ", ""),
                             }
                         )
                     prev_stop = stop
@@ -322,9 +300,7 @@ def validate_itinerary(
             if poi:
                 themes = poi.get("themes", [])
                 for theme in themes:
-                    stats["theme_distribution"][theme] = (
-                        stats["theme_distribution"].get(theme, 0) + 1
-                    )
+                    stats["theme_distribution"][theme] = stats["theme_distribution"].get(theme, 0) + 1
 
             prev_stop = stop
 
@@ -365,9 +341,7 @@ def validate_itinerary(
     # in the destination that match the selected themes
     selected_themes = maut_output.get("meta", {}).get("selected_themes", [])
     if selected_themes:
-        missing_themes = [
-            t for t in selected_themes if stats["theme_distribution"].get(t, 0) == 0
-        ]
+        missing_themes = [t for t in selected_themes if stats["theme_distribution"].get(t, 0) == 0]
         if missing_themes:
             violations.append(
                 {
@@ -407,9 +381,7 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
 
     if stats["theme_distribution"]:
         print("\n🎨 Theme Distribution:")
-        for theme, count in sorted(
-            stats["theme_distribution"].items(), key=lambda x: -x[1]
-        ):
+        for theme, count in sorted(stats["theme_distribution"].items(), key=lambda x: -x[1]):
             print(f"   {theme}: {count}")
 
     violations = validation_result["violations"]
@@ -420,9 +392,7 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
         warnings = [v for v in violations if v["severity"] == "warning"]
         infos = [v for v in violations if v["severity"] == "info"]
 
-        print(
-            f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings, {len(infos)} info"
-        )
+        print(f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings, {len(infos)} info")
 
         if errors:
             print("\n❌ ERRORS:")
@@ -450,36 +420,3 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
             print("\nℹ️  INFO:")
             for v in infos:
                 print(f"   {v['message']}")
-
-
-def assert_itinerary_valid(
-    cvrptw_output: Dict[str, Any],
-    maut_output: Dict[str, Any],
-    pacing: str = "balanced",
-    allow_warnings: bool = True,
-) -> None:
-    """
-    Assert itinerary is valid, raise AssertionError if not.
-
-    Args:
-        allow_warnings: If False, warnings also cause assertion failure
-    """
-    result = validate_itinerary(cvrptw_output, maut_output, pacing)
-    print_validation_report(result)
-
-    errors = [v for v in result["violations"] if v["severity"] == "error"]
-    warnings = [v for v in result["violations"] if v["severity"] == "warning"]
-
-    if errors:
-        error_msgs = [v["message"] for v in errors]
-        raise AssertionError(
-            f"Itinerary has {len(errors)} errors:\n"
-            + "\n".join(f"  - {m}" for m in error_msgs)
-        )
-
-    if not allow_warnings and warnings:
-        warning_msgs = [v["message"] for v in warnings]
-        raise AssertionError(
-            f"Itinerary has {len(warnings)} warnings:\n"
-            + "\n".join(f"  - {m}" for m in warning_msgs)
-        )

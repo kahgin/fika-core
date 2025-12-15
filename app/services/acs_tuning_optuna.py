@@ -116,31 +116,17 @@ class TuningObjective:
         params["acs_n_iterations"] = trial.suggest_int("acs_n_iterations", 40, 120)
         params["acs_alpha"] = trial.suggest_float("acs_alpha", 0.5, 3.0)
         params["acs_beta"] = trial.suggest_float("acs_beta", 1.0, 5.0)
-        params["acs_evaporation_rate"] = trial.suggest_float(
-            "acs_evaporation_rate", 0.2, 0.8
-        )
+        params["acs_evaporation_rate"] = trial.suggest_float("acs_evaporation_rate", 0.2, 0.8)
         params["acs_q"] = trial.suggest_float("acs_q", 50.0, 200.0)
 
-        # Constraint parameters
-        params["max_theme_per_day"] = trial.suggest_int("max_theme_per_day", 2, 4)
-
         # Penalty parameters
-        params["penalty_meal_to_meal"] = trial.suggest_int(
-            "penalty_meal_to_meal", 2000, 8000
-        )
-        params["penalty_same_theme"] = trial.suggest_int(
-            "penalty_same_theme", 200, 1000
-        )
-        params["penalty_theme_limit_exceeded"] = trial.suggest_int(
-            "penalty_theme_limit_exceeded", 5000, 15000
-        )
+        params["penalty_meal_to_meal"] = trial.suggest_int("penalty_meal_to_meal", 2000, 8000)
+        params["penalty_same_theme"] = trial.suggest_int("penalty_same_theme", 200, 1000)
+        # Theme concentration penalty (soft, not hard limit)
+        params["theme_concentration_penalty"] = trial.suggest_int("theme_concentration_penalty", 50, 200)
         params["drop_poi_penalty"] = trial.suggest_int("drop_poi_penalty", 1000, 3000)
-        params["meal_shortfall_penalty"] = trial.suggest_int(
-            "meal_shortfall_penalty", 300, 900
-        )
-        params["mandatory_miss_penalty"] = trial.suggest_int(
-            "mandatory_miss_penalty", 5000, 15000
-        )
+        params["meal_shortfall_penalty"] = trial.suggest_int("meal_shortfall_penalty", 300, 900)
+        params["mandatory_miss_penalty"] = trial.suggest_int("mandatory_miss_penalty", 5000, 15000)
 
         return VRPConfig(**params)
 
@@ -201,7 +187,7 @@ def create_synthetic_test_case() -> Dict[str, Any]:
     num_days = 3
 
     places = []
-    themes = ["culture", "nature", "shopping", "family", "adventure"]
+    themes = ["cultural_history", "nature", "shopping", "family", "adventure"]
 
     # Attractions
     for i in range(15):
@@ -403,12 +389,8 @@ def main():
     parser = argparse.ArgumentParser(description="Tune ACS-CVRPTW hyperparameters")
     parser.add_argument("--trials", "-n", type=int, default=50, help="Number of trials")
     parser.add_argument("--test-files", "-t", nargs="+", help="Test files to use")
-    parser.add_argument(
-        "--synthetic", "-s", action="store_true", help="Use synthetic data"
-    )
-    parser.add_argument(
-        "--pacing", "-p", choices=["relaxed", "balanced", "packed"], default="balanced"
-    )
+    parser.add_argument("--synthetic", "-s", action="store_true", help="Use synthetic data")
+    parser.add_argument("--pacing", "-p", choices=["relaxed", "balanced", "packed"], default="balanced")
     parser.add_argument("--output", "-o", type=str, help="Output path for config")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress output")
 

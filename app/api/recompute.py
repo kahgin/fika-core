@@ -8,11 +8,7 @@ Modes:
 """
 
 from fastapi import APIRouter, HTTPException
-from app.api.itinerary import (
-    load_itinerary,
-    save_itinerary,
-    _normalize_destination_name,
-)
+from app.db.itinerary_storage import load_itinerary_from_db, save_itinerary_to_db
 from app.services.transformers import transform_frontend_payload
 from app.services.maut import run_maut
 from app.services.pipeline import run_full_pipeline
@@ -23,6 +19,31 @@ from app.services.vrp_model import vrp_config
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["recompute"])
+
+
+def _normalize_destination_name(raw) -> str | None:
+    """Normalize location label to city name. Example: 'Johor, Malaysia' -> 'Johor'."""
+    if not raw:
+        return None
+    name = str(raw).strip()
+    return name.split(",")[0].strip() if "," in name else name
+
+
+def _sanitize_images(v) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        s = v.strip()
+        return [s] if s else []
+    if not isinstance(v, list):
+        return []
+    out: list[str] = []
+    for img in v:
+        if isinstance(img, str):
+            s = img.strip()
+            if s:
+                out.append(s)
+    return out
 
 
 @router.post("/itinerary/{itin_id}/recompute")
@@ -60,31 +81,28 @@ def recompute_itinerary(itin_id: str, payload: dict):
             )
 
         if mode == "single_day" and day_index is None:
-            raise HTTPException(
-                status_code=400, detail="day_index required for single_day mode"
-            )
+            raise HTTPException(status_code=400, detail="day_index required for single_day mode")
 
-        data = load_itinerary(itin_id)
+        data = load_itinerary_from_db(itin_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Itinerary not found")
 
         if mode == "full":
             result = _recompute_full(data, options)
         elif mode == "partial":
             result = _recompute_partial(data, options)
-        else:  # single_day
+        else:
             result = _recompute_single_day(data, day_index, options)
 
-        # Recompute day labels based on dates info
         from app.utils.date_utils import recompute_day_labels
 
         if result.get("plan", {}).get("days"):
-            recompute_day_labels(
-                result["plan"]["days"], result.get("meta", {}).get("dates")
-            )
+            recompute_day_labels(result["plan"]["days"], result.get("meta", {}).get("dates"))
 
-        save_itinerary(itin_id, result)
+        if not save_itinerary_to_db(itin_id, result):
+            raise HTTPException(status_code=500, detail="Failed to save itinerary")
         logger.info(f"Recomputed itinerary {itin_id} with mode={mode}")
 
-        # Transform to frontend format
         from app.services.transformers import transform_itinerary_response_to_frontend
 
         return transform_itinerary_response_to_frontend(result)
@@ -104,7 +122,6 @@ def _recompute_full(data: dict, options: dict) -> dict:
     """
     meta = data.get("meta", {})
 
-    # Build payload from meta
     payload = {
         "title": meta.get("title"),
         "destinations": meta.get("destinations", []),
@@ -117,16 +134,13 @@ def _recompute_full(data: dict, options: dict) -> dict:
         "flags": meta.get("flags", {}),
     }
 
-    # Override pacing if provided
     if options.get("pacing"):
         payload.setdefault("preferences", {})["pacing"] = options["pacing"]
 
-    # Transform and run MAUT
     maut_request = transform_frontend_payload(payload)
 
     destinations = payload.get("destinations", [])
     if destinations:
-        # Multi-city flow
         all_places = []
         selected_themes_union = []
 
@@ -154,30 +168,21 @@ def _recompute_full(data: dict, options: dict) -> dict:
             "status": "ok",
             "places": all_places,
             "meta": {
-                "selected_themes": selected_themes_union[:3]
-                if selected_themes_union
-                else [],
+                "selected_themes": selected_themes_union[:3] if selected_themes_union else [],
             },
         }
     else:
-        # Single-city flow
         maut_output = run_maut(maut_request)
 
-    # Enrich with dates
     maut_output.setdefault("meta", {})
     maut_output["meta"]["dates"] = payload.get("dates", {})
     maut_output["meta"]["num_days"] = maut_request["num_days"]
 
-    # Add hotels and mandatory POIs to places
     places = maut_output.get("places", [])
 
     for hotel_data in payload.get("hotels", []):
         hotel_destination = hotel_data.get("destination")
-        hotel_area_name = (
-            _normalize_destination_name(hotel_destination)
-            if hotel_destination
-            else None
-        )
+        hotel_area_name = _normalize_destination_name(hotel_destination) if hotel_destination else None
 
         hotel_poi = {
             "id": hotel_data.get("poi_id"),
@@ -197,7 +202,6 @@ def _recompute_full(data: dict, options: dict) -> dict:
         if not any(p.get("id") == hotel_poi["id"] for p in places):
             places.append(hotel_poi)
 
-    # Build mandatory dict
     mandatory = {}
     for poi in payload.get("mandatory_pois", []):
         poi_id = poi.get("poi_id")
@@ -215,7 +219,6 @@ def _recompute_full(data: dict, options: dict) -> dict:
         elif poi.get("start_time") and poi.get("end_time"):
             mandatory[poi_id]["window"] = [poi.get("start_time"), poi.get("end_time")]
 
-        # Add to places
         mandatory_poi = {
             "id": poi_id,
             "name": poi.get("poi_name", "POI"),
@@ -226,24 +229,28 @@ def _recompute_full(data: dict, options: dict) -> dict:
             "poi_roles": [poi.get("role", "attraction")],
             "area_name": poi.get("poi_destination"),
             "themes": poi.get("themes", []),
-            "images": poi.get("images", []),
+            "images": _sanitize_images(poi.get("images")),
         }
         if not any(p.get("id") == mandatory_poi["id"] for p in places):
             places.append(mandatory_poi)
 
     maut_output["places"] = places
 
-    # Run pipeline
     pipeline_output = run_full_pipeline(
         maut_output=maut_output,
-        hotel=None,  # Let pipeline select
+        hotel=None,
         pacing=maut_request.get("pacing", "balanced"),
         mandatory=mandatory if mandatory else None,
         time_limit_sec=20,
         solver="acs",
     )
 
-    # Update data
+    if not pipeline_output.get("days") or pipeline_output.get("status") not in (
+        "success",
+        "partial_success",
+    ):
+        raise HTTPException(status_code=500, detail="Failed to optimize itinerary")
+
     data["plan"] = {
         "status": "ok",
         "days": pipeline_output.get("days", []),
@@ -268,7 +275,6 @@ def _recompute_partial(data: dict, options: dict) -> dict:
     if not days or not items:
         raise HTTPException(status_code=400, detail="No existing plan to recompute")
 
-    # Build MAUT output from existing items
     places = []
     for item in items:
         places.append(
@@ -278,7 +284,7 @@ def _recompute_partial(data: dict, options: dict) -> dict:
                 "coordinates": item.get("coordinates", {}),
                 "poi_roles": item.get("roles", []),
                 "themes": item.get("themes", []),
-                "images": item.get("images", []),
+                "images": _sanitize_images(item.get("images")),
                 "open_hours": item.get("openHours"),
             }
         )
@@ -292,7 +298,6 @@ def _recompute_partial(data: dict, options: dict) -> dict:
         },
     }
 
-    # Extract hotel from first day
     first_day = days[0] if days else {}
     depot_id = first_day.get("depot_id")
     hotel = None
@@ -308,7 +313,6 @@ def _recompute_partial(data: dict, options: dict) -> dict:
                 }
                 break
 
-    # Build mandatory from meta
     mandatory = {}
     for poi in meta.get("mandatory_pois", []):
         poi_id = poi.get("poi_id")
@@ -318,10 +322,7 @@ def _recompute_partial(data: dict, options: dict) -> dict:
                 "day": poi.get("day"),
             }
 
-    # Run pipeline
-    pacing = options.get("pacing") or meta.get("preferences", {}).get(
-        "pacing", "balanced"
-    )
+    pacing = options.get("pacing") or meta.get("preferences", {}).get("pacing", "balanced")
 
     pipeline_output = run_full_pipeline(
         maut_output=maut_output,
@@ -332,7 +333,12 @@ def _recompute_partial(data: dict, options: dict) -> dict:
         solver="acs",
     )
 
-    # Update days
+    if not pipeline_output.get("days") or pipeline_output.get("status") not in (
+        "success",
+        "partial_success",
+    ):
+        raise HTTPException(status_code=500, detail="Failed to optimize itinerary")
+
     data["plan"]["days"] = pipeline_output.get("days", [])
     data["plan"]["meta"] = pipeline_output.get("meta", {})
 
@@ -355,7 +361,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
 
     target_day = days[day_index]
 
-    # Build places from items
     places = []
     for item in items:
         places.append(
@@ -365,16 +370,14 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
                 "coordinates": item.get("coordinates", {}),
                 "poi_roles": item.get("roles", []),
                 "themes": item.get("themes", []),
-                "images": item.get("images", []),
+                "images": _sanitize_images(item.get("images")),
                 "open_hours": item.get("openHours"),
             }
         )
 
-    # Get hotel for this day
     depot_id = target_day.get("depot_id")
     hotel = None
 
-    # Try to find hotel from stops
     if depot_id:
         for stop in target_day.get("stops", []):
             if stop.get("poi_id") == depot_id:
@@ -386,7 +389,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
                 }
                 break
 
-    # Fallback: try to get hotel from meta.hotels
     if not hotel:
         hotels_from_meta = meta.get("hotels", [])
         if hotels_from_meta:
@@ -398,7 +400,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
                 "lon": first_hotel.get("longitude"),
             }
 
-    # Fallback: try to find any accommodation in stops
     if not hotel:
         for stop in target_day.get("stops", []):
             if "accommodation" in (stop.get("role") or ""):
@@ -410,7 +411,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
                 }
                 break
 
-    # Final fallback: use first stop as reference point
     if not hotel and target_day.get("stops"):
         first_stop = target_day["stops"][0]
         hotel = {
@@ -421,11 +421,8 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
         }
 
     if not hotel:
-        raise HTTPException(
-            status_code=400, detail="No hotel or reference point found for day"
-        )
+        raise HTTPException(status_code=400, detail="No hotel or reference point found for day")
 
-    # Build single-day problem
     dates_info = meta.get("dates", {})
 
     maut_output = {
@@ -437,11 +434,8 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
         },
     }
 
-    pacing = options.get("pacing") or meta.get("preferences", {}).get(
-        "pacing", "balanced"
-    )
+    pacing = options.get("pacing") or meta.get("preferences", {}).get("pacing", "balanced")
 
-    # Build problem for single day
     day_specs, nodes, travel = build_problem(
         maut_output,
         hotel,
@@ -452,7 +446,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     if not day_specs:
         raise HTTPException(status_code=400, detail="Failed to build problem for day")
 
-    # Run ACS for single day
     meals_required = options.get("meals_required", 3)
 
     result = run_acs_cvrptw(
@@ -466,7 +459,6 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     if not result.get("days"):
         raise HTTPException(status_code=500, detail="Failed to optimize day")
 
-    # Update the specific day
     new_day = result["days"][0]
     new_day["date"] = target_day.get("date")
     new_day["weekday"] = target_day.get("weekday")
@@ -499,7 +491,7 @@ def _transform_poi_to_frontend(poi: dict) -> dict:
         "rating": poi.get("review_rating") or poi.get("rating"),
         "reviewCount": poi.get("review_count"),
         "location": None,
-        "images": poi.get("images", []),
+        "images": _sanitize_images(poi.get("images")),
         "roles": poi.get("poi_roles", []),
         "poiRoles": poi.get("poi_roles", []),
         "themes": poi.get("themes", []),

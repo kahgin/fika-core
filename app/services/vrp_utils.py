@@ -198,9 +198,7 @@ def compute_representative_interval(
     max_count = max(counter.values())
 
     # Get all intervals with max count
-    most_common = [
-        interval for interval, count in counter.items() if count == max_count
-    ]
+    most_common = [interval for interval, count in counter.items() if count == max_count]
 
     # Choose earliest by start time
     most_common.sort(key=lambda x: (x[0], x[1]))
@@ -349,9 +347,7 @@ def restrict_meal_windows(
 # VRP Problem Building (shared by cvrptw.py and acs_cvrptw.py)
 
 
-def create_day_specs(
-    maut_output: dict, hotel: Dict[str, float], pacing: str
-) -> List[DaySpec]:
+def create_day_specs(maut_output: dict, hotel: Dict[str, float], pacing: str) -> List[DaySpec]:
     """Create a list of DaySpec objects based on the trip duration and pacing."""
     meta = maut_output.get("meta", {})
     dates = meta.get("dates", {})
@@ -447,15 +443,9 @@ def create_poi_node(
                 start_parts = window_constraint[0].split(":")
                 end_parts = window_constraint[1].split(":")
                 start = (
-                    int(start_parts[0]) * 60 + int(start_parts[1])
-                    if len(start_parts) > 1
-                    else int(start_parts[0]) * 60
+                    int(start_parts[0]) * 60 + int(start_parts[1]) if len(start_parts) > 1 else int(start_parts[0]) * 60
                 )
-                end = (
-                    int(end_parts[0]) * 60 + int(end_parts[1])
-                    if len(end_parts) > 1
-                    else int(end_parts[0]) * 60
-                )
+                end = int(end_parts[0]) * 60 + int(end_parts[1]) if len(end_parts) > 1 else int(end_parts[0]) * 60
                 wbd[day_specific] = [(start, end)]
                 # For specific time windows, use the full window duration as service time
                 # User wants to be there from 09:00-16:00, so service = 7 hours
@@ -511,6 +501,7 @@ def create_poi_node(
         service=service,
         windows_by_day=wbd,
         is_mandatory=is_mand,
+        maut_score=float(poi.get("_score", 0.0)),
     )
 
 

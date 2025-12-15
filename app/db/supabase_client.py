@@ -30,15 +30,3 @@ def get_supabase() -> Client:
     except Exception as e:
         logger.error(f"Failed to initialize Supabase: {e}")
         raise
-
-
-# Helper functions
-def reset_supabase():
-    """Reset client (useful for testing)"""
-    global _supabase_client
-    _supabase_client = None
-
-
-def is_initialized() -> bool:
-    """Check if Supabase client is initialized"""
-    return _supabase_client is not None

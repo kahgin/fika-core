@@ -39,7 +39,7 @@ def single_city_maut():
                 "roles": ["attraction"],
                 "area_name": "Singapore",
                 "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["culture"],
+                "themes": ["cultural_history"],
                 "complete_address": {"city": "Singapore"},
             },
             {
@@ -54,7 +54,7 @@ def single_city_maut():
         "meta": {
             "num_days": 2,
             "dates": {"type": "flexible", "days": 2},
-            "selected_themes": ["culture"],
+            "selected_themes": ["cultural_history"],
         },
     }
 
@@ -80,7 +80,7 @@ def multi_city_maut():
                 "roles": ["attraction"],
                 "area_name": "Singapore",
                 "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["culture"],
+                "themes": ["cultural_history"],
                 "complete_address": {"city": "Singapore"},
             },
             {
@@ -122,7 +122,7 @@ def multi_city_maut():
         "meta": {
             "num_days": 4,
             "dates": {"type": "flexible", "days": 4},
-            "selected_themes": ["culture", "architecture"],
+            "selected_themes": ["cultural_history", "architecture"],
         },
     }
 
@@ -253,9 +253,7 @@ class TestPipelineEdgeCases:
         result = run_full_pipeline(maut_output, solver="acs")
 
         assert result["status"] == "error"
-        assert "too many" in result["error"].lower() or "request_too_large" in str(
-            result
-        )
+        assert "too many" in result["error"].lower() or "request_too_large" in str(result)
 
     def test_partial_success_with_failed_cities(self, mock_osrm):
         """Test partial success when some cities fail."""

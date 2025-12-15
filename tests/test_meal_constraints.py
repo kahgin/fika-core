@@ -64,15 +64,10 @@ class TestRestrictMealWindows:
         for start, end in restricted:
             overlaps_meal = False
             for m_start, m_end in vrp_config.meal_windows:
-                if (
-                    start < m_end + vrp_config.meal_hard_tol_min
-                    and end > m_start - vrp_config.meal_hard_tol_min
-                ):
+                if start < m_end + vrp_config.meal_hard_tol_min and end > m_start - vrp_config.meal_hard_tol_min:
                     overlaps_meal = True
                     break
-            assert overlaps_meal, (
-                f"Window ({start}, {end}) doesn't overlap any meal window"
-            )
+            assert overlaps_meal, f"Window ({start}, {end}) doesn't overlap any meal window"
 
     def test_empty_windows(self):
         """Test empty windows returns empty."""
@@ -178,9 +173,7 @@ class TestMealNodeCreation:
                         ):
                             near_meal = True
                             break
-                    assert near_meal, (
-                        f"Meal window ({start}, {end}) not near any meal time"
-                    )
+                    assert near_meal, f"Meal window ({start}, {end}) not near any meal time"
 
 
 class TestMealValidation:
