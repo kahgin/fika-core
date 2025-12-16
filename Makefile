@@ -33,7 +33,7 @@ test:
 	@uv run pytest
 
 clean:
-	@rm -rf .ruff_cache *.egg-info .pytest_cache .ruff_cache
+	@rm -rf .ruff_cache .pytest_cache
 	@find app tests -type d -name "__pycache__" -exec rm -rf {} +
 
 distclean: clean

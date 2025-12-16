@@ -57,8 +57,8 @@ def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     r = 0.0 if rating is None else max(0.0, min(1.0, float(rating) / 5.0))
     if not reviews or reviews <= 0:
         return 0.5 * r
-    rc = min(1.0, math.log10(1.0 + reviews) / 5.0)
-    return 0.1 * r + 0.9 * rc
+    rc = min(1.0, math.log10(1.0 + reviews) / 6.0)
+    return 0.2 * r + 0.8 * rc
 
 
 def any_accessible(p: Row) -> bool:

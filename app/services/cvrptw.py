@@ -180,9 +180,12 @@ def solve_cvrptw(
                 "poi_id": depot_node.poi_id,
                 "name": depot_node.name,
                 "role": depot_node.role,
+                "themes": [],
                 "arrival": format_time_minutes(d.start_min),
                 "start_service": format_time_minutes(d.start_min),
                 "depart": format_time_minutes(d.start_min),
+                "latitude": depot_node.lat,
+                "longitude": depot_node.lon,
             }
         )
 
@@ -204,6 +207,8 @@ def solve_cvrptw(
                         "arrival": format_time_minutes(arrival_time),
                         "start_service": format_time_minutes(service_start),
                         "depart": format_time_minutes(depart_time),
+                        "latitude": n.lat,
+                        "longitude": n.lon,
                     }
                 )
                 if n.role == "meal":
@@ -220,9 +225,12 @@ def solve_cvrptw(
                 "poi_id": depot_node.poi_id,
                 "name": depot_node.name,
                 "role": depot_node.role,
+                "themes": [],
                 "arrival": format_time_minutes(end_time),
                 "start_service": format_time_minutes(end_time),
                 "depart": format_time_minutes(end_time),
+                "latitude": depot_node.lat,
+                "longitude": depot_node.lon,
             }
         )
 
@@ -238,6 +246,9 @@ def run_cvrptw(
     pacing: str = "balanced",
     mandatory: Optional[Dict[str, Dict]] = None,
     time_limit_sec: int = 15,
+    is_first_city: bool = True,
+    is_last_city: bool = True,
+    prev_city_hotel: Optional[Dict[str, float]] = None,
 ) -> dict:
     """
     Run CVRPTW on MAUT output using OR-Tools.
@@ -246,7 +257,15 @@ def run_cvrptw(
     like meal times and theme repetition through the OR-Tools routing model.
     """
     try:
-        day_specs, nodes, travel = build_problem(maut_output, hotel, pacing=pacing, mandatory=mandatory)
+        day_specs, nodes, travel = build_problem(
+            maut_output,
+            hotel,
+            pacing=pacing,
+            mandatory=mandatory,
+            is_first_city=is_first_city,
+            is_last_city=is_last_city,
+            prev_city_hotel=prev_city_hotel,
+        )
 
         if not day_specs:
             return {

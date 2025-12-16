@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional, Union, Any
 
-from app.services.vrp_model import DaySpec, Node, vrp_config
+from app.services.vrp_model import DaySpec, Node, vrp_config, HotelEvent, HotelEventType
 
 
 # Constants for weekday names
@@ -347,8 +347,240 @@ def restrict_meal_windows(
 # VRP Problem Building (shared by cvrptw.py and acs_cvrptw.py)
 
 
-def create_day_specs(maut_output: dict, hotel: Dict[str, float], pacing: str) -> List[DaySpec]:
-    """Create a list of DaySpec objects based on the trip duration and pacing."""
+def adjust_window_for_hotel_events(
+    window: Tuple[int, int],
+    day_spec: DaySpec,
+    service_time: int,
+) -> Optional[Tuple[int, int]]:
+    """
+    Adjust a mandatory POI time window to avoid conflicts with hotel events.
+
+    When a mandatory POI's requested window overlaps with hotel check-in/check-out,
+    shift the POI window to before or after the hotel event. Mandatory POIs take
+    priority, but hotel events have fixed time windows that cannot be moved.
+
+    Strategy:
+    - If window overlaps with check-in (14:00-16:00), try scheduling before or after
+    - If window overlaps with check-out (10:00-12:00), try scheduling after
+    - Choose the option that preserves more of the original window
+
+    Args:
+        window: Original (start_min, end_min) window for the POI
+        day_spec: DaySpec containing hotel events for this day
+        service_time: Service time needed at the POI
+
+    Returns:
+        Adjusted window tuple, or None if no valid window exists
+    """
+    if not day_spec.has_hotel_event:
+        return window
+
+    poi_start, poi_end = window
+    day_start = day_spec.start_min
+    day_end = day_spec.end_min
+
+    # Collect all hotel event windows for this day
+    hotel_windows = []
+    for event in day_spec.hotel_events:
+        hotel_windows.append((event.window[0], event.window[1], event.event_type))
+
+    # Sort by start time
+    hotel_windows.sort(key=lambda x: x[0])
+
+    # Check for overlaps and find available slots
+    def windows_overlap(w1: Tuple[int, int], w2: Tuple[int, int]) -> bool:
+        return w1[0] < w2[1] and w2[0] < w1[1]
+
+    # Check if POI window overlaps with any hotel event
+    has_conflict = False
+    for h_start, h_end, _ in hotel_windows:
+        if windows_overlap((poi_start, poi_end), (h_start, h_end)):
+            has_conflict = True
+            break
+
+    if not has_conflict:
+        return window
+
+    # Find available time slots around hotel events
+    available_slots: List[Tuple[int, int]] = []
+
+    # Slot before first hotel event
+    if hotel_windows:
+        first_hotel_start = hotel_windows[0][0]
+        if day_start < first_hotel_start:
+            available_slots.append((day_start, first_hotel_start))
+
+    # Slots between hotel events
+    for i in range(len(hotel_windows) - 1):
+        gap_start = hotel_windows[i][1]
+        gap_end = hotel_windows[i + 1][0]
+        if gap_start < gap_end:
+            available_slots.append((gap_start, gap_end))
+
+    # Slot after last hotel event
+    if hotel_windows:
+        last_hotel_end = hotel_windows[-1][1]
+        if last_hotel_end < day_end:
+            available_slots.append((last_hotel_end, day_end))
+
+    # Find the best slot that can accommodate the POI
+    best_slot = None
+    best_overlap = 0  # Prefer slot with most overlap with original window
+
+    for slot_start, slot_end in available_slots:
+        slot_duration = slot_end - slot_start
+        if slot_duration < service_time:
+            continue  # Slot too small
+
+        # Calculate overlap with original window
+        overlap_start = max(slot_start, poi_start)
+        overlap_end = min(slot_end, poi_end)
+        overlap = max(0, overlap_end - overlap_start)
+
+        if overlap > best_overlap:
+            best_overlap = overlap
+            # Constrain POI window to fit within slot
+            new_start = max(slot_start, poi_start)
+            new_end = min(slot_end, poi_end)
+            # Ensure minimum service time
+            if new_end - new_start < service_time:
+                new_end = min(new_start + service_time, slot_end)
+            if new_end - new_start >= service_time:
+                best_slot = (new_start, new_end)
+
+    # If no overlapping slot found, use the largest available slot
+    if best_slot is None:
+        for slot_start, slot_end in available_slots:
+            slot_duration = slot_end - slot_start
+            if slot_duration >= service_time:
+                best_slot = (slot_start, min(slot_start + (poi_end - poi_start), slot_end))
+                break
+
+    return best_slot
+
+
+def determine_hotel_events(
+    num_days: int,
+    hotel: Dict[str, Any],
+    is_first_city: bool = True,
+    is_last_city: bool = True,
+    prev_city_hotel: Optional[Dict[str, Any]] = None,
+) -> Dict[int, List[HotelEvent]]:
+    """
+    Determine which days require hotel events based on trip structure.
+
+    RULES:
+    1. Single-day single-city trip: NO hotel events (no overnight stay)
+    2. Each hotel has exactly ONE check-in and ONE check-out (paired events)
+    3. Check-in always happens on FIRST day of a city segment
+    4. Check-out always happens on FIRST day of the NEXT city segment (transition day)
+       OR last day if this is the last city
+    5. Single-day LAST destination: Only check-out from PREVIOUS hotel (no check-in)
+    6. num_checkin == num_checkout (globally)
+    7. hotel[i].checkin always before hotel[i].checkout in time
+
+    TRANSITION DAY HANDLING:
+    - When moving to a new city, check-out from previous hotel happens on day 0 of new city
+    - This is handled by the NEW city segment, not the previous one
+    - Previous city does NOT add checkout on its last day (unless it's the last city)
+
+    Args:
+        num_days: Number of days in this city segment
+        hotel: Current city's hotel {id, name, lat, lon}
+        is_first_city: Whether this is the first city in the trip
+        is_last_city: Whether this is the last city in the trip
+        prev_city_hotel: Previous city's hotel for transition day checkout
+
+    Returns:
+        Dict mapping day_index (0-based within segment) -> list of HotelEvent
+    """
+    events: Dict[int, List[HotelEvent]] = {}
+
+    if num_days == 0:
+        return events
+
+    last_day_idx = num_days - 1
+
+    # Rule 1: Single-day single-city trip - no hotel events
+    if num_days == 1 and is_first_city and is_last_city:
+        return events
+
+    # Handle transition day: check-out from previous hotel on day 0 of this city
+    if not is_first_city and prev_city_hotel:
+        if 0 not in events:
+            events[0] = []
+        events[0].append(
+            HotelEvent(
+                event_type=HotelEventType.CHECK_OUT,
+                hotel_id=str(prev_city_hotel["id"]),
+                hotel_name=str(prev_city_hotel["name"]),
+                lat=float(prev_city_hotel["lat"]),
+                lon=float(prev_city_hotel["lon"]),
+                window=vrp_config.hotel_check_out_window,
+                service_time=vrp_config.hotel_service_time,
+            )
+        )
+
+    # Rule 5: Single-day LAST destination - only checkout from prev (already added above)
+    # No check-in to current hotel needed
+    if num_days == 1 and is_last_city and not is_first_city:
+        return events
+
+    # From here: city needs hotel events for CURRENT hotel
+    # Check-in on day 0
+    if 0 not in events:
+        events[0] = []
+    events[0].append(
+        HotelEvent(
+            event_type=HotelEventType.CHECK_IN,
+            hotel_id=str(hotel["id"]),
+            hotel_name=str(hotel["name"]),
+            lat=float(hotel["lat"]),
+            lon=float(hotel["lon"]),
+            window=vrp_config.hotel_check_in_window,
+            service_time=vrp_config.hotel_service_time,
+        )
+    )
+
+    # Check-out from current hotel:
+    # - If this is the LAST city: checkout on last day of this segment
+    # - If NOT last city: checkout will be handled by NEXT city's transition day
+    if is_last_city:
+        if last_day_idx not in events:
+            events[last_day_idx] = []
+        events[last_day_idx].append(
+            HotelEvent(
+                event_type=HotelEventType.CHECK_OUT,
+                hotel_id=str(hotel["id"]),
+                hotel_name=str(hotel["name"]),
+                lat=float(hotel["lat"]),
+                lon=float(hotel["lon"]),
+                window=vrp_config.hotel_check_out_window,
+                service_time=vrp_config.hotel_service_time,
+            )
+        )
+
+    return events
+
+
+def create_day_specs(
+    maut_output: dict,
+    hotel: Dict[str, Any],
+    pacing: str,
+    is_first_city: bool = True,
+    is_last_city: bool = True,
+    prev_city_hotel: Optional[Dict[str, Any]] = None,
+) -> List[DaySpec]:
+    """
+    Create DaySpec objects with proper hotel event handling.
+
+    Hotel events are only added when there's a real-world reason:
+    - Check-in on first day of first city
+    - Check-out on last day of last city
+    - Both on city transition days
+
+    Most days are "free days" with no hotel constraint.
+    """
     meta = maut_output.get("meta", {})
     dates = meta.get("dates", {})
     num_days = meta.get("num_days", 1)
@@ -362,12 +594,23 @@ def create_day_specs(maut_output: dict, hotel: Dict[str, float], pacing: str) ->
             except (ValueError, TypeError):
                 pass
 
+    # Determine hotel events for each day
+    hotel_events = determine_hotel_events(
+        num_days=num_days,
+        hotel=hotel,
+        is_first_city=is_first_city,
+        is_last_city=is_last_city,
+        prev_city_hotel=prev_city_hotel,
+    )
+
     day_specs = []
     start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
     budget_min = vrp_config.pace_day_budget_min.get(pacing, 11 * 60)
     end_min = start_min + budget_min
 
     for k in range(num_days):
+        day_hotel_events = hotel_events.get(k, [])
+
         day_specs.append(
             DaySpec(
                 day_index=k,
@@ -375,8 +618,10 @@ def create_day_specs(maut_output: dict, hotel: Dict[str, float], pacing: str) ->
                 start_min=start_min,
                 end_min=end_min,
                 depot_id=str(hotel["id"]),
+                hotel_events=day_hotel_events,
             )
         )
+
     return day_specs
 
 
@@ -446,10 +691,22 @@ def create_poi_node(
                     int(start_parts[0]) * 60 + int(start_parts[1]) if len(start_parts) > 1 else int(start_parts[0]) * 60
                 )
                 end = int(end_parts[0]) * 60 + int(end_parts[1]) if len(end_parts) > 1 else int(end_parts[0]) * 60
-                wbd[day_specific] = [(start, end)]
+
+                # Check for conflicts with hotel events and adjust if needed
+                original_window = (start, end)
+                adjusted_window = adjust_window_for_hotel_events(
+                    window=original_window,
+                    day_spec=d,
+                    service_time=end - start,
+                )
+
+                if adjusted_window is None:
+                    # Cannot fit mandatory POI on this day due to hotel conflicts
+                    return None
+
+                wbd[day_specific] = [adjusted_window]
                 # For specific time windows, use the full window duration as service time
-                # User wants to be there from 09:00-16:00, so service = 7 hours
-                service = end - start
+                service = adjusted_window[1] - adjusted_window[0]
             except (ValueError, IndexError):
                 # Invalid format, fall back to role defaults
                 day_default = (
@@ -505,24 +762,80 @@ def create_poi_node(
     )
 
 
+def create_hotel_event_nodes(
+    day_specs: List[DaySpec],
+    start_idx: int,
+) -> Tuple[List[Node], int]:
+    """
+    Create mandatory hotel event nodes from DaySpec hotel events.
+
+    Hotel events (check-in/check-out) are modeled as mandatory POI nodes with
+    specific time windows. This ensures the solver respects hotel timing constraints.
+
+    Args:
+        day_specs: List of DaySpec with hotel_events
+        start_idx: Starting node index
+
+    Returns:
+        (hotel_nodes, next_idx) tuple
+    """
+    nodes: List[Node] = []
+    idx = start_idx
+
+    for day in day_specs:
+        for event in day.hotel_events:
+            # Create a unique ID for this hotel event
+            event_suffix = "checkin" if event.event_type == HotelEventType.CHECK_IN else "checkout"
+            poi_id = f"{event.hotel_id}_{event_suffix}_day{day.day_index}"
+
+            # Time window for this specific day only
+            windows_by_day = {day.day_index: [event.window]}
+
+            # Keep hotel name clean, store event type in dedicated field
+            nodes.append(
+                Node(
+                    idx=idx,
+                    poi_id=poi_id,
+                    name=event.hotel_name,  # Clean name without suffix
+                    role="accommodation",
+                    lat=event.lat,
+                    lon=event.lon,
+                    service=event.service_time,
+                    themes=None,
+                    windows_by_day=windows_by_day,
+                    is_mandatory=True,
+                    maut_score=0.0,
+                    hotel_event_type=event_suffix,  # "checkin" or "checkout"
+                )
+            )
+            idx += 1
+
+    return nodes, idx
+
+
 def create_nodes(
     maut_output: dict,
     day_specs: List[DaySpec],
-    hotel: Dict[str, float],
+    hotel: Dict[str, Any],
     pacing: str,
     mandatory: Optional[Dict[str, Dict]] = None,
 ) -> List[Node]:
-    """Create a list of all nodes (depot and POIs) for the VRP.
+    """
+    Create all nodes for the VRP problem.
 
-    Note: All attractions from MAUT are included (no theme filtering here).
-    Theme diversity is enforced during route optimization via penalties and constraints.
-    MAUT already pre-filters POIs by theme relevance during scoring.
-    Excluded themes are filtered at the database level via p_excluded_themes.
+    Node structure:
+    - Index 0: Depot node (hotel, for backward compatibility)
+    - Hotel event nodes: Mandatory check-in/check-out nodes with time windows
+    - POI nodes: Attractions and meals
+
+    The depot node is kept for backward compatibility but the solver should
+    use hotel event nodes for actual scheduling constraints.
     """
     nodes: List[Node] = []
     idx = 0
 
-    # Depot node (index 0)
+    # Depot node (index 0) - kept for backward compatibility
+    # On days without hotel events, the solver starts from time, not location
     nodes.append(
         Node(
             idx=idx,
@@ -538,6 +851,10 @@ def create_nodes(
     )
     idx += 1
 
+    # Create mandatory hotel event nodes (check-in/check-out)
+    hotel_event_nodes, idx = create_hotel_event_nodes(day_specs, idx)
+    nodes.extend(hotel_event_nodes)
+
     # POI nodes - include all POIs from MAUT (already theme-filtered by MAUT scoring)
     places = maut_output.get("places", [])
     for poi in places:
@@ -546,7 +863,7 @@ def create_nodes(
         if "meal" in roles:
             role = "meal"
         elif "accommodation" in roles:
-            # Skip accommodations as they are handled as depots
+            # Skip accommodations as they are handled separately
             continue
 
         # Each POI can be visited on any day, so create a version for each day
@@ -571,20 +888,32 @@ def create_nodes(
 
 def build_problem(
     maut_output: dict,
-    hotel: Dict[str, float],
+    hotel: Dict[str, Any],
     pacing: str = "balanced",
     mandatory: Optional[Dict[str, Dict]] = None,
+    is_first_city: bool = True,
+    is_last_city: bool = True,
+    prev_city_hotel: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[DaySpec], List[Node], List[List[int]]]:
     """
     Convert MAUT output to the VRP problem format (DaySpecs, Nodes, Travel Matrix).
 
     This is the shared entry point for both OR-Tools CVRPTW and ACS-CVRPTW solvers.
 
+    Hotel events are modeled correctly:
+    - Check-in on first day of first city (14:00-16:00)
+    - Check-out on last day of last city (10:00-12:00)
+    - Both on city transition days
+    - No hotel events on middle days (free days)
+
     Args:
         maut_output: MAUT output with places and meta
         hotel: Hotel dict with id, name, lat, lon
         pacing: "relaxed" | "balanced" | "packed"
         mandatory: Optional mandatory POI constraints {poi_id: {day, window, time_type}}
+        is_first_city: Whether this is the first city in a multi-city trip
+        is_last_city: Whether this is the last city in a multi-city trip
+        prev_city_hotel: Previous city's hotel for transition day handling
 
     Returns:
         (day_specs, nodes, travel_matrix) tuple for solver input
@@ -592,7 +921,14 @@ def build_problem(
     # Import here to avoid circular dependency
     from app.services.osrm import osrm_client
 
-    day_specs = create_day_specs(maut_output, hotel, pacing)
+    day_specs = create_day_specs(
+        maut_output,
+        hotel,
+        pacing,
+        is_first_city=is_first_city,
+        is_last_city=is_last_city,
+        prev_city_hotel=prev_city_hotel,
+    )
     nodes = create_nodes(maut_output, day_specs, hotel, pacing, mandatory)
 
     # Create the travel matrix using OSRM
@@ -600,3 +936,84 @@ def build_problem(
     travel_matrix = osrm_client.matrix_minutes(coords)
 
     return day_specs, nodes, travel_matrix
+
+
+def build_multi_city_problem(
+    city_segments: List[Dict[str, Any]],
+    pacing: str = "balanced",
+    mandatory: Optional[Dict[str, Dict]] = None,
+) -> Tuple[List[DaySpec], List[Node], List[List[int]]]:
+    """
+    Build a unified VRP problem for multi-city trips with inter-city travel.
+
+    This function creates a global OSRM matrix that includes:
+    - All POIs across all cities
+    - All hotel nodes (for check-in/check-out events)
+    - Inter-city travel times
+
+    Args:
+        city_segments: List of city segment dicts, each containing:
+            - maut_output: City's MAUT output
+            - hotel: City's hotel
+            - is_first_city: bool
+            - is_last_city: bool
+            - prev_city_hotel: Previous city's hotel (for transitions)
+        pacing: Trip pacing
+        mandatory: Mandatory POI constraints
+
+    Returns:
+        (day_specs, nodes, travel_matrix) tuple for solver input
+    """
+    from app.services.osrm import osrm_client
+
+    all_day_specs: List[DaySpec] = []
+    all_nodes: List[Node] = []
+    global_day_offset = 0
+    node_idx = 0
+
+    # First pass: collect all nodes and day specs
+    for segment in city_segments:
+        maut_output = segment["maut_output"]
+        hotel = segment["hotel"]
+        is_first = segment.get("is_first_city", False)
+        is_last = segment.get("is_last_city", False)
+        prev_hotel = segment.get("prev_city_hotel")
+
+        # Create day specs for this segment
+        day_specs = create_day_specs(
+            maut_output,
+            hotel,
+            pacing,
+            is_first_city=is_first,
+            is_last_city=is_last,
+            prev_city_hotel=prev_hotel,
+        )
+
+        # Adjust day indices to be global
+        for ds in day_specs:
+            ds.day_index += global_day_offset
+
+        all_day_specs.extend(day_specs)
+
+        # Create nodes for this segment
+        nodes = create_nodes(maut_output, day_specs, hotel, pacing, mandatory)
+
+        # Adjust node indices to be global
+        for node in nodes:
+            node.idx = node_idx
+            # Adjust windows_by_day keys to global day indices
+            new_windows = {}
+            for local_day, windows in node.windows_by_day.items():
+                global_day = local_day + global_day_offset
+                new_windows[global_day] = windows
+            node.windows_by_day = new_windows
+            node_idx += 1
+
+        all_nodes.extend(nodes)
+        global_day_offset += len(day_specs)
+
+    # Create global travel matrix including inter-city travel
+    coords = [(n.lat, n.lon) for n in all_nodes]
+    travel_matrix = osrm_client.matrix_minutes(coords)
+
+    return all_day_specs, all_nodes, travel_matrix

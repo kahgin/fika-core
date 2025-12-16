@@ -1,23 +1,72 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional
+from enum import Enum
 
 from pydantic import BaseModel, Field
 import yaml
 from pathlib import Path
 
 
+class HotelEventType(Enum):
+    """Types of hotel events that require visiting the hotel."""
+
+    NONE = "none"  # No hotel visit required (default day)
+    CHECK_IN = "check_in"  # Must arrive at hotel (14:00-16:00)
+    CHECK_OUT = "check_out"  # Must depart from hotel (10:00-12:00)
+
+
+@dataclass
+class HotelEvent:
+    """Represents a mandatory hotel visit event."""
+
+    event_type: HotelEventType
+    hotel_id: str
+    hotel_name: str
+    lat: float
+    lon: float
+    window: Tuple[int, int]  # (start_min, end_min) time window
+    service_time: int = 30  # Minutes for check-in/out process
+
+
 @dataclass
 class DaySpec:
-    """Specification for a single day in the itinerary."""
+    """
+    Specification for a single day in the itinerary.
+
+    The hotel is NOT a universal depot. It only matters when there's a real-world
+    hotel event (check-in or check-out). Most days start at a time, not a location.
+    """
 
     day_index: int
     date: dt.date
     start_min: int
     end_min: int
-    depot_id: str
+    depot_id: str  # Kept for backward compatibility, but may be None for free days
+    # Hotel events for this day (check-in, check-out, or none)
+    hotel_events: List[HotelEvent] = field(default_factory=list)
+
+    @property
+    def has_hotel_event(self) -> bool:
+        """Check if this day has any mandatory hotel events."""
+        return len(self.hotel_events) > 0
+
+    @property
+    def has_check_in(self) -> bool:
+        """Check if this day has a check-in event."""
+        return any(e.event_type == HotelEventType.CHECK_IN for e in self.hotel_events)
+
+    @property
+    def has_check_out(self) -> bool:
+        """Check if this day has a check-out event."""
+        return any(e.event_type == HotelEventType.CHECK_OUT for e in self.hotel_events)
+
+    @property
+    def is_transition_day(self) -> bool:
+        """Check if this is a city transition day (has both check-out and check-in)."""
+        return self.has_check_in and self.has_check_out
 
 
 @dataclass
@@ -35,6 +84,8 @@ class Node:
     windows_by_day: Dict[int, List[Tuple[int, int]]]
     is_mandatory: bool = False
     maut_score: float = 0.0  # MAUT score for review/quality prioritization
+    # Hotel event type: "checkin" or "checkout" for accommodation nodes
+    hotel_event_type: Optional[str] = None
 
 
 class VRPConfig(BaseModel):
@@ -66,7 +117,7 @@ class VRPConfig(BaseModel):
     # Default Time Windows (minutes from midnight)
     default_role_windows: Dict[str, Tuple[int, int]] = Field(
         default={
-            "attraction": (9 * 60, 19 * 60),
+            "attraction": (9 * 60, 22 * 60),
             "meal": (10 * 60, 22 * 60),
             "accommodation": (0, 24 * 60),
             "depot": (0, 24 * 60),
@@ -78,6 +129,23 @@ class VRPConfig(BaseModel):
     meal_hard_tol_min: int = Field(
         default=90,
         description="Tolerance for how far a meal can be from a preferred window (ACS hard, OR-Tools soft)",
+    )
+
+    # Hotel Event Time Windows (minutes from midnight)
+    # Check-in: typically 14:00-16:00 (840-960 minutes)
+    hotel_check_in_window: Tuple[int, int] = Field(
+        default=(14 * 60, 16 * 60),
+        description="Time window for hotel check-in (arrival at hotel)",
+    )
+    # Check-out: typically 10:00-12:00 (600-720 minutes)
+    hotel_check_out_window: Tuple[int, int] = Field(
+        default=(10 * 60, 12 * 60),
+        description="Time window for hotel check-out (departure from hotel)",
+    )
+    # Service time for check-in/out process
+    hotel_service_time: int = Field(
+        default=30,
+        description="Minutes required for hotel check-in/out process",
     )
 
     # Penalties (in 'minute-cost' units)

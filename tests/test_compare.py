@@ -2,7 +2,7 @@
 Comparison test: ACS-CVRPTW vs OR-Tools CVRPTW.
 
 Purpose: Compare solution quality between the two solvers on the same input.
-Metrics aligned with methodology document:
+Metrics:
 - Time Window Satisfaction Rate
 - Time Utilisation Score (TUS)
 - Constraint Compliance (meals, themes, mandatory POIs)
@@ -59,7 +59,7 @@ class SolverMetrics:
 
     solver_name: str
 
-    # Execution Time (critical for comparison)
+    # Execution Time
     execution_time_sec: float  # Time taken to solve
 
     # Time Window Satisfaction
@@ -358,7 +358,7 @@ def evaluate_solution(
     execution_time_sec: float = 0.0,
 ) -> SolverMetrics:
     """
-    Comprehensive evaluation of a solver's solution using methodology metrics.
+    Comprehensive evaluation of a solver's solution.
     """
     days = output.get("days", [])
     meta = output.get("meta", {})

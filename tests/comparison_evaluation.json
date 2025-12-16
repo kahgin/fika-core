@@ -2,20 +2,20 @@
   "pacing": "balanced",
   "ortools": {
     "solver": "OR-Tools",
-    "execution_time_sec": 25.22661542892456,
+    "execution_time_sec": 25.839144229888916,
     "time_window_satisfaction_rate": 100.0,
-    "time_utilisation_score": 87.96296296296298,
+    "time_utilisation_score": 92.5925925925926,
     "daily_utilisation": [
-      81.25,
+      95.13888888888889,
       87.5,
       95.13888888888889
     ],
-    "total_travel_time_min": 1900,
-    "total_distance_km": 88.26,
+    "total_travel_time_min": 2000,
+    "total_distance_km": 55.15,
     "unique_pois": 15,
-    "meals_scheduled": 8,
-    "attractions_scheduled": 7,
-    "meal_window_compliance": 37.5,
+    "meals_scheduled": 7,
+    "attractions_scheduled": 8,
+    "meal_window_compliance": 14.285714285714285,
     "constraints": {
       "time_sequence": true,
       "meal_constraints": true,
@@ -28,20 +28,20 @@
   },
   "acs": {
     "solver": "ACS",
-    "execution_time_sec": 5.282102584838867,
+    "execution_time_sec": 5.214227914810181,
     "time_window_satisfaction_rate": 100.0,
-    "time_utilisation_score": 79.16666666666667,
+    "time_utilisation_score": 80.78703703703702,
     "daily_utilisation": [
+      84.72222222222221,
       79.16666666666666,
-      77.77777777777779,
-      80.55555555555556
+      78.47222222222221
     ],
-    "total_travel_time_min": 1710,
-    "total_distance_km": 101.73,
-    "unique_pois": 14,
-    "meals_scheduled": 8,
+    "total_travel_time_min": 1745,
+    "total_distance_km": 106.83,
+    "unique_pois": 13,
+    "meals_scheduled": 7,
     "attractions_scheduled": 6,
-    "meal_window_compliance": 62.5,
+    "meal_window_compliance": 71.42857142857143,
     "constraints": {
       "time_sequence": true,
       "meal_constraints": true,

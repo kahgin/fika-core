@@ -18,7 +18,7 @@ def mock_osrm():
 
 @pytest.fixture
 def basic_maut_output():
-    """Basic MAUT output fixture."""
+    """Basic MAUT output fixture with 2 days (multi-day trip)."""
     return {
         "places": [
             {
@@ -39,6 +39,26 @@ def basic_maut_output():
             "num_days": 2,
             "dates": {"type": "flexible", "days": 2},
             "selected_themes": ["cultural_history"],
+        },
+    }
+
+
+@pytest.fixture
+def single_day_maut_output():
+    """Single-day MAUT output fixture."""
+    return {
+        "places": [
+            {
+                "id": "attraction1",
+                "name": "Marina Bay",
+                "roles": ["attraction"],
+                "coordinates": {"lat": 1.28, "lng": 103.85},
+                "themes": ["cultural_history"],
+            },
+        ],
+        "meta": {
+            "num_days": 1,
+            "dates": {"type": "flexible", "days": 1},
         },
     }
 
@@ -71,7 +91,7 @@ class TestBuildProblemDepot:
         assert depot.idx == 0
         assert depot.poi_id == hotel["id"]
         assert depot.name == hotel["name"]
-        assert depot.role == "depot"  # Current implementation uses "depot"
+        assert depot.role == "depot"
         assert depot.lat == hotel["lat"]
         assert depot.lon == hotel["lon"]
 
@@ -140,6 +160,42 @@ class TestBuildProblemDepot:
             if node.idx == 0:
                 assert len(node.windows_by_day) == len(day_specs)
 
+    def test_single_day_trip_no_hotel_events(self, mock_osrm, single_day_maut_output, hotel):
+        """Test that single-day trips have NO hotel event nodes."""
+        day_specs, nodes, travel = build_problem(
+            single_day_maut_output,
+            hotel,
+            pacing="balanced",
+            is_first_city=True,
+            is_last_city=True,
+        )
+
+        # Single-day trip should have no hotel events
+        assert len(day_specs) == 1
+        assert day_specs[0].has_hotel_event is False
+
+        # No mandatory accommodation nodes
+        accommodation_nodes = [n for n in nodes if n.role == "accommodation" and n.is_mandatory]
+        assert len(accommodation_nodes) == 0
+
+    def test_multi_day_trip_has_hotel_events(self, mock_osrm, basic_maut_output, hotel):
+        """Test that multi-day trips have hotel check-in and check-out."""
+        day_specs, nodes, travel = build_problem(
+            basic_maut_output,
+            hotel,
+            pacing="balanced",
+            is_first_city=True,
+            is_last_city=True,
+        )
+
+        # Multi-day trip should have hotel events
+        assert day_specs[0].has_check_in is True
+        assert day_specs[-1].has_check_out is True
+
+        # Should have mandatory accommodation nodes
+        accommodation_nodes = [n for n in nodes if n.role == "accommodation" and n.is_mandatory]
+        assert len(accommodation_nodes) >= 2  # At least check-in and check-out
+
 
 class TestBuildProblemMandatory:
     """Tests for mandatory POI handling in build_problem."""
@@ -155,9 +211,12 @@ class TestBuildProblemMandatory:
             mandatory=mandatory,
         )
 
-        # Find the mandatory node
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
-        assert len(mandatory_nodes) > 0
+        # Find the mandatory POI node (exclude hotel event nodes)
+        mandatory_poi_nodes = [
+            n for n in nodes
+            if n.is_mandatory and n.role not in ("depot", "accommodation")
+        ]
+        assert len(mandatory_poi_nodes) > 0
 
     def test_build_problem_mandatory_window(self, mock_osrm, basic_maut_output, hotel):
         """Test that mandatory POIs have constrained windows."""
@@ -170,13 +229,17 @@ class TestBuildProblemMandatory:
             mandatory=mandatory,
         )
 
-        # Find the mandatory node for day 0 (API is 1-based)
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
-        assert len(mandatory_nodes) > 0
+        # Find the mandatory POI node for day 0 (API is 1-based, so day=1 means day_index=0)
+        # Exclude hotel event nodes (accommodation role)
+        mandatory_poi_nodes = [
+            n for n in nodes
+            if n.is_mandatory and n.role not in ("depot", "accommodation")
+        ]
+        assert len(mandatory_poi_nodes) > 0
 
-        # Check window is constrained
-        for node in mandatory_nodes:
-            if 0 in node.windows_by_day:
+        # Check window is constrained for the attraction node
+        for node in mandatory_poi_nodes:
+            if "attraction1" in node.poi_id and 0 in node.windows_by_day:
                 windows = node.windows_by_day[0]
                 assert len(windows) == 1
                 assert windows[0] == (10 * 60, 12 * 60)  # 10:00-12:00

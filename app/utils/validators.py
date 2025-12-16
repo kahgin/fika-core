@@ -178,8 +178,8 @@ def validate_itinerary(
 
     # Day end times based on pacing
     day_end_times = {
-        "relaxed": 18 * 60,  # 18:00
-        "balanced": 20 * 60,  # 20:00
+        "relaxed": 20 * 60,  # 20:00
+        "balanced": 22 * 60,  # 22:00
         "packed": 22 * 60,  # 22:00
     }
     day_end_default = day_end_times.get(pacing, 20 * 60)

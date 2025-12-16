@@ -866,7 +866,34 @@ def run_full_pipeline(
         if current_city and current_days:
             city_segments.append((current_city, current_days))
 
-        # Process each city segment
+        # Track hotels for each segment to handle city transitions
+        segment_hotels: List[Dict[str, Any]] = []
+
+        # First pass: select hotels for all segments
+        for segment_idx, (area_name, segment_days) in enumerate(city_segments):
+            maut_city = cities.get(area_name)
+            if not maut_city:
+                segment_hotels.append(None)
+                continue
+
+            allocated_days = len(segment_days)
+            if allocated_days == 0:
+                segment_hotels.append(None)
+                continue
+
+            maut_city["meta"]["num_days"] = allocated_days
+
+            hotel_city = select_hotel_for_city(
+                maut_city,
+                allocated_days,
+                user_hotels_by_city,
+                request_id,
+                global_fallback_hotel=global_fallback_hotel,
+                all_accommodations=all_accommodations,
+            )
+            segment_hotels.append(hotel_city if hotel_city.get("status") != "error" else None)
+
+        # Process each city segment with proper hotel event handling
         for segment_idx, (area_name, segment_days) in enumerate(city_segments):
             maut_city = cities.get(area_name)
             if not maut_city:
@@ -886,18 +913,20 @@ def run_full_pipeline(
 
             maut_city["meta"]["num_days"] = allocated_days
 
-            hotel_city = select_hotel_for_city(
-                maut_city,
-                allocated_days,
-                user_hotels_by_city,
-                request_id,
-                global_fallback_hotel=global_fallback_hotel,
-                all_accommodations=all_accommodations,
-            )
-            if hotel_city.get("status") == "error":
+            hotel_city = segment_hotels[segment_idx]
+            if hotel_city is None or hotel_city.get("status") == "error":
                 failed_cities.append(area_name)
-                logger.error(f"Hotel selection failed for {area_name}: {hotel_city.get('error')}")
+                logger.error(f"Hotel selection failed for {area_name}")
                 continue
+
+            # Determine city position for hotel event handling
+            is_first_city = segment_idx == 0
+            is_last_city = segment_idx == len(city_segments) - 1
+
+            # Get previous city's hotel for transition day handling
+            prev_city_hotel = None
+            if segment_idx > 0 and segment_hotels[segment_idx - 1] is not None:
+                prev_city_hotel = segment_hotels[segment_idx - 1]
 
             try:
                 # Filter mandatory POIs for this segment's days
@@ -918,15 +947,15 @@ def run_full_pipeline(
                     )
 
                 if solver == "acs":
-                    # selected_themes = maut_city.get("meta", {}).get(
-                    #     "selected_themes", []
-                    # )
+                    # Build problem with proper hotel event handling
                     day_specs, nodes, travel = build_problem(
                         maut_city,
                         hotel_city,
                         pacing=pacing,
-                        # selected_themes=selected_themes,
                         mandatory=segment_mandatory,
+                        is_first_city=is_first_city,
+                        is_last_city=is_last_city,
+                        prev_city_hotel=prev_city_hotel,
                     )
                     _log_event(
                         "build_problem.call",
@@ -937,7 +966,6 @@ def run_full_pipeline(
                         },
                         request_id,
                     )
-                    # Methodology Table 11: target 3 meals per day
                     cvrptw_output = run_acs_cvrptw(
                         day_specs=day_specs,
                         nodes=nodes,
@@ -1138,6 +1166,9 @@ def run_full_pipeline(
             request_id,
         )
 
+        # Save debug output to storage for inspection
+        # _save_debug_output(result, request_id)
+
         return result
 
     except Exception as e:
@@ -1161,7 +1192,7 @@ def _run_single_city_pipeline(
     request_id: str,
 ) -> Dict[str, Any]:
     """
-    Original single-city pipeline flow for backward compatibility.
+    Single-city pipeline flow.
     """
     try:
         if solver == "acs":
@@ -1173,7 +1204,6 @@ def _run_single_city_pipeline(
                 mandatory=mandatory,
             )
 
-            # Methodology Table 11: target 3 meals per day
             cvrptw_output = run_acs_cvrptw(
                 day_specs=day_specs,
                 nodes=nodes,
@@ -1259,6 +1289,26 @@ def _run_single_city_pipeline(
 
 
 # Helpers
+
+
+def _save_debug_output(result: Dict[str, Any], request_id: str) -> None:
+    """Save pipeline output to storage for debugging."""
+    from pathlib import Path
+    import datetime
+
+    storage_dir = Path(__file__).parent.parent.parent / "storage"
+    storage_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"itinerary_debug_{timestamp}_{request_id[:8]}.json"
+    filepath = storage_dir / filename
+
+    try:
+        with open(filepath, "w") as f:
+            json.dump(result, f, indent=2, default=str)
+        logger.info(f"Debug output saved to {filepath}")
+    except Exception as e:
+        logger.warning(f"Failed to save debug output: {e}")
 
 
 def _enrich_stops_with_coords(

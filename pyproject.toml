@@ -3,7 +3,7 @@ name = "fika-core"
 version = "0.1.0"
 description = "Core for Fika Travel Itinerary Planner"
 readme = "README.md"
-requires-python = "==3.10.*"
+requires-python = ">=3.10,<3.12"
 dependencies = [
     "fastapi>=0.123.0",
     "uvicorn[standard]>=0.38.0",
