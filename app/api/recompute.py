@@ -3,8 +3,8 @@ Recompute API: Re-optimize itineraries with different strategies.
 
 Modes:
 1. full: Strip everything, regenerate from meta + mandatory POIs
-2. partial: Keep current POIs, re-optimize schedule
-3. single_day: Re-optimize a specific day only
+2. partial: Keep current POIs from days, re-optimize schedule
+3. single_day: Re-optimize a specific day using that day's POIs
 """
 
 from fastapi import APIRouter, HTTPException
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api", tags=["recompute"])
 
 
 def _normalize_destination_name(raw) -> str | None:
-    """Normalize location label to city name. Example: 'Johor, Malaysia' -> 'Johor'."""
+    """Normalize location label to city name."""
     if not raw:
         return None
     name = str(raw).strip()
@@ -37,13 +37,90 @@ def _sanitize_images(v) -> list[str]:
         return [s] if s else []
     if not isinstance(v, list):
         return []
-    out: list[str] = []
-    for img in v:
-        if isinstance(img, str):
-            s = img.strip()
-            if s:
-                out.append(s)
-    return out
+    return [img.strip() for img in v if isinstance(img, str) and img.strip()]
+
+
+def _extract_pois_from_days(days: list) -> list[dict]:
+    """
+    Extract unique POIs from itinerary days.
+
+    Returns a list of POI dicts suitable for MAUT/solver input.
+    Deduplicates by poi_id.
+    """
+    seen_ids = set()
+    pois = []
+
+    for day in days:
+        for stop in day.get("stops", []):
+            poi_id = stop.get("poi_id")
+            if not poi_id or poi_id in seen_ids:
+                continue
+
+            # Skip depot/hotel nodes that aren't accommodation events
+            role = stop.get("role", "attraction")
+            if role == "depot":
+                continue
+
+            seen_ids.add(poi_id)
+
+            # Build POI dict
+            coords = stop.get("coordinates") or {}
+            lat = coords.get("lat") or stop.get("latitude")
+            lng = coords.get("lng") or stop.get("longitude")
+
+            poi = {
+                "id": poi_id,
+                "name": stop.get("name", "Unknown"),
+                "coordinates": {"lat": lat, "lng": lng},
+                "roles": [role],
+                "themes": stop.get("themes", []),
+                "open_hours": stop.get("open_hours"),
+                "images": _sanitize_images(stop.get("images")),
+            }
+
+            # Preserve area_name/destination for multi-city
+            area = stop.get("area_name") or stop.get("destination")
+            if area:
+                poi["area_name"] = area
+
+            pois.append(poi)
+
+    return pois
+
+
+def _extract_pois_from_single_day(day: dict) -> list[dict]:
+    """Extract POIs from a single day."""
+    seen_ids = set()
+    pois = []
+
+    for stop in day.get("stops", []):
+        poi_id = stop.get("poi_id")
+        if not poi_id or poi_id in seen_ids:
+            continue
+
+        role = stop.get("role", "attraction")
+        if role == "depot":
+            continue
+
+        seen_ids.add(poi_id)
+
+        coords = stop.get("coordinates") or {}
+        lat = coords.get("lat") or stop.get("latitude")
+        lng = coords.get("lng") or stop.get("longitude")
+
+        poi = {
+            "id": poi_id,
+            "name": stop.get("name", "Unknown"),
+            "coordinates": {"lat": lat, "lng": lng},
+            "roles": [role],
+            "themes": stop.get("themes", []),
+            "open_hours": stop.get("open_hours"),
+            "images": _sanitize_images(stop.get("images")),
+        }
+
+        pois.append(poi)
+
+    return pois
 
 
 @router.post("/itinerary/{itin_id}/recompute")
@@ -63,11 +140,8 @@ def recompute_itinerary(itin_id: str, payload: dict):
 
     Modes:
     - full: Regenerate from scratch using meta + mandatory POIs
-    - partial: Re-optimize current POIs in schedule
-    - single_day: Re-optimize specific day only
-
-    Returns:
-        Updated itinerary data
+    - partial: Re-optimize using POIs currently in days (not items bucket)
+    - single_day: Re-optimize specific day using that day's POIs
     """
     try:
         mode = payload.get("mode", "partial")
@@ -117,8 +191,6 @@ def recompute_itinerary(itin_id: str, payload: dict):
 def _recompute_full(data: dict, options: dict) -> dict:
     """
     Full recompute: Strip days & items, regenerate from meta + mandatory POIs.
-
-    This is equivalent to creating a new itinerary with the same parameters.
     """
     meta = data.get("meta", {})
 
@@ -191,7 +263,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
                 "lat": hotel_data.get("latitude"),
                 "lng": hotel_data.get("longitude"),
             },
-            "poi_roles": [hotel_data.get("role", "accommodation")],
+            "roles": [hotel_data.get("role", "accommodation")],
             "themes": hotel_data.get("themes", []),
             "images": hotel_data.get("images", []),
             "source": "user",
@@ -226,7 +298,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
                 "lat": poi.get("latitude"),
                 "lng": poi.get("longitude"),
             },
-            "poi_roles": [poi.get("role", "attraction")],
+            "roles": [poi.get("role", "attraction")],
             "area_name": poi.get("poi_destination"),
             "themes": poi.get("themes", []),
             "images": _sanitize_images(poi.get("images")),
@@ -236,13 +308,29 @@ def _recompute_full(data: dict, options: dict) -> dict:
 
     maut_output["places"] = places
 
+    # Build user_input with hotels by city
+    user_input = {}
+    user_hotels_by_city = {}
+    for hotel_data in payload.get("hotels", []):
+        hotel_destination = hotel_data.get("destination")
+        hotel_area_name = _normalize_destination_name(hotel_destination) if hotel_destination else None
+        if hotel_area_name:
+            user_hotels_by_city[hotel_area_name] = {
+                "id": hotel_data.get("poi_id"),
+                "name": hotel_data.get("poi_name", "Hotel"),
+                "lat": hotel_data.get("latitude"),
+                "lon": hotel_data.get("longitude"),
+            }
+    if user_hotels_by_city:
+        user_input["user_hotels_by_city"] = user_hotels_by_city
+
     pipeline_output = run_full_pipeline(
         maut_output=maut_output,
-        hotel=None,
         pacing=maut_request.get("pacing", "balanced"),
         mandatory=mandatory if mandatory else None,
         time_limit_sec=20,
         solver="acs",
+        user_input=user_input if user_input else None,
     )
 
     if not pipeline_output.get("days") or pipeline_output.get("status") not in (
@@ -263,56 +351,34 @@ def _recompute_full(data: dict, options: dict) -> dict:
 
 def _recompute_partial(data: dict, options: dict) -> dict:
     """
-    Partial recompute: Keep current POIs, re-optimize schedule with ACS.
+    Partial recompute: Re-optimize using POIs currently in days.
 
-    Uses existing POIs from plan.items and re-runs ACS-CVRPTW.
+    Extracts POIs from plan.days (not items bucket), deduplicates,
+    and re-runs ACS solver while preserving city assignments.
     """
     plan = data.get("plan", {})
     days = plan.get("days", [])
-    items = plan.get("items", [])
     meta = data.get("meta", {})
 
-    if not days or not items:
-        raise HTTPException(status_code=400, detail="No existing plan to recompute")
+    if not days:
+        raise HTTPException(status_code=400, detail="No existing days to recompute")
 
-    places = []
-    for item in items:
-        places.append(
-            {
-                "id": item.get("id"),
-                "name": item.get("name"),
-                "coordinates": item.get("coordinates", {}),
-                "poi_roles": item.get("roles", []),
-                "themes": item.get("themes", []),
-                "images": _sanitize_images(item.get("images")),
-                "open_hours": item.get("openHours"),
-            }
-        )
+    # Extract POIs from days
+    places = _extract_pois_from_days(days)
 
-    maut_output = {
-        "status": "ok",
-        "places": places,
-        "meta": {
-            "dates": meta.get("dates", {}),
-            "num_days": meta.get("num_days", len(days)),
-        },
-    }
+    if not places:
+        raise HTTPException(status_code=400, detail="No POIs found in days")
 
-    first_day = days[0] if days else {}
-    depot_id = first_day.get("depot_id")
-    hotel = None
+    # Group POIs by city/destination
+    pois_by_city: dict[str, list] = {}
+    for poi in places:
+        city = poi.get("area_name") or "default"
+        pois_by_city.setdefault(city, []).append(poi)
 
-    if depot_id:
-        for stop in first_day.get("stops", []):
-            if stop.get("poi_id") == depot_id:
-                hotel = {
-                    "id": depot_id,
-                    "name": stop.get("name", "Hotel"),
-                    "lat": stop.get("latitude"),
-                    "lon": stop.get("longitude"),
-                }
-                break
+    # Get hotel info
+    hotels_from_meta = meta.get("hotels", [])
 
+    # Build mandatory constraints
     mandatory = {}
     for poi in meta.get("mandatory_pois", []):
         poi_id = poi.get("poi_id")
@@ -324,14 +390,109 @@ def _recompute_partial(data: dict, options: dict) -> dict:
 
     pacing = options.get("pacing") or meta.get("preferences", {}).get("pacing", "balanced")
 
-    pipeline_output = run_full_pipeline(
-        maut_output=maut_output,
-        hotel=hotel,
-        pacing=pacing,
-        mandatory=mandatory if mandatory else None,
-        time_limit_sec=15,
-        solver="acs",
-    )
+    # If single city, run simple pipeline
+    if len(pois_by_city) == 1:
+        city_name = list(pois_by_city.keys())[0]
+        city_pois = pois_by_city[city_name]
+
+        # Find hotel for this city
+        hotel = None
+        for h in hotels_from_meta:
+            hotel = {
+                "id": h.get("poi_id"),
+                "name": h.get("poi_name", "Hotel"),
+                "lat": h.get("latitude"),
+                "lon": h.get("longitude"),
+            }
+            break
+
+        if not hotel:
+            # Use first accommodation from POIs
+            for poi in city_pois:
+                if "accommodation" in poi.get("roles", []):
+                    coords = poi.get("coordinates", {})
+                    hotel = {
+                        "id": poi["id"],
+                        "name": poi["name"],
+                        "lat": coords.get("lat"),
+                        "lon": coords.get("lng"),
+                    }
+                    break
+
+        if not hotel:
+            raise HTTPException(status_code=400, detail="No hotel found for recompute")
+
+        maut_output = {
+            "status": "ok",
+            "places": city_pois,
+            "meta": {
+                "dates": meta.get("dates", {}),
+                "num_days": len(days),
+            },
+        }
+
+        pipeline_output = run_full_pipeline(
+            maut_output=maut_output,
+            pacing=pacing,
+            mandatory=mandatory if mandatory else None,
+            time_limit_sec=15,
+            solver="acs",
+        )
+    else:
+        # Multi-city: preserve city order from original days
+        city_order = []
+        city_days_count = {}
+
+        for day in days:
+            city = day.get("destination") or day.get("area_name") or "default"
+            if city not in city_order:
+                city_order.append(city)
+            city_days_count[city] = city_days_count.get(city, 0) + 1
+
+        # Build combined MAUT output
+        all_places = []
+        for city in city_order:
+            for poi in pois_by_city.get(city, []):
+                poi["area_name"] = city
+                all_places.append(poi)
+
+        maut_output = {
+            "status": "ok",
+            "places": all_places,
+            "meta": {
+                "dates": meta.get("dates", {}),
+                "num_days": len(days),
+            },
+        }
+
+        # Build user_input for city allocation
+        user_input = {
+            "days_per_city": city_days_count,
+            "city_order": city_order,
+        }
+
+        # Build hotels by city
+        user_hotels = {}
+        for h in hotels_from_meta:
+            dest = _normalize_destination_name(h.get("destination"))
+            if dest:
+                user_hotels[dest] = {
+                    "id": h.get("poi_id"),
+                    "name": h.get("poi_name", "Hotel"),
+                    "lat": h.get("latitude"),
+                    "lon": h.get("longitude"),
+                }
+        if user_hotels:
+            user_input["user_hotels_by_city"] = user_hotels
+
+        pipeline_output = run_full_pipeline(
+            maut_output=maut_output,
+            pacing=pacing,
+            mandatory=mandatory if mandatory else None,
+            time_limit_sec=15,
+            solver="acs",
+            user_input=user_input,
+        )
 
     if not pipeline_output.get("days") or pipeline_output.get("status") not in (
         "success",
@@ -347,13 +508,12 @@ def _recompute_partial(data: dict, options: dict) -> dict:
 
 def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     """
-    Single-day recompute: Re-optimize a specific day only with ACS.
+    Single-day recompute: Re-optimize a specific day using that day's POIs.
 
-    Keeps other days unchanged, re-runs ACS for the specified day.
+    Keeps other days unchanged, re-runs ACS for the specified day only.
     """
     plan = data.get("plan", {})
     days = plan.get("days", [])
-    items = plan.get("items", [])
     meta = data.get("meta", {})
 
     if day_index < 0 or day_index >= len(days):
@@ -361,20 +521,13 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
 
     target_day = days[day_index]
 
-    places = []
-    for item in items:
-        places.append(
-            {
-                "id": item.get("id"),
-                "name": item.get("name"),
-                "coordinates": item.get("coordinates", {}),
-                "poi_roles": item.get("roles", []),
-                "themes": item.get("themes", []),
-                "images": _sanitize_images(item.get("images")),
-                "open_hours": item.get("openHours"),
-            }
-        )
+    # Extract POIs from this day only
+    places = _extract_pois_from_single_day(target_day)
 
+    if not places:
+        raise HTTPException(status_code=400, detail="No POIs found in day")
+
+    # Find hotel for this day
     depot_id = target_day.get("depot_id")
     hotel = None
 
@@ -402,7 +555,7 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
 
     if not hotel:
         for stop in target_day.get("stops", []):
-            if "accommodation" in (stop.get("role") or ""):
+            if stop.get("role") == "accommodation":
                 hotel = {
                     "id": stop.get("poi_id"),
                     "name": stop.get("name", "Hotel"),
@@ -411,13 +564,15 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
                 }
                 break
 
-    if not hotel and target_day.get("stops"):
-        first_stop = target_day["stops"][0]
+    if not hotel and places:
+        # Use first POI as reference point
+        first_poi = places[0]
+        coords = first_poi.get("coordinates", {})
         hotel = {
-            "id": first_stop.get("poi_id"),
-            "name": first_stop.get("name", "Start Point"),
-            "lat": first_stop.get("latitude"),
-            "lon": first_stop.get("longitude"),
+            "id": first_poi.get("id"),
+            "name": first_poi.get("name", "Start Point"),
+            "lat": coords.get("lat"),
+            "lon": coords.get("lng"),
         }
 
     if not hotel:
@@ -492,8 +647,8 @@ def _transform_poi_to_frontend(poi: dict) -> dict:
         "reviewCount": poi.get("review_count"),
         "location": None,
         "images": _sanitize_images(poi.get("images")),
-        "roles": poi.get("poi_roles", []),
-        "poiRoles": poi.get("poi_roles", []),
+        "roles": poi.get("roles", []),
+        "poiRoles": poi.get("roles", []),
         "themes": poi.get("themes", []),
         "description": poi.get("description"),
         "coordinates": coords,

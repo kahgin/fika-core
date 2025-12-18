@@ -48,7 +48,7 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     Transform frontend CreateItineraryPayload to internal MAUT request format.
 
     Transformations:
-    - Extract and validate destination
+    - Extract destination from destinations array (first city)
     - Calculate num_days from dates if needed
     - Derive flags from travelers
     - Map preferences to internal format
@@ -88,14 +88,12 @@ def transform_frontend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         if "halal" not in dietary_restrictions and not halal_explicitly_false:
             dietary_restrictions.append("halal")
 
-    # Compute base destination (multi-destination: pick first city)
-    base_destination = payload.get("destination")
-    if isinstance(payload.get("destinations"), list) and payload.get("destinations"):
-        cities = [d.get("city") for d in payload.get("destinations") if d.get("city")]
-        if cities:
-            base_destination = cities[0]
-            logger.info(f"Multi-destination request: cities={cities}, base_destination={base_destination}")
-    if not base_destination:
+    # Extract destination from destinations array
+    destinations = payload.get("destinations", [])
+    if destinations and isinstance(destinations, list):
+        cities = [d.get("city") for d in destinations if d.get("city")]
+        base_destination = cities[0] if cities else "Singapore"
+    else:
         base_destination = "Singapore"
 
     return {
@@ -149,7 +147,6 @@ def transform_poi_to_frontend(poi: Dict[str, Any]) -> Dict[str, Any]:
     location = None
     complete_addr = poi.get("complete_address")
     if isinstance(complete_addr, dict):
-        # Priority: city > country
         location = complete_addr.get("city") or complete_addr.get("country")
 
     return {

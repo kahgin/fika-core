@@ -31,32 +31,15 @@ class POI(BaseModel):
     coordinates: Optional[Coordinates] = None
     open_hours: Optional[Dict[str, Any]] = None
     price_level: Optional[int] = None
+    maut_score: Optional[float] = None
 
     @field_validator("images", mode="before")
     @classmethod
     def filter_none_images(cls, v):
-        """Normalize images into a list of non-empty strings.
-
-        Upstream sources sometimes return `None`, a single string, or lists that
-        contain `None` values. Pydantic v2 is strict about `List[str]`.
-        """
+        """Filter out None values from images list."""
         if v is None:
             return []
-
-        if isinstance(v, str):
-            s = v.strip()
-            return [s] if s else []
-
-        if not isinstance(v, list):
-            return []
-
-        out: List[str] = []
-        for img in v:
-            if isinstance(img, str):
-                s = img.strip()
-                if s:
-                    out.append(s)
-        return out
+        return [img for img in v if img is not None]
 
 
 class DatesFlexible(BaseModel):
@@ -86,8 +69,7 @@ class DestinationSpec(BaseModel):
 class ItineraryRequest(BaseModel):
     """Create itinerary request payload (ingress, canonical snake_case)."""
 
-    destination: Optional[str] = None  # legacy single destination
-    destinations: Optional[List[DestinationSpec]] = None  # multi-destination
+    destinations: Optional[List[DestinationSpec]] = None
     dates: Dict[str, Any] = {}
     travelers: Dict[str, Any] = {}
     preferences: Dict[str, Any] = {}
@@ -127,6 +109,16 @@ class MandatoryPoiSpec(BaseModel):
     day: Optional[int] = None
     window: Optional[Tuple[str, str]] = None
     all_day: Optional[bool] = None
+
+
+class UserHotel(BaseModel):
+    """User-provided hotel (used in multi-city pinning and depot selection)."""
+
+    id: str
+    name: str
+    lat: float
+    lon: float
+    source: str = "user"
 
 
 class ReorderItineraryRequest(BaseModel):

@@ -8,11 +8,9 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from app.services.vrp_model import vrp_config
 from app.services.vrp_utils import build_problem
-from app.services.cvrptw import run_cvrptw
+from app.services.or_tools_cvrptw import run_cvrptw
 from app.services.acs_cvrptw import run_acs_cvrptw
-from app.services.city_day_allocator import (
-    allocate_days_to_cities,
-)
+from app.services.city_day_allocator import allocate_days_to_cities
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -468,14 +466,13 @@ def validate_global_rules(
     request_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Validate legacy constraints on the final result.
+    Validate constraints on the final result.
 
     Checks:
     1. Meal rules: per day meals_count <= meals_max
-    2. Theme repetition: no more than 2 attractions with same primary theme per day
+    2. Theme concentration: warn if >4 attractions with same theme per day
     3. Mandatory POIs: missed mandatory appear in meta["missed_mandatory"]
-    4. Start/end depots: day start != end only when allowed
-    5. Cross-city nodes: every day's stops must match day's city
+    4. Hotel events: check-in/check-out pairing
 
     Args:
         result: Pipeline result with days
@@ -483,13 +480,18 @@ def validate_global_rules(
         request_id: Optional request ID for logging
 
     Returns:
-        {"ok": bool, "errors": [...]}
+        {"ok": bool, "errors": [...], "warnings": [...]}
     """
     config = config or {}
     meals_max = config.get("meals_max", 3)
     errors: List[str] = []
+    warnings: List[str] = []
 
     days = result.get("days", [])
+
+    # Track hotel events for pairing validation
+    checkins: Dict[str, int] = {}
+    checkouts: Dict[str, int] = {}
 
     for day_idx, day in enumerate(days):
         stops = day.get("stops", [])
@@ -499,7 +501,7 @@ def validate_global_rules(
         if meal_count > meals_max:
             errors.append(f"Day {day_idx + 1}: {meal_count} meals exceeds max {meals_max}")
 
-        # Check 2: Theme repetition
+        # Check 2: Theme concentration (soft - warning only, threshold is 2)
         theme_counts: Dict[str, int] = {}
         for stop in stops:
             if stop.get("role") == "attraction":
@@ -510,7 +512,17 @@ def validate_global_rules(
 
         for theme, count in theme_counts.items():
             if count > 2:
-                errors.append(f"Day {day_idx + 1}: {count} attractions with theme '{theme}' exceeds max 2")
+                warnings.append(f"Day {day_idx + 1}: High concentration of '{theme}' theme ({count} attractions)")
+
+        # Track hotel events
+        for stop in stops:
+            if stop.get("role") == "accommodation":
+                hotel_id = stop.get("poi_id", "").rsplit("_", 1)[0]
+                event_type = stop.get("hotel_event_type")
+                if event_type == "checkin":
+                    checkins[hotel_id] = day_idx + 1
+                elif event_type == "checkout":
+                    checkouts[hotel_id] = day_idx + 1
 
     # Check 3: Mandatory POIs
     meta = result.get("meta", {})
@@ -518,11 +530,21 @@ def validate_global_rules(
     if missed_mandatory:
         errors.append(f"Missed mandatory POIs: {missed_mandatory}")
 
+    # Check 4: Hotel event pairing
+    all_hotels = set(checkins.keys()) | set(checkouts.keys())
+    for hotel_id in all_hotels:
+        has_checkin = hotel_id in checkins
+        has_checkout = hotel_id in checkouts
+        if has_checkin and not has_checkout:
+            warnings.append(f"Hotel {hotel_id}: check-in on day {checkins[hotel_id]} but no check-out")
+        elif has_checkout and not has_checkin:
+            warnings.append(f"Hotel {hotel_id}: check-out on day {checkouts[hotel_id]} but no check-in")
+
     ok = len(errors) == 0
 
-    _log_event("validate_global_rules", {"ok": ok, "errors": errors}, request_id)
+    _log_event("validate_global_rules", {"ok": ok, "errors": errors, "warnings": warnings}, request_id)
 
-    return {"ok": ok, "errors": errors}
+    return {"ok": ok, "errors": errors, "warnings": warnings}
 
 
 def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
@@ -530,7 +552,7 @@ def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
     if not raw:
         return None
     name = str(raw).strip().lower()
-    # Handle common variants
+
     if "," in name:
         name = name.split(",")[0].strip()
     return name
@@ -563,7 +585,7 @@ def _filter_mandatory_for_segment(
 
     city_norm = _normalize_city_name(city_name)
     if not city_norm:
-        return mandatory  # Can't filter, return all
+        return mandatory
 
     # Build lookup of poi_id -> area_name from places
     poi_area_lookup: Dict[str, str] = {}
@@ -627,7 +649,6 @@ def _filter_mandatory_for_segment(
 
 def run_full_pipeline(
     maut_output: Dict[str, Any],
-    hotel: Optional[Dict[str, Any]] = None,
     pacing: str = "balanced",
     mandatory: Optional[Dict[str, Dict]] = None,
     time_limit_sec: int = 20,
@@ -657,44 +678,10 @@ def run_full_pipeline(
     Returns:
         Pipeline result with status, days, meta
     """
-    # Generate request_id for traceability
     request_id = maut_output.get("meta", {}).get("request_id") or str(uuid.uuid4())
 
     try:
         places = maut_output.get("places", [])
-
-        # Legacy single-city path: if hotel is provided directly, use original flow
-        if hotel is not None:
-            return _run_single_city_pipeline(
-                maut_output,
-                hotel,
-                pacing,
-                mandatory,
-                time_limit_sec,
-                solver,
-                request_id,
-            )
-
-        # Check for selected_hotel in meta (legacy support)
-        selected_hotel = maut_output.get("meta", {}).get("selected_hotel")
-        if selected_hotel:
-            coords = selected_hotel.get("coordinates") or {}
-            hotel = {
-                "id": selected_hotel["id"],
-                "name": selected_hotel["name"],
-                "lat": coords.get("lat"),
-                "lon": coords.get("lng"),
-            }
-            logger.info("Using hotel from MAUT: %s", hotel["name"])
-            return _run_single_city_pipeline(
-                maut_output,
-                hotel,
-                pacing,
-                mandatory,
-                time_limit_sec,
-                solver,
-                request_id,
-            )
 
         # Multi-city path: segment and process per city
         try:
@@ -966,6 +953,7 @@ def run_full_pipeline(
                         },
                         request_id,
                     )
+
                     cvrptw_output = run_acs_cvrptw(
                         day_specs=day_specs,
                         nodes=nodes,
@@ -1057,14 +1045,14 @@ def run_full_pipeline(
         if not all_days:
             _log_event(
                 "pipeline.complete",
-                {"status": "error", "total_days": 0, "failed_cities": failed_cities},
+                {"status": "error", "total_days": 0, "solver": solver, "failed_cities": failed_cities},
                 request_id,
             )
             return {
                 "status": "error",
                 "error": "No days generated for any city",
                 "days": [],
-                "meta": {"request_id": request_id, "failed_cities": failed_cities},
+                "meta": {"request_id": request_id, "solver": solver, "failed_cities": failed_cities},
             }
 
         # Enrich stops and calculate distances
@@ -1089,7 +1077,6 @@ def run_full_pipeline(
         for day in all_days:
             for stop in day.get("stops", []):
                 poi_id = stop.get("poi_id", "")
-                # Strip _dayX suffix to get base ID
                 base_id = poi_id.rsplit("_day", 1)[0] if "_day" in poi_id else poi_id
                 visited_poi_ids.add(base_id)
 
@@ -1166,7 +1153,6 @@ def run_full_pipeline(
             request_id,
         )
 
-        # Save debug output to storage for inspection
         # _save_debug_output(result, request_id)
 
         return result
@@ -1174,112 +1160,6 @@ def run_full_pipeline(
     except Exception as e:
         logger.exception("Pipeline execution failed")
         _log_event("pipeline.error", {"error": str(e)}, request_id)
-        return {
-            "status": "error",
-            "error": str(e),
-            "days": [],
-            "meta": {"request_id": request_id},
-        }
-
-
-def _run_single_city_pipeline(
-    maut_output: Dict[str, Any],
-    hotel: Dict[str, Any],
-    pacing: str,
-    mandatory: Optional[Dict[str, Dict]],
-    time_limit_sec: int,
-    solver: str,
-    request_id: str,
-) -> Dict[str, Any]:
-    """
-    Single-city pipeline flow.
-    """
-    try:
-        if solver == "acs":
-            logger.info("Solving CVRPTW problem with ACS-CVRPTW...")
-            day_specs, nodes, travel = build_problem(
-                maut_output,
-                hotel,
-                pacing=pacing,
-                mandatory=mandatory,
-            )
-
-            cvrptw_output = run_acs_cvrptw(
-                day_specs=day_specs,
-                nodes=nodes,
-                travel=travel,
-                meals_required=3,
-                mandatory=mandatory,
-                cfg=vrp_config,
-            )
-        else:
-            logger.info("Solving CVRPTW problem (OR-Tools constraint solver)...")
-            cvrptw_output = run_cvrptw(
-                maut_output=maut_output,
-                hotel=hotel,
-                pacing=pacing,
-                mandatory=mandatory,
-                time_limit_sec=time_limit_sec,
-            )
-
-        if not cvrptw_output or "days" not in cvrptw_output:
-            return {
-                "status": "error",
-                "error": "CVRPTW failed to generate solution",
-                "days": [],
-                "meta": {"request_id": request_id},
-            }
-
-        days = cvrptw_output.get("days", [])
-        if not days:
-            return {
-                "status": "error",
-                "error": cvrptw_output.get("note", "CVRPTW returned no days"),
-                "days": [],
-                "meta": {"request_id": request_id},
-            }
-
-        # Enrich stops
-        method_tag = "acs_cvrptw" if solver == "acs" else "cvrptw"
-
-        for day in days:
-            original_stops = day.get("stops", [])
-            enriched_stops = _enrich_stops_with_coords(original_stops, maut_output)
-            day["stops"] = enriched_stops
-            day["optimization_method"] = method_tag
-            day["total_distance"] = _calculate_day_distance(enriched_stops)
-
-        _add_weekdays_to_days(days, maut_output)
-
-        total_distance = sum(day.get("total_distance", 0.0) for day in days)
-        total_stops = sum(len(day.get("stops", [])) for day in days)
-
-        result = {
-            "status": "success",
-            "days": days,
-            "meta": {
-                "request_id": request_id,
-                "total_distance": round(total_distance, 2),
-                "total_stops": total_stops,
-                "pacing": pacing,
-                "solver": solver,
-            },
-        }
-
-        _log_event(
-            "pipeline.complete",
-            {
-                "status": "success",
-                "total_days": len(days),
-                "total_distance": round(total_distance, 2),
-            },
-            request_id,
-        )
-
-        return result
-
-    except Exception as e:
-        logger.exception("Pipeline execution failed")
         return {
             "status": "error",
             "error": str(e),
@@ -1319,39 +1199,46 @@ def _enrich_stops_with_coords(
     Enrich stops with full coordinate information from MAUT output.
 
     Uses MAUT places list and strips `_dayX` suffix from poi_id when matching.
-    Handles inferred_depot and various coordinate field formats.
     """
-    poi_lookup: Dict[str, Dict[str, float]] = {}
+    poi_lookup: Dict[str, Dict[str, Any]] = {}
 
     for poi in maut_output.get("places", []):
         poi_id = poi.get("id")
         if not poi_id:
             continue
 
+        entry: Dict[str, Any] = {}
         coords = poi.get("coordinates")
         if coords and coords.get("lat") is not None and coords.get("lng") is not None:
-            poi_lookup[poi_id] = {
-                "latitude": coords["lat"],
-                "longitude": coords["lng"],
-            }
+            entry["latitude"] = coords["lat"]
+            entry["longitude"] = coords["lng"]
+
+        images = poi.get("images")
+        if images:
+            entry["images"] = images if isinstance(images, list) else [images]
+
+        if entry:
+            poi_lookup[poi_id] = entry
 
     enriched: List[Dict[str, Any]] = []
     for stop in stops:
         stop_copy = stop.copy()
         poi_id = stop.get("poi_id", "")
 
-        # Strip _dayX if present
         base_poi_id = poi_id.rsplit("_day", 1)[0]
 
         if base_poi_id in poi_lookup:
-            stop_copy.update(poi_lookup[base_poi_id])
+            # Only update fields not already present
+            for key, val in poi_lookup[base_poi_id].items():
+                if key not in stop_copy:
+                    stop_copy[key] = val
         elif poi_id in poi_lookup:
-            stop_copy.update(poi_lookup[poi_id])
+            for key, val in poi_lookup[poi_id].items():
+                if key not in stop_copy:
+                    stop_copy[key] = val
         else:
             # Fallback: check if stop already has coords
-            if stop.get("latitude") is not None and stop.get("longitude") is not None:
-                pass  # Already has coords
-            elif stop.get("lat") is not None and stop.get("lon") is not None:
+            if stop.get("lat") is not None and stop.get("lon") is not None:
                 stop_copy["latitude"] = stop["lat"]
                 stop_copy["longitude"] = stop["lon"]
 

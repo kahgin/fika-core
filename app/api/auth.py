@@ -209,7 +209,7 @@ def signup(request: SignupRequest):
         base_username = "".join(c for c in base_username if c.isalnum() or c == "_")
         if len(base_username) < 3:
             base_username = base_username + "user"
-        username = base_username[:30]  # Max 30 chars
+        username = base_username[:30]
 
         # Check if this username exists and add suffix if needed
         existing = supabase.table("users").select("id").eq("username", username).execute()

@@ -1,19 +1,19 @@
 # ACS-specific algorithm parameters
-acs_alpha: 4.09
-acs_beta: 4.59
-acs_evaporation_rate: 0.24
+acs_alpha: 4.10 # Importance of pheromone trail
+acs_beta: 4.60 # Encourages exploration based on heuristic desirability
+acs_evaporation_rate: 0.24 # Rate at which pheromone evaporates
 acs_n_ants: 25
 acs_n_iterations: 50
 acs_q: 145.4
 
 poi_visit_bonus: 800
 theme_diversity_bonus: 8
-theme_concentration_penalty: 176
+theme_concentration_penalty: 180
 meal_window_bonus: 200
 
 # Shared penalty parameters (used by both solvers)
-drop_poi_penalty: 1041
-mandatory_miss_penalty: 13325
-meal_shortfall_penalty: 1703
-penalty_meal_to_meal: 7197
-penalty_same_theme: 681
+drop_poi_penalty: 1050
+mandatory_miss_penalty: 15000
+meal_shortfall_penalty: 900
+penalty_meal_to_meal: 7000
+penalty_same_theme: 700

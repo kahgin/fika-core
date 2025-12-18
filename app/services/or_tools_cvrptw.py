@@ -35,11 +35,19 @@ def solve_cvrptw(
     - Strongly penalizes consecutive meals and repeated themes (soft, but large).
     - Ensures each base POI is visited at most once (disjunction over _dayX copies).
     - Applies huge penalty for skipping mandatory POIs.
+    - Handles all-day POIs by excluding other POIs from that day.
     """
     if not day_specs:
         return {"days": [], "note": "No days specified"}
     if len(nodes) <= 1:
         return {"days": [], "note": "No POIs available"}
+
+    # Identify days with all-day mandatory POIs
+    all_day_days: Dict[int, int] = {}  # day_index -> all_day_node_idx
+    for ni, n in enumerate(nodes):
+        if n.is_all_day and n.is_mandatory:
+            for day_idx in n.windows_by_day.keys():
+                all_day_days[day_idx] = ni
 
     N = len(nodes)
     V = len(day_specs)
@@ -104,6 +112,22 @@ def solve_cvrptw(
 
         available_days = list(n.windows_by_day.keys())
 
+        # For all-day days, only allow hotel events and the all-day POI itself
+        if all_day_days:
+            filtered_days = []
+            for day_v in available_days:
+                if day_v in all_day_days:
+                    # Only allow accommodation or the all-day POI itself
+                    if n.role == "accommodation" or ni == all_day_days[day_v]:
+                        filtered_days.append(day_v)
+                else:
+                    filtered_days.append(day_v)
+            available_days = filtered_days
+
+        if not available_days:
+            # Node cannot be scheduled on any day - will be dropped
+            continue
+
         if len(available_days) == 1:
             # Day-specific POI
             day_v = available_days[0]
@@ -111,7 +135,8 @@ def solve_cvrptw(
             a_min, b_max = n.windows_by_day[day_v][0]
             time_dim.CumulVar(manager.NodeToIndex(ni)).SetRange(a_min, b_max)
         else:
-            # Multi-day POI: time windows per vehicle
+            # Multi-day POI: restrict to allowed days
+            routing.SetAllowedVehiclesForIndex(available_days, manager.NodeToIndex(ni))
             for day_v in available_days:
                 if n.windows_by_day[day_v]:
                     a_min, b_max = n.windows_by_day[day_v][0]
@@ -144,8 +169,6 @@ def solve_cvrptw(
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
-    # Theme balance and food streak handled via soft penalties in cost callback
-
     # Soft meal bounds (allows finding feasible solutions when time windows are tight)
     if meals_required > 0:
         for v in range(V):
@@ -172,67 +195,40 @@ def solve_cvrptw(
     for v, d in enumerate(day_specs):
         idx = routing.Start(v)
         day_plan = {"date": d.date.isoformat(), "stops": [], "meals": 0}
-        depot_node = nodes[0]
-
-        # Add depot start
-        day_plan["stops"].append(
-            {
-                "poi_id": depot_node.poi_id,
-                "name": depot_node.name,
-                "role": depot_node.role,
-                "themes": [],
-                "arrival": format_time_minutes(d.start_min),
-                "start_service": format_time_minutes(d.start_min),
-                "depart": format_time_minutes(d.start_min),
-                "latitude": depot_node.lat,
-                "longitude": depot_node.lon,
-            }
-        )
 
         while not routing.IsEnd(idx):
             ni = manager.IndexToNode(idx)
-            if ni != 0:  # Skip the depot start, which is handled already
+            if ni != 0:  # Skip depot node (index 0)
                 n = nodes[ni]
                 tvar = time_dim.CumulVar(idx)
                 arrival_time = solution.Min(tvar)
                 service_start = solution.Min(tvar)
                 depart_time = service_start + n.service
+                clean_poi_id = n.poi_id.rsplit("_", 1)[0]
 
-                day_plan["stops"].append(
-                    {
-                        "poi_id": n.poi_id,
-                        "name": n.name,
-                        "role": n.role,
-                        "themes": n.themes or [],
-                        "arrival": format_time_minutes(arrival_time),
-                        "start_service": format_time_minutes(service_start),
-                        "depart": format_time_minutes(depart_time),
-                        "latitude": n.lat,
-                        "longitude": n.lon,
-                    }
-                )
+                stop_dict = {
+                    "poi_id": clean_poi_id,
+                    "name": n.name,
+                    "role": n.role,
+                    "themes": n.themes or [],
+                    "arrival": format_time_minutes(arrival_time),
+                    "start_service": format_time_minutes(service_start),
+                    "depart": format_time_minutes(depart_time),
+                    "latitude": n.lat,
+                    "longitude": n.lon,
+                }
+                if n.images:
+                    stop_dict["images"] = n.images
+                if n.hotel_event_type:
+                    stop_dict["hotel_event_type"] = n.hotel_event_type
+                day_plan["stops"].append(stop_dict)
+
                 if n.role == "meal":
                     day_plan["meals"] += 1
 
             prev_idx = idx
             idx = solution.Value(routing.NextVar(idx))
             total_distance += routing.GetArcCostForVehicle(prev_idx, idx, v)
-
-        # Add depot end
-        end_time = solution.Min(time_dim.CumulVar(routing.End(v)))
-        day_plan["stops"].append(
-            {
-                "poi_id": depot_node.poi_id,
-                "name": depot_node.name,
-                "role": depot_node.role,
-                "themes": [],
-                "arrival": format_time_minutes(end_time),
-                "start_service": format_time_minutes(end_time),
-                "depart": format_time_minutes(end_time),
-                "latitude": depot_node.lat,
-                "longitude": depot_node.lon,
-            }
-        )
 
         result["days"].append(day_plan)
 

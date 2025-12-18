@@ -3,7 +3,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Header
 from app.services.transformers import (
     transform_frontend_payload,
-    transform_response_to_frontend,
     transform_poi_to_frontend,
     transform_itinerary_response_to_frontend,
 )
@@ -213,7 +212,7 @@ def _extract_core_stops(stops: list) -> tuple[list, list, list]:
     if not stops:
         return [], [], []
 
-    is_depot = lambda s: s.get("role") in ("depot", "hotel", "accommodation")
+    is_depot = lambda s: s.get("role") in ("hotel", "accommodation")
     first = stops[0] if stops and is_depot(stops[0]) else None
     last = stops[-1] if stops and is_depot(stops[-1]) and stops[-1] is not first else None
 
@@ -238,6 +237,7 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
     try:
         try:
             payload = transform_frontend_to_canonical(payload)
+            print(payload)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -268,7 +268,6 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
 
         pipeline_output = run_full_pipeline(
             maut_output=maut_output,
-            hotel=hotel,
             pacing=maut_request.get("pacing", "balanced"),
             mandatory=mandatory,
             time_limit_sec=20,
@@ -287,8 +286,8 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
                 "meta": pipeline_output.get("meta", {}),
             }
         else:
-            logger.warning("Pipeline failed, falling back to MAUT output")
-            plan = transform_response_to_frontend(maut_output)
+            logger.warning("Pipeline failed")
+            plan = {"status": "error", "days": [], "items": [], "meta": {}}
             plan["pipeline_error"] = pipeline_output.get("error")
 
         pipeline_meta = pipeline_output.get("meta", {}) if pipeline_output else {}
@@ -297,7 +296,6 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
             "status": "success",
             "meta": {
                 "title": payload.get("title"),
-                "destination": maut_request.get("destination"),
                 "destinations": destinations or [],
                 "dates": payload.get("dates", {}),
                 "num_days": maut_request["num_days"],
@@ -579,23 +577,32 @@ def _compute_days_per_city(destinations: list, total_days: int) -> tuple[dict, l
 
 
 def _validate_multi_city_output(pipeline_output: dict, destinations: list) -> None:
-    """Validate multi-city output has all expected cities."""
+    """
+    Validate multi-city output has all expected cities.
+
+    If some cities are missing, log a warning but don't fail - the itinerary
+    is still usable. This can happen when:
+    - A city has no POIs matching user preferences
+    - Day allocation couldn't fit all cities
+    - Mandatory POIs forced all days to one city
+    """
     expected = [_normalize_destination_name(d.get("city")) for d in destinations if d.get("city")]
     days_out = pipeline_output.get("days", []) or []
     actual = sorted({str(d.get("destination") or d.get("area_name") or "").strip() for d in days_out} - {""})
 
     if len(expected) > 1 and len(actual) < len(expected):
-        logger.error(f"multi_city_integrity_failed: expected={expected} actual={actual}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "status": "error",
-                "error": "multi_city_collapsed",
-                "message": "Multi-city request collapsed to fewer destinations",
-                "expected_cities": expected,
-                "actual_cities": actual,
-            },
+        missing = [c for c in expected if c not in actual]
+        logger.warning(
+            f"multi_city_partial: expected={expected} actual={actual} missing={missing}. "
+            "Some cities may not have enough days or POIs."
         )
+        # Add warning to meta instead of failing
+        pipeline_output.setdefault("meta", {})["multi_city_warning"] = {
+            "message": f"Some destinations could not be included: {', '.join(missing)}",
+            "expected_cities": expected,
+            "actual_cities": actual,
+            "missing_cities": missing,
+        }
 
 
 @router.get("/itinerary/{itin_id}")
@@ -994,11 +1001,11 @@ def update_itinerary_meta(itin_id: str, payload: dict, authorization: Optional[s
 
                 for day in days_list[new_days:]:
                     for stop in day.get("stops", []):
-                        base_id = stop.get("poi_id", "").rsplit("_day", 1)[0]
-                        if not base_id:
+                        poi_id = stop.get("poi_id")
+                        if not poi_id:
                             continue
                         try:
-                            res = get_poi_by_id(base_id)
+                            res = get_poi_by_id(poi_id)
                             if res and res.get("data"):
                                 poi = res["data"]
                                 if poi.get("id") not in [i.get("id") for i in data["meta"]["ideas"]]:

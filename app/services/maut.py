@@ -77,14 +77,14 @@ def derive_selected_themes(req: Dict[str, Any]) -> List[str]:
 def role_keep_counts(num_days: int) -> Dict[str, int]:
     d = max(1, int(num_days or 7))
     return {
-        "attraction": min(12 * d, 120),
-        "meal": min(6 * d, 60),
-        "accommodation": min(d + 3, 13),
+        "attraction": min(10 * d, 75),
+        "meal": min(6 * d, 45),
+        "accommodation": min(d + 3, 5),
     }
 
 
 def applicable_dims(req: Dict[str, Any], roles: List[str]) -> Set[str]:
-    dims: Set[str] = {"interest", "popularity"}  # "cost"
+    dims: Set[str] = {"interest", "popularity"}
     flags = req.get("flags", {})
     if flags.get("has_child"):
         dims.add("child")
@@ -227,6 +227,9 @@ def dietary_score(req: Dict[str, Any], poi: Row) -> float:
 def score_row(req: Dict[str, Any], row: Row, selected_themes: List[str]) -> float:
     roles = row.get("roles") or []
     dims = applicable_dims(req, roles)
+
+    if "attraction" not in roles or "meal" in roles or "accommodation" in roles:
+        dims.discard("interest")
     W = renorm_weights(dims)
 
     # Theme matching only for attractions, not for meals or accommodations
@@ -395,6 +398,7 @@ def to_poi(row: Row) -> POI:
         coordinates=Coordinates(lat=float(row["latitude"]), lng=float(row["longitude"])),
         open_hours=row.get("open_hours"),
         price_level=(int(row["price_level"]) if row.get("price_level") is not None else None),
+        maut_score=row.get("_score", 0.0),
     )
 
 

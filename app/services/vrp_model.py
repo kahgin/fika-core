@@ -13,9 +13,9 @@ from pathlib import Path
 class HotelEventType(Enum):
     """Types of hotel events that require visiting the hotel."""
 
-    NONE = "none"  # No hotel visit required (default day)
     CHECK_IN = "check_in"  # Must arrive at hotel (14:00-16:00)
     CHECK_OUT = "check_out"  # Must depart from hotel (10:00-12:00)
+    STAY = "stay"  # Overnight stay
 
 
 @dataclass
@@ -83,9 +83,10 @@ class Node:
     themes: Optional[List[str]]
     windows_by_day: Dict[int, List[Tuple[int, int]]]
     is_mandatory: bool = False
-    maut_score: float = 0.0  # MAUT score for review/quality prioritization
-    # Hotel event type: "checkin" or "checkout" for accommodation nodes
+    maut_score: float = 0.0
     hotel_event_type: Optional[str] = None
+    images: Optional[List[str]] = None
+    is_all_day: bool = False  # If True, this POI blocks the entire day
 
 
 class VRPConfig(BaseModel):
@@ -94,21 +95,21 @@ class VRPConfig(BaseModel):
     # Pacing and Service Times
     pace_day_budget_min: Dict[str, int] = Field(
         default={
-            "relaxed": 12 * 60,
+            "relaxed": 10 * 60,
             "balanced": 12 * 60,
             "packed": 16 * 60,
         }
     )
     pace_day_start_min: Dict[str, int] = Field(
         default={
-            "relaxed": 10 * 60,
+            "relaxed": 11 * 60,
             "balanced": 10 * 60,
             "packed": 8 * 60,
         }
     )
     service_time_min: Dict[str, Dict[str, int]] = Field(
         default={
-            "attraction": {"relaxed": 210, "balanced": 150, "packed": 90},
+            "attraction": {"relaxed": 240, "balanced": 180, "packed": 120},
             "meal": {"relaxed": 90, "balanced": 75, "packed": 60},
             "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
         }
@@ -189,6 +190,16 @@ class VRPConfig(BaseModel):
     @property
     def meal_windows(self) -> List[Tuple[int, int]]:
         return [self.breakfast_win, self.lunch_win, self.dinner_win]
+
+    @property
+    def hotel_check_out_duration(self) -> int:
+        """Duration of checkout window in minutes."""
+        return self.hotel_check_out_window[1] - self.hotel_check_out_window[0]
+
+    @property
+    def hotel_check_in_duration(self) -> int:
+        """Duration of check-in window in minutes."""
+        return self.hotel_check_in_window[1] - self.hotel_check_in_window[0]
 
 
 def load_config(config_path: Optional[Path] = None) -> VRPConfig:

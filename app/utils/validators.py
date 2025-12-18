@@ -1,39 +1,41 @@
+"""
+Itinerary validation utilities.
+
+Validates CVRPTW/ACS-CVRPTW output against business rules:
+- No duplicate POIs across days
+- Meal timing and constraints
+- Opening hours
+- Accommodation check-in/check-out pairing
+- Day overruns
+"""
+
 from typing import Dict, Any, List, Optional, Tuple
 import datetime as dt
 
+from app.services.vrp_model import vrp_config
 from app.services.vrp_utils import (
     get_effective_windows,
     is_poi_open_on_date,
 )
 from app.utils.date_utils import time_to_minutes
 
-# Configuration
-
-MEAL_WINDOWS = {
-    "breakfast": (7 * 60, 10 * 60),  # 07:00–10:00
-    "lunch": (12 * 60, 14 * 60),  # 12:00–14:00
-    "dinner": (18 * 60, 21 * 60),  # 18:00–21:00
-}
-
 DEFAULT_HOURS = {
-    "nature": (0, 24 * 60),  # 24/7 for nature & parks
-    "meal": (10 * 60, 22 * 60),  # 10:00–22:00
-    "attraction": (10 * 60, 22 * 60),  # 10:00–22:00
+    "nature": (0, 24 * 60),
+    "meal": vrp_config.default_role_windows.get("meal", (10 * 60, 22 * 60)),
+    "attraction": vrp_config.default_role_windows.get("attraction", (10 * 60, 22 * 60)),
     "24h": (0, 24 * 60),
 }
 
-MAX_DAY_OVERRUN_MIN = 60  # Allow 1 hour past day end
-
-# Helpers
+MAX_DAY_OVERRUN_MIN = 60
 
 
 def get_meal_type(arrival_min: int) -> str:
     """Determine meal type based on arrival time."""
-    if MEAL_WINDOWS["breakfast"][0] <= arrival_min <= MEAL_WINDOWS["breakfast"][1]:
+    if vrp_config.breakfast_win[0] <= arrival_min <= vrp_config.breakfast_win[1]:
         return "breakfast"
-    if MEAL_WINDOWS["lunch"][0] <= arrival_min <= MEAL_WINDOWS["lunch"][1]:
+    if vrp_config.lunch_win[0] <= arrival_min <= vrp_config.lunch_win[1]:
         return "lunch"
-    if MEAL_WINDOWS["dinner"][0] <= arrival_min <= MEAL_WINDOWS["dinner"][1]:
+    if vrp_config.dinner_win[0] <= arrival_min <= vrp_config.dinner_win[1]:
         return "dinner"
     return "other"
 
@@ -52,42 +54,26 @@ def get_open_windows_for_date(
     date_obj: dt.date,
     role: str,
 ) -> Tuple[bool, List[Tuple[int, int]]]:
-    """
-    Compute effective opening windows for a POI on a given date.
-
-    Uses vrp_utils functions for parsing to ensure consistency with scheduling.
-    Internal data uses snake_case (open_hours).
-
-    Returns (is_explicitly_closed, windows).
-
-    - If explicitly closed → (True, []).
-    - If open 24 hours → (False, [(0, 1440)]).
-    - If open_hours absent or unparseable → default windows by role/theme.
-    - If multiple intervals → returns all of them.
-    """
-    # Internal data uses snake_case
+    """Compute effective opening windows for a POI on a given date."""
     open_hours = poi.get("open_hours")
     themes = poi.get("themes", [])
     default_window = get_default_window_for_role(role, themes)
 
-    # Use vrp_utils for consistent parsing
     is_open, intervals = is_poi_open_on_date(open_hours, date_obj)
 
     if not is_open:
-        return (True, [])  # Explicitly closed
+        return (True, [])
 
     if intervals:
-        # Check for 24h
         if (0, 24 * 60) in intervals:
             return (False, [(0, 24 * 60)])
         return (False, intervals)
 
-    # No intervals found, use defaults
     return (False, [default_window])
 
 
 def is_within_any_window(arrival_min: int, depart_min: int, windows: List[Tuple[int, int]]) -> bool:
-    """Check if [arrival_min, depart_min] fits inside at least one (start,end) window."""
+    """Check if [arrival_min, depart_min] fits inside at least one window."""
     for start, end in windows:
         if arrival_min >= start and depart_min <= end:
             return True
@@ -101,26 +87,12 @@ def validate_poi_schedule_against_hours(
     date_obj: Optional[dt.date],
     role: str,
 ) -> Tuple[bool, str]:
-    """
-    Validate that a POI visit is within its opening hours.
-
-    Args:
-        poi: POI dict with open_hours (snake_case)
-        arrival_min: Arrival time in minutes from midnight
-        depart_min: Departure time in minutes from midnight
-        date_obj: Date of visit (None for unknown-day itinerary)
-        role: POI role (attraction, meal, etc.)
-
-    Returns:
-        (is_valid, error_message) - error_message is empty if valid
-    """
-    # Internal data uses snake_case
+    """Validate that a POI visit is within its opening hours."""
     open_hours = poi.get("open_hours")
     themes = poi.get("themes", [])
     default_window = get_default_window_for_role(role, themes)
 
     if date_obj is not None:
-        # Date-specific validation
         is_open, intervals = is_poi_open_on_date(open_hours, date_obj)
 
         if not is_open:
@@ -128,12 +100,10 @@ def validate_poi_schedule_against_hours(
 
         windows = intervals if intervals else [default_window]
     else:
-        # Unknown-day: use effective windows with representative interval
         is_open, windows = get_effective_windows(open_hours, None, default_window, use_representative=True)
         if not is_open:
             return (False, "POI is closed")
 
-    # Check for 24h
     if (0, 24 * 60) in windows:
         return (True, "")
 
@@ -148,21 +118,20 @@ def validate_poi_schedule_against_hours(
     return (True, "")
 
 
-# Validation
-
-
 def validate_itinerary(
     cvrptw_output: Dict[str, Any], maut_output: Dict[str, Any], pacing: str = "balanced"
 ) -> Dict[str, Any]:
     """
-    Validate CVRPTW / ACS-CVRPTW output against business rules.
+    Validate CVRPTW/ACS-CVRPTW output against business rules.
 
-    Returns:
-        {
-            "valid": bool,
-            "violations": [...],
-            "stats": {...}
-        }
+    Checks:
+    - No duplicate POIs across days
+    - No consecutive meals
+    - Meals within preferred time windows
+    - POIs within opening hours
+    - Max 3 meals per day
+    - Day end time within pacing limits
+    - Accommodation has paired check-in/check-out
     """
     violations: List[Dict[str, Any]] = []
     stats = {
@@ -176,15 +145,21 @@ def validate_itinerary(
 
     poi_lookup = {p["id"]: p for p in maut_output.get("places", [])}
 
-    # Day end times based on pacing
     day_end_times = {
-        "relaxed": 20 * 60,  # 20:00
-        "balanced": 22 * 60,  # 22:00
-        "packed": 22 * 60,  # 22:00
+        "relaxed": 20 * 60,
+        "balanced": 22 * 60,
+        "packed": 22 * 60,
     }
     day_end_default = day_end_times.get(pacing, 20 * 60)
 
     days = cvrptw_output.get("days", [])
+
+    # Track POIs across all days for duplicate detection
+    seen_pois: Dict[str, int] = {}
+
+    # Track accommodation events
+    checkins: Dict[str, int] = {}
+    checkouts: Dict[str, int] = {}
 
     for day_idx, day in enumerate(days):
         day_num = day_idx + 1
@@ -199,24 +174,48 @@ def validate_itinerary(
         stats["total_stops"] += len([s for s in stops if s.get("role") not in ("hotel", "depot")])
 
         for stop_idx, stop in enumerate(stops):
-            poi_id_base = stop["poi_id"].rsplit("_day", 1)[0]
-            poi = poi_lookup.get(poi_id_base)
+            poi_id = stop.get("poi_id", "")
+            role = stop.get("role", "attraction")
+            poi = poi_lookup.get(poi_id)
 
-            arrival_min = time_to_minutes(stop["arrival"])
-            depart_min = time_to_minutes(stop["depart"])
+            arrival_min = time_to_minutes(stop.get("arrival", "00:00"))
+            depart_min = time_to_minutes(stop.get("depart", "00:00"))
 
-            # Skip hotel/depot for most checks
-            if stop.get("role") in ("hotel", "depot"):
-                # Day overrun against pacing horizon
+            # Check for duplicate POIs (except accommodation which can have check-in and check-out)
+            if role != "accommodation" and poi_id:
+                if poi_id in seen_pois:
+                    violations.append(
+                        {
+                            "type": "duplicate_poi",
+                            "severity": "error",
+                            "message": f"Duplicate: Day {day_num}: {stop.get('name')} ({poi_id})",
+                            "day": day_num,
+                            "weekday": weekday_short,
+                            "poi": stop.get("name"),
+                            "poi_id": poi_id,
+                            "first_seen_day": seen_pois[poi_id],
+                        }
+                    )
+                else:
+                    seen_pois[poi_id] = day_num
+
+            # Track accommodation events
+            if role == "accommodation":
+                hotel_event_type = stop.get("hotel_event_type")
+                if hotel_event_type == "checkin":
+                    checkins[poi_id] = day_num
+                elif hotel_event_type == "checkout":
+                    checkouts[poi_id] = day_num
+
+            # Skip depot for most checks
+            if role in ("hotel", "depot"):
                 if arrival_min > day_end_default + MAX_DAY_OVERRUN_MIN:
                     overrun = arrival_min - day_end_default
                     violations.append(
                         {
                             "type": "day_overrun",
                             "severity": "warning",
-                            "message": (
-                                f"Day {day_num} ({weekday_short}) ends {overrun} min past limit ({stop['arrival']})"
-                            ),
+                            "message": f"Day {day_num} ({weekday_short}) ends {overrun} min past limit",
                             "day": day_num,
                             "weekday": weekday_short,
                             "poi": stop.get("name"),
@@ -226,21 +225,21 @@ def validate_itinerary(
                     stats["day_overruns"].append(overrun)
                 continue
 
-            # 1. Consecutive meals
-            if prev_stop and prev_stop.get("role") == "meal" and stop.get("role") == "meal":
+            # Consecutive meals check
+            if prev_stop and prev_stop.get("role") == "meal" and role == "meal":
                 violations.append(
                     {
                         "type": "consecutive_meals",
                         "severity": "error",
-                        "message": (f"Consecutive meals ({prev_stop.get('name')} → {stop.get('name')})"),
+                        "message": f"Consecutive meals ({prev_stop.get('name')} → {stop.get('name')})",
                         "day": day_num,
                         "weekday": weekday_short,
                         "poi": stop.get("name"),
                     }
                 )
 
-            # 2. Meal timing
-            if stop.get("role") == "meal":
+            # Meal timing check
+            if role == "meal":
                 meals_today += 1
                 meal_type = get_meal_type(arrival_min)
                 if meal_type == "other":
@@ -248,17 +247,16 @@ def validate_itinerary(
                         {
                             "type": "meal_timing",
                             "severity": "warning",
-                            "message": (f"Meal at unusual time ({stop['arrival']}) - {stop.get('name')}"),
+                            "message": f"Meal at unusual time ({stop.get('arrival')}) - {stop.get('name')}",
                             "day": day_num,
                             "weekday": weekday_short,
                             "poi": stop.get("name"),
-                            "arrival": stop["arrival"],
+                            "arrival": stop.get("arrival"),
                         }
                     )
 
-            # 3. Opening hours validation
-            if poi and stop.get("role") not in ("hotel", "depot"):
-                role = stop.get("role", "attraction")
+            # Opening hours validation
+            if poi and role not in ("hotel", "depot", "accommodation"):
                 is_valid, error_msg = validate_poi_schedule_against_hours(
                     poi=poi,
                     arrival_min=arrival_min,
@@ -284,19 +282,16 @@ def validate_itinerary(
                             {
                                 "type": "outside_hours",
                                 "severity": "warning",
-                                "message": (
-                                    f"Visit outside hours ({stop['arrival']}-{stop['depart']}) - {stop.get('name')}"
-                                ),
+                                "message": f"Visit outside hours - {stop.get('name')}",
                                 "day": day_num,
                                 "weekday": weekday_short,
                                 "poi": stop.get("name"),
-                                "expected_hours": error_msg.replace("Visit outside hours, expected ", ""),
                             }
                         )
                     prev_stop = stop
                     continue
 
-            # 4. Theme stats
+            # Theme stats
             if poi:
                 themes = poi.get("themes", [])
                 for theme in themes:
@@ -307,18 +302,15 @@ def validate_itinerary(
         stats["meals_per_day"].append(meals_today)
         stats["total_meals"] += meals_today
 
-    # 5. Meals per day constraints (global)
-    # Note: Meal count is a soft constraint - depends on available meal POIs
-    # that match dietary restrictions and time windows
+    # Meals per day constraints
     for day_idx, meal_count in enumerate(stats["meals_per_day"]):
         day_num = day_idx + 1
         if meal_count < 1:
-            # Warning, not error - may be due to dietary restrictions limiting options
             violations.append(
                 {
                     "type": "insufficient_meals",
                     "severity": "warning",
-                    "message": f"Day {day_num}: Only {meal_count} meals (may be due to dietary restrictions)",
+                    "message": f"Day {day_num}: Only {meal_count} meals",
                     "day": day_num,
                     "weekday": None,
                     "poi": None,
@@ -336,22 +328,58 @@ def validate_itinerary(
                 }
             )
 
-    # 6. Theme balance against selected themes
-    # Note: This is informational - theme coverage depends on available POIs
-    # in the destination that match the selected themes
+    # Accommodation check-in/check-out pairing validation
+    all_hotels = set(checkins.keys()) | set(checkouts.keys())
+    for hotel_id in all_hotels:
+        has_checkin = hotel_id in checkins
+        has_checkout = hotel_id in checkouts
+
+        if has_checkin and not has_checkout:
+            violations.append(
+                {
+                    "type": "missing_checkout",
+                    "severity": "warning",
+                    "message": f"Hotel {hotel_id} has check-in on day {checkins[hotel_id]} but no check-out",
+                    "day": checkins[hotel_id],
+                    "weekday": None,
+                    "poi": hotel_id,
+                }
+            )
+        elif has_checkout and not has_checkin:
+            violations.append(
+                {
+                    "type": "missing_checkin",
+                    "severity": "warning",
+                    "message": f"Hotel {hotel_id} has check-out on day {checkouts[hotel_id]} but no check-in",
+                    "day": checkouts[hotel_id],
+                    "weekday": None,
+                    "poi": hotel_id,
+                }
+            )
+        elif has_checkin and has_checkout:
+            if checkouts[hotel_id] <= checkins[hotel_id]:
+                violations.append(
+                    {
+                        "type": "invalid_hotel_sequence",
+                        "severity": "error",
+                        "message": f"Hotel {hotel_id}: check-out (day {checkouts[hotel_id]}) before/same as check-in (day {checkins[hotel_id]})",
+                        "day": checkins[hotel_id],
+                        "weekday": None,
+                        "poi": hotel_id,
+                    }
+                )
+
+    # Theme imbalance check - compare visited themes against user-selected themes
     selected_themes = maut_output.get("meta", {}).get("selected_themes", [])
     if selected_themes:
-        missing_themes = [t for t in selected_themes if stats["theme_distribution"].get(t, 0) == 0]
+        visited_themes = set(stats["theme_distribution"].keys())
+        missing_themes = [t for t in selected_themes if t not in visited_themes]
         if missing_themes:
             violations.append(
                 {
                     "type": "theme_imbalance",
                     "severity": "info",
-                    "message": (
-                        "Missing themes in itinerary: "
-                        + ", ".join(missing_themes)
-                        + " (may not be available in destination)"
-                    ),
+                    "message": f"User-selected themes not covered: {', '.join(missing_themes)}",
                     "day": None,
                     "weekday": None,
                     "poi": None,
@@ -390,33 +418,17 @@ def print_validation_report(validation_result: Dict[str, Any]) -> None:
     else:
         errors = [v for v in violations if v["severity"] == "error"]
         warnings = [v for v in violations if v["severity"] == "warning"]
-        infos = [v for v in violations if v["severity"] == "info"]
 
-        print(f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings, {len(infos)} info")
+        print(f"\n⚠️  Found {len(errors)} errors, {len(warnings)} warnings")
 
         if errors:
             print("\n❌ ERRORS:")
             for v in errors:
-                day_str = ""
-                if v.get("day") is not None:
-                    if v.get("weekday"):
-                        day_str = f"Day {v['day']} ({v['weekday']}): "
-                    else:
-                        day_str = f"Day {v['day']}: "
+                day_str = f"Day {v['day']}: " if v.get("day") else ""
                 print(f"   {day_str}{v['message']}")
 
         if warnings:
             print("\n⚠️  WARNINGS:")
             for v in warnings:
-                day_str = ""
-                if v.get("day") is not None:
-                    if v.get("weekday"):
-                        day_str = f"Day {v['day']} ({v['weekday']}): "
-                    else:
-                        day_str = f"Day {v['day']}: "
+                day_str = f"Day {v['day']}: " if v.get("day") else ""
                 print(f"   {day_str}{v['message']}")
-
-        if infos:
-            print("\nℹ️  INFO:")
-            for v in infos:
-                print(f"   {v['message']}")

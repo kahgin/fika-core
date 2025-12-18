@@ -8,15 +8,7 @@ from app.services.vrp_model import DaySpec, Node, vrp_config, HotelEvent, HotelE
 
 
 # Constants for weekday names
-WEEKDAYS = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-]
+WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 # Time Formatting & Parsing
@@ -58,7 +50,7 @@ def parse_time_range_label(label: str) -> Optional[Tuple[int, int]]:
             else:
                 h, m = int(hhmm), 0
 
-            if ampm == "am" and h == 12:  # Midnight case
+            if ampm == "am" and h == 12:
                 h = 0
             elif ampm == "pm" and h != 12:
                 h += 12
@@ -66,7 +58,6 @@ def parse_time_range_label(label: str) -> Optional[Tuple[int, int]]:
             return h * 60 + m
 
         start_min, end_min = to_min(left), to_min(right)
-        # Handle overnight ranges like 8pm-2am by clamping to midnight
         if end_min <= start_min:
             end_min = 24 * 60
 
@@ -158,7 +149,6 @@ def get_all_open_intervals(
             result[weekday] = []  # Explicitly closed
         elif intervals:
             result[weekday] = intervals
-        # If no data for this day, don't include in result
 
     return result
 
@@ -187,7 +177,7 @@ def compute_representative_interval(
     # Collect all intervals from non-closed days
     interval_list: List[Tuple[int, int]] = []
     for weekday, intervals in all_intervals.items():
-        if intervals:  # Skip closed days (empty list)
+        if intervals:
             interval_list.extend(intervals)
 
     if not interval_list:
@@ -465,6 +455,7 @@ def determine_hotel_events(
     is_first_city: bool = True,
     is_last_city: bool = True,
     prev_city_hotel: Optional[Dict[str, Any]] = None,
+    day_start_min: int = 10 * 60,
 ) -> Dict[int, List[HotelEvent]]:
     """
     Determine which days require hotel events based on trip structure.
@@ -476,8 +467,9 @@ def determine_hotel_events(
     4. Check-out always happens on FIRST day of the NEXT city segment (transition day)
        OR last day if this is the last city
     5. Single-day LAST destination: Only check-out from PREVIOUS hotel (no check-in)
-    6. num_checkin == num_checkout (globally)
-    7. hotel[i].checkin always before hotel[i].checkout in time
+    6. STAY events for intermediate days (between check-in and check-out)
+    7. num_checkin == num_checkout (globally)
+    8. hotel[i].checkin always before hotel[i].checkout in time
 
     TRANSITION DAY HANDLING:
     - When moving to a new city, check-out from previous hotel happens on day 0 of new city
@@ -505,6 +497,14 @@ def determine_hotel_events(
     if num_days == 1 and is_first_city and is_last_city:
         return events
 
+    # Adjust checkout window to respect day start time
+    checkout_window_start = max(vrp_config.hotel_check_out_window[0], day_start_min)
+    checkout_window_end = max(
+        vrp_config.hotel_check_out_window[1],
+        day_start_min + vrp_config.hotel_check_out_duration,
+    )
+    adjusted_checkout_window = (checkout_window_start, checkout_window_end)
+
     # Handle transition day: check-out from previous hotel on day 0 of this city
     if not is_first_city and prev_city_hotel:
         if 0 not in events:
@@ -516,7 +516,7 @@ def determine_hotel_events(
                 hotel_name=str(prev_city_hotel["name"]),
                 lat=float(prev_city_hotel["lat"]),
                 lon=float(prev_city_hotel["lon"]),
-                window=vrp_config.hotel_check_out_window,
+                window=adjusted_checkout_window,
                 service_time=vrp_config.hotel_service_time,
             )
         )
@@ -542,6 +542,24 @@ def determine_hotel_events(
         )
     )
 
+    # STAY events for intermediate days (day 1 to day N-2 for last city, day 1 to N-1 for non-last)
+    # These mark that the traveler is staying at this hotel overnight
+    checkout_day = last_day_idx if is_last_city else num_days  # checkout handled by next city
+    for day_idx in range(1, checkout_day):
+        if day_idx not in events:
+            events[day_idx] = []
+        events[day_idx].append(
+            HotelEvent(
+                event_type=HotelEventType.STAY,
+                hotel_id=str(hotel["id"]),
+                hotel_name=str(hotel["name"]),
+                lat=float(hotel["lat"]),
+                lon=float(hotel["lon"]),
+                window=(0, 24 * 60),  # STAY has no time constraint
+                service_time=0,  # No service time for STAY
+            )
+        )
+
     # Check-out from current hotel:
     # - If this is the LAST city: checkout on last day of this segment
     # - If NOT last city: checkout will be handled by NEXT city's transition day
@@ -555,7 +573,7 @@ def determine_hotel_events(
                 hotel_name=str(hotel["name"]),
                 lat=float(hotel["lat"]),
                 lon=float(hotel["lon"]),
-                window=vrp_config.hotel_check_out_window,
+                window=adjusted_checkout_window,
                 service_time=vrp_config.hotel_service_time,
             )
         )
@@ -594,6 +612,10 @@ def create_day_specs(
             except (ValueError, TypeError):
                 pass
 
+    start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
+    budget_min = vrp_config.pace_day_budget_min.get(pacing, 11 * 60)
+    end_min = start_min + budget_min
+
     # Determine hotel events for each day
     hotel_events = determine_hotel_events(
         num_days=num_days,
@@ -601,12 +623,10 @@ def create_day_specs(
         is_first_city=is_first_city,
         is_last_city=is_last_city,
         prev_city_hotel=prev_city_hotel,
+        day_start_min=start_min,
     )
 
     day_specs = []
-    start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
-    budget_min = vrp_config.pace_day_budget_min.get(pacing, 11 * 60)
-    end_min = start_min + budget_min
 
     for k in range(num_days):
         day_hotel_events = hotel_events.get(k, [])
@@ -678,12 +698,32 @@ def create_poi_node(
         d = day_specs[day_specific]
 
         if is_mand and is_all_day:
-            # All-day: block entire day window, use full day budget
-            wbd[day_specific] = [(d.start_min, d.end_min)]
-            # Set service time to fill the day (minus buffer for travel)
-            service = max(service, d.end_min - d.start_min - 60)
+            # All-day mandatory POI: block entire day, work around hotel events
+            # The POI takes priority - schedule around check-in/check-out if needed
+            day_start = d.start_min
+            day_end = d.end_min
+
+            # Use actual hotel event windows from DaySpec (already adjusted for pacing)
+            for event in d.hotel_events:
+                if event.event_type == HotelEventType.CHECK_OUT:
+                    checkout_end = event.window[1] + event.service_time
+                    day_start = max(day_start, checkout_end)
+                elif event.event_type == HotelEventType.CHECK_IN:
+                    checkin_start = event.window[0]
+                    day_end = min(day_end, checkin_start)
+
+            # Ensure valid window
+            if day_start < day_end:
+                wbd[day_specific] = [(day_start, day_end)]
+                service = max(service, day_end - day_start - 30)
+            else:
+                # No room for all-day POI with hotel events - use full day anyway
+                # The solver will handle the conflict
+                wbd[day_specific] = [(d.start_min, d.end_min)]
+                service = max(service, d.end_min - d.start_min - 60)
         elif is_mand and window_constraint:
-            # Specific time window from user
+            # Specific time window from user - use exactly as specified
+            # User-specified windows take priority over hotel events
             try:
                 start_parts = window_constraint[0].split(":")
                 end_parts = window_constraint[1].split(":")
@@ -692,21 +732,8 @@ def create_poi_node(
                 )
                 end = int(end_parts[0]) * 60 + int(end_parts[1]) if len(end_parts) > 1 else int(end_parts[0]) * 60
 
-                # Check for conflicts with hotel events and adjust if needed
-                original_window = (start, end)
-                adjusted_window = adjust_window_for_hotel_events(
-                    window=original_window,
-                    day_spec=d,
-                    service_time=end - start,
-                )
-
-                if adjusted_window is None:
-                    # Cannot fit mandatory POI on this day due to hotel conflicts
-                    return None
-
-                wbd[day_specific] = [adjusted_window]
-                # For specific time windows, use the full window duration as service time
-                service = adjusted_window[1] - adjusted_window[0]
+                wbd[day_specific] = [(start, end)]
+                service = end - start
             except (ValueError, IndexError):
                 # Invalid format, fall back to role defaults
                 day_default = (
@@ -747,6 +774,10 @@ def create_poi_node(
         if not wbd:
             return None  # Not visitable on any day
 
+    images = poi.get("images")
+    if images and not isinstance(images, list):
+        images = [images]
+
     return Node(
         idx=idx,
         poi_id=str(poi["id"]),
@@ -758,7 +789,9 @@ def create_poi_node(
         service=service,
         windows_by_day=wbd,
         is_mandatory=is_mand,
-        maut_score=float(poi.get("_score", 0.0)),
+        maut_score=float(poi.get("maut_score", 0.0)),
+        images=images,
+        is_all_day=is_all_day,
     )
 
 
@@ -767,10 +800,11 @@ def create_hotel_event_nodes(
     start_idx: int,
 ) -> Tuple[List[Node], int]:
     """
-    Create mandatory hotel event nodes from DaySpec hotel events.
+    Create hotel event nodes from DaySpec hotel events.
 
-    Hotel events (check-in/check-out) are modeled as mandatory POI nodes with
-    specific time windows. This ensures the solver respects hotel timing constraints.
+    All hotel events (check-in/check-out/stay) become nodes in stops output.
+    - CHECK_IN/CHECK_OUT: mandatory with time windows
+    - STAY: not mandatory, appears in output to show which hotel traveler is at
 
     Args:
         day_specs: List of DaySpec with hotel_events
@@ -784,28 +818,35 @@ def create_hotel_event_nodes(
 
     for day in day_specs:
         for event in day.hotel_events:
-            # Create a unique ID for this hotel event
-            event_suffix = "checkin" if event.event_type == HotelEventType.CHECK_IN else "checkout"
-            poi_id = f"{event.hotel_id}_{event_suffix}_day{day.day_index}"
+            if event.event_type == HotelEventType.CHECK_IN:
+                event_suffix = "checkin"
+            elif event.event_type == HotelEventType.CHECK_OUT:
+                event_suffix = "checkout"
+            elif event.event_type == HotelEventType.STAY:
+                event_suffix = "stay"
+            else:
+                continue
 
-            # Time window for this specific day only
+            internal_poi_id = f"{event.hotel_id}_{event_suffix}_day{day.day_index}"
             windows_by_day = {day.day_index: [event.window]}
 
-            # Keep hotel name clean, store event type in dedicated field
+            # STAY is not mandatory for solver routing, but still appears in output
+            is_mandatory = event.event_type != HotelEventType.STAY
+
             nodes.append(
                 Node(
                     idx=idx,
-                    poi_id=poi_id,
-                    name=event.hotel_name,  # Clean name without suffix
+                    poi_id=internal_poi_id,
+                    name=event.hotel_name,
                     role="accommodation",
                     lat=event.lat,
                     lon=event.lon,
                     service=event.service_time,
                     themes=None,
                     windows_by_day=windows_by_day,
-                    is_mandatory=True,
+                    is_mandatory=is_mandatory,
                     maut_score=0.0,
-                    hotel_event_type=event_suffix,  # "checkin" or "checkout"
+                    hotel_event_type=event_suffix,
                 )
             )
             idx += 1
@@ -859,11 +900,10 @@ def create_nodes(
     places = maut_output.get("places", [])
     for poi in places:
         roles = poi.get("roles", [])
-        role = "attraction"  # Default role
+        role = "attraction"
         if "meal" in roles:
             role = "meal"
         elif "accommodation" in roles:
-            # Skip accommodations as they are handled separately
             continue
 
         # Each POI can be visited on any day, so create a version for each day
@@ -918,7 +958,7 @@ def build_problem(
     Returns:
         (day_specs, nodes, travel_matrix) tuple for solver input
     """
-    # Import here to avoid circular dependency
+
     from app.services.osrm import osrm_client
 
     day_specs = create_day_specs(

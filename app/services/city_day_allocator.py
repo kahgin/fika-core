@@ -42,7 +42,7 @@ class FixedDayAssignment:
 
     day: int  # 1-based day index
     city: str
-    source: str  # 'user_day', 'user_poi', 'mandatory_poi'
+    source: str  # 'user_day', 'mandatory_poi'
     poi_id: Optional[str] = None
 
 
@@ -92,13 +92,13 @@ def extract_fixed_assignments(
 
     Priority:
     1. User explicit day → city assignments (from user_input.day_assignments)
-    2. User explicit day → POI assignments (POI's city forces that day)
+    2. User per_city_dates (specific date ranges per city)
     3. Mandatory POIs with fixed days
 
     Args:
         total_days: Total number of days in the trip
         mandatory: Mandatory POI constraints {poi_id: {day, window, time_type, poi_destination}}
-        user_input: User preferences including day_assignments, days_per_city
+        user_input: User preferences including day_assignments, days_per_city, per_city_dates
         poi_city_lookup: Mapping of poi_id → city name
         trip_start: Trip start date for date-to-day conversion
 
@@ -125,7 +125,44 @@ def extract_fixed_assignments(
             except (ValueError, TypeError):
                 continue
 
-    # 2. Mandatory POIs with fixed days
+    # 2. User per_city_dates - specific date ranges per city
+    if user_input and trip_start:
+        per_city_dates = user_input.get("per_city_dates", {})
+        for city, date_info in per_city_dates.items():
+            if not isinstance(date_info, dict):
+                continue
+
+            city_norm = _normalize_city_name(city)
+            if not city_norm:
+                continue
+
+            start_str = date_info.get("start_date")
+            end_str = date_info.get("end_date")
+
+            if not start_str:
+                continue
+
+            try:
+                city_start = date.fromisoformat(str(start_str).split("T")[0])
+                city_end = date.fromisoformat(str(end_str).split("T")[0]) if end_str else city_start
+
+                # Convert to day indices
+                start_day = (city_start - trip_start).days + 1
+                end_day = (city_end - trip_start).days + 1
+
+                # Assign all days in range to this city
+                for day in range(max(1, start_day), min(total_days, end_day) + 1):
+                    # Don't override explicit day assignments
+                    if day not in fixed or fixed[day].source != "user_day":
+                        fixed[day] = FixedDayAssignment(
+                            day=day,
+                            city=city_norm,
+                            source="user_dates",
+                        )
+            except (ValueError, TypeError):
+                continue
+
+    # 3. Mandatory POIs with fixed days
     if mandatory:
         for poi_id, spec in mandatory.items():
             if not spec:
@@ -151,8 +188,8 @@ def extract_fixed_assignments(
             if not city_norm:
                 continue
 
-            # Don't override user explicit day assignments
-            if day in fixed and fixed[day].source == "user_day":
+            # Don't override user explicit day assignments or user dates
+            if day in fixed and fixed[day].source in ("user_day", "user_dates"):
                 continue
 
             fixed[day] = FixedDayAssignment(
@@ -333,10 +370,11 @@ def _compute_weighted_days(
             allocated[city] += 1
             remaining -= 1
 
-    # Ensure at least 1 day per city with POIs (if we have enough days)
-    for city in poi_counts:
-        if allocated.get(city, 0) == 0 and sum(poi_counts[city]) > 0:
-            # Steal from city with most days
+    # Ensure at least 1 day per city in city_order (multi-city trips)
+    # This guarantees all requested destinations get at least one day
+    for city in city_order:
+        if city in allocated and allocated[city] == 0:
+            # Steal from city with most days (that has more than 1)
             max_city = max(allocated.keys(), key=lambda c: allocated[c])
             if allocated[max_city] > 1:
                 allocated[max_city] -= 1
