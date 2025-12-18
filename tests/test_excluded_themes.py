@@ -3,7 +3,7 @@ from app.services.transformers import transform_frontend_payload
 
 def _base_payload():
     return {
-        "destination": "Singapore",
+        "destinations": [{"city": "Singapore"}],
         "dates": {"type": "flexible", "days": 3},
         "preferences": {"interests": ["cultural_history", "nature"], "pacing": "balanced"},
         "flags": {},

@@ -71,7 +71,7 @@ class TestTransformFrontendPayload:
     def test_basic_transformation(self):
         """Test basic payload transformation."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {"pacing": "balanced", "interests": ["cultural_history"]},
             "flags": {},
@@ -87,7 +87,7 @@ class TestTransformFrontendPayload:
     def test_muslim_flag_excludes_nightlife(self):
         """Test is_muslim flag adds nightlife to excluded themes."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {"is_muslim": True},
@@ -100,7 +100,7 @@ class TestTransformFrontendPayload:
     def test_muslim_flag_adds_halal(self):
         """Test is_muslim flag adds halal to dietary restrictions."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {"is_muslim": True},
@@ -114,7 +114,7 @@ class TestTransformFrontendPayload:
     def test_dietary_string_to_list(self):
         """Test dietary restrictions string converted to list."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {},
@@ -128,7 +128,7 @@ class TestTransformFrontendPayload:
     def test_dietary_none_to_empty(self):
         """Test dietary restrictions 'none' converted to empty list."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {},
@@ -142,7 +142,7 @@ class TestTransformFrontendPayload:
     def test_excluded_themes_deduped(self):
         """Test excluded themes are deduplicated."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {},
@@ -181,7 +181,7 @@ class TestTransformFrontendPayload:
     def test_budget_tier_extracted(self):
         """Test budget tier is extracted from preferences."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {"budget": "luxury"},
             "flags": {},
@@ -194,7 +194,7 @@ class TestTransformFrontendPayload:
     def test_seed_coordinates_passed(self):
         """Test seed coordinates are passed through."""
         payload = {
-            "destination": "Singapore",
+            "destinations": [{"city": "Singapore"}],
             "dates": {"type": "flexible", "days": 3},
             "preferences": {},
             "flags": {},

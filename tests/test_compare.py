@@ -124,23 +124,29 @@ def _calculate_time_window_satisfaction(days: List[Dict]) -> Tuple[float, int, i
 
 def _calculate_tus(days: List[Dict], pacing: str = "balanced") -> Tuple[float, List[float]]:
     """
-    Calculate Time Utilisation Score (TUS).
+    Calculate Time Utilisation Score (TUS) based on actual POI visit time.
     Formula: (1/n * sum(D_k / T_max_k)) * 100
+
+    D_k = total time spent at POIs (sum of service times)
+    T_max_k = day budget based on pacing
     """
     t_max = vrp_config.pace_day_budget_min.get(pacing, 12 * 60)
     daily_utilisation = []
 
     for day in days:
-        stops = day.get("stops", [])
-        if len(stops) < 2:
+        stops = [s for s in day.get("stops", []) if s.get("arrival") and s.get("depart")]
+
+        if not stops:
             daily_utilisation.append(0.0)
             continue
 
-        first_depart = time_to_minutes(stops[0].get("depart", "00:00"))
-        last_arrival = time_to_minutes(stops[-1].get("arrival", "00:00"))
-        d_k = max(0, last_arrival - first_depart)
-        utilisation = (d_k / t_max) * 100 if t_max > 0 else 0
-        daily_utilisation.append(utilisation)
+        d_k = sum(
+            time_to_minutes(s.get("depart", "00:00"))
+            - time_to_minutes(s.get("start_service", s.get("arrival", "00:00")))
+            for s in stops
+        )
+
+        daily_utilisation.append((d_k / t_max) * 100 if t_max > 0 else 0)
 
     avg_tus = sum(daily_utilisation) / len(daily_utilisation) if daily_utilisation else 0
     return avg_tus, daily_utilisation
@@ -615,7 +621,7 @@ def print_comparison_report(ortools: SolverMetrics, acs: SolverMetrics, pacing: 
         scores["meal_compliance"] = m.meal_window_compliance
 
         # TUS Quality: score how close to ideal range (80-100%)
-        # Best score at 90%, decreases as you move away
+        # Best score at 90%, decreases as result move away
         tus_ideal = 90
         tus_deviation = abs(m.time_utilisation_score - tus_ideal)
         scores["tus_quality"] = max(0, 100 - tus_deviation * 2)  # -2 points per % away from 90
@@ -713,7 +719,6 @@ def test_compare_solvers():
     ortools_start = time.time()
     ortools_output = run_full_pipeline(
         maut_output=maut_output,
-        hotel=hotel,
         pacing=pacing,
         solver="ortools",
         time_limit_sec=20,
@@ -725,7 +730,6 @@ def test_compare_solvers():
     acs_start = time.time()
     acs_output = run_full_pipeline(
         maut_output=maut_output,
-        hotel=hotel,
         pacing=pacing,
         solver="acs",
     )
@@ -746,7 +750,6 @@ def test_compare_solvers():
     with open(os.path.join(out_dir, "comparison_acs_output.json"), "w") as f:
         json.dump(acs_output, f, indent=2)
 
-    # Save evaluation results as JSON
     eval_results = {
         "pacing": pacing,
         "ortools": {
@@ -860,7 +863,6 @@ def test_compare_solvers_multiple_pacings():
             t0 = time.perf_counter()
             ortools_output = run_full_pipeline(
                 maut_output=maut_output,
-                hotel=hotel,
                 pacing=pacing,
                 solver="ortools",
                 time_limit_sec=15,
@@ -870,7 +872,6 @@ def test_compare_solvers_multiple_pacings():
             t1 = time.perf_counter()
             acs_output = run_full_pipeline(
                 maut_output=maut_output,
-                hotel=hotel,
                 pacing=pacing,
                 solver="acs",
             )

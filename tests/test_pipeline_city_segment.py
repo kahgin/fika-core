@@ -703,27 +703,6 @@ class TestValidateGlobalRules:
         assert not validation["ok"]
         assert any("meals" in e.lower() for e in validation["errors"])
 
-    def test_validate_global_rules_themes_no_hard_limit(self):
-        """Test theme concentration no longer fails validation (soft penalty only)."""
-        result = {
-            "days": [
-                {
-                    "stops": [
-                        {"role": "attraction", "themes": ["cultural_history"]},
-                        {"role": "attraction", "themes": ["cultural_history"]},
-                        {"role": "attraction", "themes": ["cultural_history"]},  # 3 same theme
-                    ]
-                }
-            ],
-            "meta": {},
-        }
-
-        validation = validate_global_rules(result)
-
-        # Theme balance uses SOFT penalties now, not hard limits
-        # Users should be able to select single theme and get many attractions
-        assert validation["ok"]  # No hard theme limit anymore
-
     def test_validate_global_rules_mandatory(self):
         """Test mandatory POI validation."""
         result = {

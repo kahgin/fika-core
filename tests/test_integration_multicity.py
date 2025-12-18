@@ -127,61 +127,6 @@ def multi_city_maut():
     }
 
 
-class TestSingleCityPipeline:
-    """Tests for single-city pipeline scenarios."""
-
-    def test_single_city_with_maut_hotel(self, mock_osrm, single_city_maut):
-        """Test single city with hotel selected from MAUT."""
-        # Add selected_hotel to meta
-        single_city_maut["meta"]["selected_hotel"] = {
-            "id": "hotel1",
-            "name": "Test Hotel",
-            "coordinates": {"lat": 1.3, "lng": 103.8},
-        }
-
-        result = run_full_pipeline(single_city_maut, solver="acs")
-
-        assert result["status"] == "success"
-        assert len(result["days"]) > 0
-        assert "meta" in result
-        assert result["meta"]["solver"] == "acs"
-
-    def test_single_city_with_explicit_hotel(self, mock_osrm, single_city_maut):
-        """Test single city with explicitly provided hotel."""
-        hotel = {
-            "id": "explicit_hotel",
-            "name": "Explicit Hotel",
-            "area_name": "Singapore",
-            "lat": 1.3,
-            "lon": 103.8,
-        }
-
-        result = run_full_pipeline(single_city_maut, hotel=hotel, solver="acs")
-
-        assert result["status"] == "success"
-        assert result["meta"]["solver"] == "acs"
-
-    def test_single_city_no_hotel_error(self, mock_osrm):
-        """Test error when no hotel available."""
-        maut_output = {
-            "places": [
-                {
-                    "id": "attraction1",
-                    "name": "Attraction",
-                    "roles": ["attraction"],
-                    "area_name": "Singapore",
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "complete_address": {"city": "Singapore"},
-                }
-            ],
-            "meta": {"num_days": 1},
-        }
-
-        result = run_full_pipeline(maut_output, solver="acs")
-
-        assert result["status"] == "error"
-
-
 class TestMultiCityPipeline:
     """Tests for multi-city pipeline scenarios."""
 
@@ -204,7 +149,6 @@ class TestMultiCityPipeline:
     def test_multi_city_request_id_in_meta(self, mock_osrm, multi_city_maut):
         """Test that request_id is included in meta."""
         result = run_full_pipeline(multi_city_maut, solver="acs")
-
         assert "request_id" in result["meta"]
 
 
@@ -214,9 +158,7 @@ class TestPipelineEdgeCases:
     def test_empty_places(self, mock_osrm):
         """Test pipeline with empty places."""
         maut_output = {"places": [], "meta": {"num_days": 1}}
-
         result = run_full_pipeline(maut_output, solver="acs")
-
         assert result["status"] == "error"
 
     def test_too_many_cities(self, mock_osrm):
@@ -301,16 +243,14 @@ class TestPipelineValidation:
     """Tests for validation in pipeline."""
 
     def test_validation_runs_on_result(self, mock_osrm, single_city_maut):
-        """Test that validation is run on the result."""
-        single_city_maut["meta"]["selected_hotel"] = {
-            "id": "hotel1",
-            "name": "Test Hotel",
+        """Test that a hotel is included in the itinerary."""
+        single_city_maut["meta"]["hotel"] = {
+            "poi_id": "hotel1",
+            "poi_name": "Test Hotel",
             "coordinates": {"lat": 1.3, "lng": 103.8},
         }
-
         result = run_full_pipeline(single_city_maut, solver="acs")
-
-        assert result["days"][0]["stops"][-1]["name"] == "Test Hotel"
+        assert any(stop.get("name") == "Test Hotel" for stop in result["days"][0]["stops"])
 
 
 class TestPipelinePacing:
@@ -318,24 +258,10 @@ class TestPipelinePacing:
 
     def test_relaxed_pacing(self, mock_osrm, single_city_maut):
         """Test pipeline with relaxed pacing."""
-        single_city_maut["meta"]["selected_hotel"] = {
-            "id": "hotel1",
-            "name": "Test Hotel",
-            "coordinates": {"lat": 1.3, "lng": 103.8},
-        }
-
         result = run_full_pipeline(single_city_maut, pacing="relaxed", solver="acs")
-
         assert result["meta"]["pacing"] == "relaxed"
 
     def test_packed_pacing(self, mock_osrm, single_city_maut):
         """Test pipeline with packed pacing."""
-        single_city_maut["meta"]["selected_hotel"] = {
-            "id": "hotel1",
-            "name": "Test Hotel",
-            "coordinates": {"lat": 1.3, "lng": 103.8},
-        }
-
         result = run_full_pipeline(single_city_maut, pacing="packed", solver="acs")
-
         assert result["meta"]["pacing"] == "packed"

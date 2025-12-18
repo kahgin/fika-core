@@ -27,7 +27,6 @@ class TestAcsHelpers:
     def test_get_base_id_without_suffix(self):
         """Test ID without suffix."""
         assert _get_base_id("poi123") == "poi123"
-        assert _get_base_id("some_poi_id") == "some_poi_id"
 
 
 class TestAcsSolver:

@@ -1,0 +1,475 @@
+{
+  "scenario_1": {
+    "scenario": "Scenario 1: Multi-Day Multi-City Balanced",
+    "description": "5-day trip across Singapore and Johor with balanced pacing and no interests selected",
+    "pacing": "balanced",
+    "payload_summary": {
+      "destination": null,
+      "destinations": [
+        "Singapore",
+        "Johor, Malaysia"
+      ],
+      "num_days": 5,
+      "interests": [],
+      "flags": {},
+      "dietary": []
+    },
+    "timestamp": "2025-12-18T07:41:11.195589",
+    "ortools": {
+      "solver": "OR-Tools",
+      "execution_time_sec": 25.92,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 72.91,
+      "daily_utilisation": [
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        81.25
+      ],
+      "total_distance_km": 64.27,
+      "unique_pois": 21,
+      "meals_scheduled": 11,
+      "attractions_scheduled": 10,
+      "meal_window_compliance": 18.18,
+      "theme_distribution": {
+        "family": 4,
+        "shopping": 5,
+        "nature": 1
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.5068,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 0.0,
+        "preference_alignment_total": 50.27,
+        "scheduled_themes": [
+          "shopping",
+          "family",
+          "nightlife",
+          "nature"
+        ],
+        "user_themes": [],
+        "total_attractions": 10,
+        "total_meals": 11
+      }
+    },
+    "acs": {
+      "solver": "ACS",
+      "execution_time_sec": 12.3,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 70.83,
+      "daily_utilisation": [
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83
+      ],
+      "total_distance_km": 80.56,
+      "unique_pois": 20,
+      "meals_scheduled": 10,
+      "attractions_scheduled": 10,
+      "meal_window_compliance": 70.0,
+      "theme_distribution": {
+        "nature": 1,
+        "family": 1,
+        "art_museums": 3,
+        "shopping": 3
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.4967,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 0.0,
+        "preference_alignment_total": 49.87,
+        "scheduled_themes": [
+          "nature",
+          "shopping",
+          "art_museums",
+          "family",
+          "nightlife"
+        ],
+        "user_themes": [],
+        "total_attractions": 10,
+        "total_meals": 10
+      }
+    }
+  },
+  "scenario_2": {
+    "scenario": "Scenario 2: Single City Single Theme",
+    "description": "10-day Singapore trip focused solely on shopping theme",
+    "pacing": "balanced",
+    "payload_summary": {
+      "destination": null,
+      "destinations": [
+        "Singapore"
+      ],
+      "num_days": 10,
+      "interests": [
+        "shopping"
+      ],
+      "flags": {},
+      "dietary": []
+    },
+    "timestamp": "2025-12-18T07:41:51.194845",
+    "ortools": {
+      "solver": "OR-Tools",
+      "execution_time_sec": 35.13,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 74.37,
+      "daily_utilisation": [
+        70.83,
+        70.83,
+        81.25,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        81.25,
+        85.42,
+        70.83
+      ],
+      "total_distance_km": 108.62,
+      "unique_pois": 42,
+      "meals_scheduled": 21,
+      "attractions_scheduled": 21,
+      "meal_window_compliance": 19.05,
+      "theme_distribution": {
+        "shopping": 21
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.8176,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 92.7,
+        "scheduled_themes": [
+          "shopping",
+          "nightlife"
+        ],
+        "user_themes": [
+          "shopping"
+        ],
+        "total_attractions": 21,
+        "total_meals": 21
+      }
+    },
+    "acs": {
+      "solver": "ACS",
+      "execution_time_sec": 44.41,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 70.83,
+      "daily_utilisation": [
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83,
+        70.83
+      ],
+      "total_distance_km": 149.44,
+      "unique_pois": 40,
+      "meals_scheduled": 20,
+      "attractions_scheduled": 20,
+      "meal_window_compliance": 65.0,
+      "theme_distribution": {
+        "shopping": 20
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.8137,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 92.55,
+        "scheduled_themes": [
+          "shopping",
+          "nightlife"
+        ],
+        "user_themes": [
+          "shopping"
+        ],
+        "total_attractions": 20,
+        "total_meals": 20
+      }
+    }
+  },
+  "scenario_3": {
+    "scenario": "Scenario 3: Family Trip with Full Constraints",
+    "description": "3-day Singapore trip with kids, pets, wheelchair accessibility, and halal dietary requirement",
+    "pacing": "relaxed",
+    "payload_summary": {
+      "destination": null,
+      "destinations": [
+        "Singapore"
+      ],
+      "num_days": 3,
+      "interests": [
+        "family",
+        "nature",
+        "cultural_history"
+      ],
+      "flags": {
+        "has_child": true,
+        "has_pets": true,
+        "wheelchair_accessible": true,
+        "is_muslim": true
+      },
+      "dietary": [
+        "halal"
+      ]
+    },
+    "timestamp": "2025-12-18T07:43:11.769530",
+    "ortools": {
+      "solver": "OR-Tools",
+      "execution_time_sec": 22.54,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 58.33,
+      "daily_utilisation": [
+        58.33,
+        58.33,
+        58.33
+      ],
+      "total_distance_km": 18.65,
+      "unique_pois": 9,
+      "meals_scheduled": 6,
+      "attractions_scheduled": 3,
+      "meal_window_compliance": 33.33,
+      "theme_distribution": {
+        "family": 2,
+        "nature": 1
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.7548,
+        "theme_coverage": 66.67,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 80.19,
+        "scheduled_themes": [
+          "family",
+          "nature"
+        ],
+        "user_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "total_attractions": 3,
+        "total_meals": 6
+      }
+    },
+    "acs": {
+      "solver": "ACS",
+      "execution_time_sec": 3.78,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 58.33,
+      "daily_utilisation": [
+        58.33,
+        58.33,
+        58.33
+      ],
+      "total_distance_km": 66.84,
+      "unique_pois": 9,
+      "meals_scheduled": 6,
+      "attractions_scheduled": 3,
+      "meal_window_compliance": 16.67,
+      "theme_distribution": {
+        "family": 1,
+        "cultural_history": 1,
+        "nature": 1
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.7021,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 88.09,
+        "scheduled_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "user_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "total_attractions": 3,
+        "total_meals": 6
+      }
+    }
+  },
+  "scenario_4": {
+    "scenario": "Scenario 4: Mandatory POI with Hotel Selected",
+    "description": "3-day Johor trip with kids, pets, wheelchair accessibility, and halal dietary requirement",
+    "pacing": "relaxed",
+    "payload_summary": {
+      "destination": null,
+      "destinations": [
+        "Johor, Malaysia"
+      ],
+      "num_days": 3,
+      "interests": [
+        "family",
+        "nature",
+        "cultural_history"
+      ],
+      "flags": {
+        "has_child": true,
+        "has_pets": true,
+        "wheelchair_accessible": true,
+        "is_muslim": true
+      },
+      "dietary": [
+        "halal"
+      ]
+    },
+    "timestamp": "2025-12-18T07:43:39.113360",
+    "ortools": {
+      "solver": "OR-Tools",
+      "execution_time_sec": 22.08,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 43.05,
+      "daily_utilisation": [
+        25.0,
+        58.33,
+        45.83
+      ],
+      "total_distance_km": 351.41,
+      "unique_pois": 7,
+      "meals_scheduled": 5,
+      "attractions_scheduled": 2,
+      "meal_window_compliance": 60.0,
+      "theme_distribution": {
+        "cultural_history": 1,
+        "family": 1
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.6871,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 87.48,
+        "scheduled_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "user_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "total_attractions": 2,
+        "total_meals": 5
+      }
+    },
+    "acs": {
+      "solver": "ACS",
+      "execution_time_sec": 3.84,
+      "time_window_satisfaction_rate": 100.0,
+      "time_utilisation_score": 43.05,
+      "daily_utilisation": [
+        25.0,
+        58.33,
+        45.83
+      ],
+      "total_distance_km": 388.51,
+      "unique_pois": 7,
+      "meals_scheduled": 5,
+      "attractions_scheduled": 2,
+      "meal_window_compliance": 80.0,
+      "theme_distribution": {
+        "cultural_history": 1,
+        "family": 1
+      },
+      "constraints": {
+        "time_sequence": true,
+        "meal_constraints": true,
+        "theme_constraints": true,
+        "food_streak": true,
+        "no_duplicates": true
+      },
+      "feasible": true,
+      "violations": [],
+      "preference_alignment": {
+        "avg_maut_score": 0.6872,
+        "theme_coverage": 100.0,
+        "theme_match_rate": 100.0,
+        "preference_alignment_total": 87.49,
+        "scheduled_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "user_themes": [
+          "cultural_history",
+          "family",
+          "nature"
+        ],
+        "total_attractions": 2,
+        "total_meals": 5
+      }
+    }
+  }
+}

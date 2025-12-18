@@ -1,6 +1,6 @@
 {
     "title": "Singapore Test Itinerary - Specific",
-    "destination": "Singapore",
+    "destinations": [{"city": "Singapore"}],
     "dates": {
         "type": "specific",
         "start_date": "2026-03-01",
@@ -10,6 +10,6 @@
     "dietary_restrictions": "vegetarian",
     "preferences": {
         "pacing": "balanced",
-        "interests": ["shopping"]
+        "interests": ["shopping","family","cultural_history"]
     }
 }

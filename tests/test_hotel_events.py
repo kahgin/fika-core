@@ -7,9 +7,10 @@ RULES:
 3. Check-in always happens on FIRST day of a city segment
 4. Check-out always happens on FIRST day of NEXT city (transition day) OR last day if last city
 5. Single-day LAST destination: Only check-out from PREVIOUS hotel (no check-in to current)
-6. num_checkin == num_checkout (globally)
-7. hotel[i].checkin always before hotel[i].checkout in time
-8. Hotel event nodes include latitude/longitude
+6. STAY events for intermediate days (between check-in and check-out)
+7. num_checkin == num_checkout (globally)
+8. hotel[i].checkin always before hotel[i].checkout in time
+9. Hotel event nodes include latitude/longitude
 
 TRANSITION DAY HANDLING:
 - When moving to a new city, check-out from previous hotel happens on day 0 of new city
@@ -22,14 +23,12 @@ from unittest.mock import patch
 
 from app.services.vrp_model import (
     DaySpec,
-    Node,
     HotelEvent,
     HotelEventType,
     vrp_config,
 )
 from app.services.vrp_utils import (
     determine_hotel_events,
-    create_day_specs,
     create_hotel_event_nodes,
     build_problem,
 )
@@ -40,9 +39,9 @@ class TestHotelEventType:
 
     def test_hotel_event_types_exist(self):
         """Test all hotel event types are defined."""
-        assert HotelEventType.NONE.value == "none"
         assert HotelEventType.CHECK_IN.value == "check_in"
         assert HotelEventType.CHECK_OUT.value == "check_out"
+        assert HotelEventType.STAY.value == "stay"
 
 
 class TestHotelEvent:
@@ -102,7 +101,7 @@ class TestDetermineHotelEvents:
         assert len(events) == 0
 
     def test_single_day_first_city_not_last_has_hotel_events(self, hotel):
-        """Single-day first city that is NOT last should have check-in and check-out."""
+        """Single-day first city that is NOT last should have check-in."""
         events = determine_hotel_events(
             num_days=1,
             hotel=hotel,
@@ -118,7 +117,7 @@ class TestDetermineHotelEvents:
         assert HotelEventType.CHECK_OUT not in day0_types
 
     def test_multi_day_first_city_not_last(self, hotel):
-        """Multi-day first city (not last) has check-in on day 0, no checkout."""
+        """Multi-day first city (not last) has check-in on day 0, STAY on intermediate days."""
         events = determine_hotel_events(
             num_days=2,
             hotel=hotel,
@@ -132,11 +131,13 @@ class TestDetermineHotelEvents:
         assert HotelEventType.CHECK_IN in day0_types
         assert HotelEventType.CHECK_OUT not in day0_types
 
-        # Day 1 should have no events (checkout handled by next city)
-        assert 1 not in events
+        # Day 1 should have STAY (checkout handled by next city)
+        assert 1 in events
+        day1_types = [e.event_type for e in events[1]]
+        assert HotelEventType.STAY in day1_types
 
     def test_multi_day_first_city_is_last(self, hotel):
-        """Multi-day first city that IS last has check-in on day 0 and check-out on last day."""
+        """Multi-day first city that IS last has check-in on day 0, STAY on middle days, check-out on last day."""
         events = determine_hotel_events(
             num_days=3,
             hotel=hotel,
@@ -150,14 +151,16 @@ class TestDetermineHotelEvents:
         assert HotelEventType.CHECK_IN in day0_types
         assert HotelEventType.CHECK_OUT not in day0_types
 
+        # Day 1 (middle day) should have STAY
+        assert 1 in events
+        day1_types = [e.event_type for e in events[1]]
+        assert HotelEventType.STAY in day1_types
+
         # Day 2 (last day) should have check-out only
         assert 2 in events
         day2_types = [e.event_type for e in events[2]]
         assert HotelEventType.CHECK_OUT in day2_types
         assert HotelEventType.CHECK_IN not in day2_types
-
-        # Middle day should have no events
-        assert 1 not in events
 
     def test_single_day_last_city_only_checkout_from_prev(self, hotel, prev_hotel):
         """Rule 5: Single-day LAST city only has checkout from PREVIOUS hotel."""
@@ -202,7 +205,7 @@ class TestDetermineHotelEvents:
         assert 1 in events
         day1_types = [e.event_type for e in events[1]]
         assert HotelEventType.CHECK_OUT in day1_types
-        checkout_last = events[1][0]
+        checkout_last = next(e for e in events[1] if e.event_type == HotelEventType.CHECK_OUT)
         assert checkout_last.hotel_id == hotel["id"]
 
     def test_each_hotel_has_both_checkin_and_checkout(self, hotel):
@@ -229,7 +232,7 @@ class TestDetermineHotelEvents:
         assert len(checkouts) == 1, "Hotel should have exactly one check-out"
 
     def test_checkin_checkout_count_equal(self, hotel):
-        """Rule 6: num_checkin == num_checkout."""
+        """Rule 7: num_checkin == num_checkout."""
         events = determine_hotel_events(
             num_days=5,
             hotel=hotel,
@@ -245,6 +248,21 @@ class TestDetermineHotelEvents:
         checkouts = [e for e in all_events if e.event_type == HotelEventType.CHECK_OUT]
 
         assert len(checkins) == len(checkouts)
+
+    def test_stay_events_on_intermediate_days(self, hotel):
+        """Rule 6: STAY events on intermediate days."""
+        events = determine_hotel_events(
+            num_days=5,
+            hotel=hotel,
+            is_first_city=True,
+            is_last_city=True,
+        )
+
+        # Days 1, 2, 3 should have STAY events
+        for day_idx in [1, 2, 3]:
+            assert day_idx in events
+            day_types = [e.event_type for e in events[day_idx]]
+            assert HotelEventType.STAY in day_types
 
 
 class TestDaySpecHotelEvents:
@@ -340,7 +358,7 @@ class TestCreateHotelEventNodes:
     """Tests for create_hotel_event_nodes function."""
 
     def test_creates_nodes_with_lat_lon(self):
-        """Rule 8: Hotel event nodes include latitude and longitude."""
+        """Rule 9: Hotel event nodes include latitude and longitude."""
         day_specs = [
             DaySpec(
                 day_index=0,
@@ -419,6 +437,36 @@ class TestCreateHotelEventNodes:
         assert checkin_node.is_mandatory is True
         assert checkin_node.lat == 1.3
         assert checkin_node.lon == 103.8
+
+    def test_stay_nodes_not_mandatory(self):
+        """STAY nodes should not be mandatory for solver routing."""
+        day_specs = [
+            DaySpec(
+                day_index=1,
+                date=dt.date(2025, 1, 16),
+                start_min=9 * 60,
+                end_min=20 * 60,
+                depot_id="hotel1",
+                hotel_events=[
+                    HotelEvent(
+                        event_type=HotelEventType.STAY,
+                        hotel_id="hotel1",
+                        hotel_name="Test Hotel",
+                        lat=1.3,
+                        lon=103.8,
+                        window=(0, 24 * 60),
+                        service_time=0,
+                    )
+                ],
+            ),
+        ]
+
+        nodes, next_idx = create_hotel_event_nodes(day_specs, start_idx=1)
+
+        assert len(nodes) == 1
+        stay_node = nodes[0]
+        assert stay_node.is_mandatory is False
+        assert "stay" in stay_node.poi_id
 
 
 class TestBuildProblemHotelEvents:
@@ -499,7 +547,7 @@ class TestBuildProblemHotelEvents:
         assert len(accommodation_nodes) == 0
 
     def test_multi_day_trip_has_hotel_events(self, mock_osrm, basic_maut_output, hotel):
-        """Multi-day trip should have check-in and check-out nodes."""
+        """Multi-day trip should have check-in, STAY, and check-out nodes."""
         day_specs, nodes, travel = build_problem(
             basic_maut_output,
             hotel,
@@ -514,12 +562,15 @@ class TestBuildProblemHotelEvents:
         # Last day should have check-out
         assert day_specs[-1].has_check_out is True
 
-        # Middle day should have no hotel events
-        assert day_specs[1].has_hotel_event is False
+        # Middle day should have STAY event
+        assert day_specs[1].has_hotel_event is True
+        stay_events = [e for e in day_specs[1].hotel_events if e.event_type == HotelEventType.STAY]
+        assert len(stay_events) == 1
 
-        # Should have exactly 2 hotel event nodes (1 check-in, 1 check-out)
-        hotel_event_nodes = [n for n in nodes if n.role == "accommodation" and n.is_mandatory]
-        assert len(hotel_event_nodes) == 2
+        # Should have 2 mandatory hotel event nodes (1 check-in, 1 check-out)
+        # STAY nodes are not mandatory
+        mandatory_hotel_nodes = [n for n in nodes if n.role == "accommodation" and n.is_mandatory]
+        assert len(mandatory_hotel_nodes) == 2
 
     def test_hotel_event_nodes_have_lat_lon(self, mock_osrm, basic_maut_output, hotel):
         """Hotel event nodes should include latitude and longitude."""
@@ -565,12 +616,12 @@ class TestVRPConfigHotelWindows:
 
 class TestMultiCityHotelEvents:
     """Tests for multi-city hotel event scenarios.
-    
+
     Example: 2-day Singapore -> 1-day Johor
-    
+
     Expected:
     - Singapore Day 1: Check-in to Singapore hotel
-    - Singapore Day 2: No events (checkout handled by Johor)
+    - Singapore Day 2: STAY at Singapore hotel (checkout handled by Johor)
     - Johor Day 1: Check-out from Singapore hotel (no check-in - single day last)
     """
 
@@ -593,7 +644,7 @@ class TestMultiCityHotelEvents:
         }
 
     def test_first_city_multi_day_not_last(self, hotel_singapore):
-        """First city (not last) has check-in only, no checkout."""
+        """First city (not last) has check-in on day 0, STAY on day 1."""
         events = determine_hotel_events(
             num_days=2,
             hotel=hotel_singapore,
@@ -606,8 +657,9 @@ class TestMultiCityHotelEvents:
         assert any(e.event_type == HotelEventType.CHECK_IN for e in events[0])
         assert not any(e.event_type == HotelEventType.CHECK_OUT for e in events[0])
 
-        # No checkout on day 1 (handled by next city)
-        assert 1 not in events
+        # STAY on day 1 (checkout handled by next city)
+        assert 1 in events
+        assert any(e.event_type == HotelEventType.STAY for e in events[1])
 
     def test_last_city_single_day_checkout_from_prev(self, hotel_singapore, hotel_johor):
         """Last city (single day) only has checkout from previous hotel."""
@@ -704,16 +756,22 @@ class TestMultiCityHotelEvents:
             prev_city_hotel=hotel_johor,
         )
 
-        # Singapore: check-in on day 0, no checkout
+        # Singapore: check-in on day 0, STAY on day 1
         assert 0 in events_sg
-        assert any(e.event_type == HotelEventType.CHECK_IN and e.hotel_id == hotel_singapore["id"] for e in events_sg[0])
-        assert 1 not in events_sg
+        assert any(
+            e.event_type == HotelEventType.CHECK_IN and e.hotel_id == hotel_singapore["id"] for e in events_sg[0]
+        )
+        assert 1 in events_sg
+        assert any(e.event_type == HotelEventType.STAY for e in events_sg[1])
 
-        # Johor: checkout from SG on day 0, check-in to JB on day 0, no checkout on day 1
+        # Johor: checkout from SG on day 0, check-in to JB on day 0, STAY on day 1
         assert 0 in events_jb
-        assert any(e.event_type == HotelEventType.CHECK_OUT and e.hotel_id == hotel_singapore["id"] for e in events_jb[0])
+        assert any(
+            e.event_type == HotelEventType.CHECK_OUT and e.hotel_id == hotel_singapore["id"] for e in events_jb[0]
+        )
         assert any(e.event_type == HotelEventType.CHECK_IN and e.hotel_id == hotel_johor["id"] for e in events_jb[0])
-        assert 1 not in events_jb
+        assert 1 in events_jb
+        assert any(e.event_type == HotelEventType.STAY for e in events_jb[1])
 
         # KL: checkout from JB on day 0, no check-in
         assert 0 in events_kl

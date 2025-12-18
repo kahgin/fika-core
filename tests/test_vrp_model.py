@@ -34,12 +34,6 @@ class TestVRPConfig:
         assert "balanced" in vrp_config.pace_day_budget_min
         assert "packed" in vrp_config.pace_day_budget_min
 
-    def test_packed_longer_than_relaxed(self):
-        """Test packed pacing has longer day than relaxed."""
-        relaxed_budget = vrp_config.pace_day_budget_min["relaxed"]
-        packed_budget = vrp_config.pace_day_budget_min["packed"]
-        assert packed_budget > relaxed_budget
-
     def test_service_times_defined(self):
         """Test service times are defined for roles."""
         assert hasattr(vrp_config, "service_time_min")

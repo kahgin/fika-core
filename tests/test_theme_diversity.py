@@ -64,8 +64,8 @@ class TestThemeValidation:
             "meta": {},
         }
 
-        # Theme balance uses SOFT penalties, not hard limits
-        # Users should be able to select a single theme and get many attractions
+        # Theme balance uses SOFT penalties (warnings), not hard limits (errors)
+        # 3 attractions with same theme should pass (ok=True) but generate warning
         validation = validate_global_rules(result)
         assert validation["ok"]  # No error - soft penalty only
 
@@ -86,11 +86,11 @@ class TestThemeValidation:
             "meta": {},
         }
 
-        # Should pass but with a warning about concentration
+        # Should pass but with a warning about concentration (>2 triggers warning)
         validation = validate_global_rules(result)
         assert validation["ok"]  # Still passes - soft penalty only
         assert "warnings" in validation
-        # High concentration should trigger a warning
+        # High concentration (5 > 2) should trigger a warning
         assert any("shopping" in w.lower() for w in validation.get("warnings", []))
 
     def test_primary_theme_only(self):

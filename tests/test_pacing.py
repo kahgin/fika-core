@@ -17,7 +17,7 @@ import pytest
 from unittest.mock import patch
 
 from app.services.vrp_utils import create_day_specs, build_problem
-from app.services.cvrptw import run_cvrptw
+from app.services.or_tools_cvrptw import run_cvrptw
 from app.services.acs_cvrptw import run_acs_cvrptw
 from app.services.vrp_model import vrp_config, VRPConfig
 
@@ -375,19 +375,45 @@ class TestPacingPipeline:
             call_args = mock_day_specs.call_args
             assert call_args[0][2] == "packed" or call_args[1].get("pacing") == "packed"
 
-    def test_pacing_in_pipeline_meta(self, mock_osrm, basic_maut_output, hotel):
+    def test_pacing_in_pipeline_meta(self, mock_osrm):
         """Verify pacing is recorded in pipeline output meta."""
         from app.services.pipeline import run_full_pipeline
 
+        # MAUT output with accommodation so hotel selection succeeds
+        maut_with_hotel = {
+            "places": [
+                {
+                    "id": "attraction1",
+                    "name": "Marina Bay Sands",
+                    "roles": ["attraction"],
+                    "coordinates": {"lat": 1.28, "lng": 103.85},
+                    "themes": ["cultural_history"],
+                },
+                {
+                    "id": "hotel1",
+                    "name": "Test Hotel",
+                    "roles": ["accommodation"],
+                    "coordinates": {"lat": 1.30, "lng": 103.84},
+                    "_score": 100,
+                },
+            ],
+            "meta": {
+                "num_days": 2,
+                "dates": {"type": "flexible", "days": 2},
+            },
+        }
+
         with patch("app.services.pipeline.run_acs_cvrptw") as mock_acs:
             mock_acs.return_value = {
-                "days": [{"date": "2025-01-01", "stops": [], "meals": 0}],
+                "days": [
+                    {"date": "2025-01-01", "stops": [], "meals": 0},
+                    {"date": "2025-01-02", "stops": [], "meals": 0},
+                ],
                 "meta": {},
             }
 
             result = run_full_pipeline(
-                maut_output=basic_maut_output,
-                hotel=hotel,
+                maut_output=maut_with_hotel,
                 pacing="relaxed",
                 solver="acs",
             )

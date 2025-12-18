@@ -3,7 +3,7 @@ Tests for mandatory POI handling in the itinerary creation pipeline.
 
 Tests 4 cases:
 1. Specific day/date & time - POI scheduled on specific day with time window
-2. All day - POI blocks entire day (only that POI + depot)
+2. All day - POI blocks entire day (only that POI + hotel events)
 3. Any time - POI scheduled on any day/time using role defaults
 4. Fallback to any_time - No time_type specified defaults to any_time
 """
@@ -100,8 +100,8 @@ class TestMandatoryPoiSpecificDayTime:
             mandatory=mandatory,
         )
 
-        # Find mandatory nodes
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Find mandatory nodes (exclude hotel events which are also mandatory)
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 1, "Should have exactly 1 mandatory node"
 
         mand_node = mandatory_nodes[0]
@@ -132,7 +132,8 @@ class TestMandatoryPoiSpecificDayTime:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 1
 
         mand_node = mandatory_nodes[0]
@@ -144,11 +145,11 @@ class TestMandatoryPoiSpecificDayTime:
 class TestMandatoryPoiAllDay:
     """Test Case 2: Mandatory POI that blocks entire day."""
 
-    def test_all_day_blocks_entire_day_window(self, mock_osrm, basic_maut_output, hotel):
-        """All-day POI should have window spanning entire day budget."""
+    def test_all_day_blocks_day_around_hotel_events(self, mock_osrm, basic_maut_output, hotel):
+        """All-day POI should have window adjusted for hotel events on that day."""
         mandatory = {
             "mandatory_poi": {
-                "day": 2,
+                "day": 2,  # Day 2 (1-based) = index 1, which is a STAY day (no check-in/out)
                 "time_type": "all_day",
                 "all_day": True,
             }
@@ -161,7 +162,8 @@ class TestMandatoryPoiAllDay:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 1
 
         mand_node = mandatory_nodes[0]
@@ -169,16 +171,17 @@ class TestMandatoryPoiAllDay:
         # Should only be on day 1 (0-indexed from day=2)
         assert list(mand_node.windows_by_day.keys()) == [1]
 
-        # Window should span entire day
+        # Day 1 is a STAY day (no check-in/out), so window should be full day
         day_spec = day_specs[1]
         windows = mand_node.windows_by_day[1]
+        # STAY days have no check-in/out, so full day window
         assert windows[0] == (day_spec.start_min, day_spec.end_min)
 
-    def test_all_day_has_extended_service_time(self, mock_osrm, basic_maut_output, hotel):
-        """All-day POI should have service time filling most of the day."""
+    def test_all_day_on_checkin_day_adjusts_window(self, mock_osrm, basic_maut_output, hotel):
+        """All-day POI on check-in day should end before check-in time."""
         mandatory = {
             "mandatory_poi": {
-                "day": 1,
+                "day": 1,  # Day 1 (1-based) = index 0, which has check-in
                 "time_type": "all_day",
             }
         }
@@ -190,20 +193,49 @@ class TestMandatoryPoiAllDay:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         mand_node = mandatory_nodes[0]
 
-        # Service time should be close to day budget minus travel buffer
         day_spec = day_specs[0]
-        day_budget = day_spec.end_min - day_spec.start_min
-        # Service should be at least day_budget - 60 (travel buffer)
-        assert mand_node.service >= day_budget - 60
+        windows = mand_node.windows_by_day[0]
+
+        # Day 0 has check-in at 14:00, so all-day POI should end before 14:00
+        checkin_start = vrp_config.hotel_check_in_window[0]  # 14:00 = 840
+        assert windows[0][1] <= checkin_start, "All-day POI should end before check-in"
+        assert windows[0][0] == day_spec.start_min, "All-day POI should start at day start"
+
+    def test_all_day_has_extended_service_time(self, mock_osrm, basic_maut_output, hotel):
+        """All-day POI should have service time filling most of the available window."""
+        mandatory = {
+            "mandatory_poi": {
+                "day": 2,  # STAY day - full day available
+                "time_type": "all_day",
+            }
+        }
+
+        day_specs, nodes, travel = build_problem(
+            basic_maut_output,
+            hotel,
+            pacing="balanced",
+            mandatory=mandatory,
+        )
+
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
+        mand_node = mandatory_nodes[0]
+
+        # Service time should be close to window duration minus buffer
+        windows = mand_node.windows_by_day[1]
+        window_duration = windows[0][1] - windows[0][0]
+        # Service should be at least window_duration - 60 (travel buffer)
+        assert mand_node.service >= window_duration - 60
 
     def test_all_day_via_time_type_only(self, mock_osrm, basic_maut_output, hotel):
         """time_type='all_day' without explicit all_day=True should work."""
         mandatory = {
             "mandatory_poi": {
-                "day": 1,
+                "day": 2,  # STAY day
                 "time_type": "all_day",
                 # No explicit all_day field
             }
@@ -216,24 +248,22 @@ class TestMandatoryPoiAllDay:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 1
 
         mand_node = mandatory_nodes[0]
-        day_spec = day_specs[0]
-        windows = mand_node.windows_by_day[0]
+        day_spec = day_specs[1]
+        windows = mand_node.windows_by_day[1]
+        # STAY day has full day window
         assert windows[0] == (day_spec.start_min, day_spec.end_min)
 
-
-class TestMandatoryPoiAnyTime:
-    """Test Case 3: Mandatory POI with any_time (flexible scheduling)."""
-
-    def test_any_time_uses_role_defaults(self, mock_osrm, basic_maut_output, hotel):
-        """any_time POI should use role-based default windows."""
+    def test_all_day_sets_is_all_day_flag(self, mock_osrm, basic_maut_output, hotel):
+        """All-day POI should have is_all_day=True on the node."""
         mandatory = {
             "mandatory_poi": {
-                "time_type": "any_time",
-                # No day constraint - can be on any day
+                "day": 2,
+                "time_type": "all_day",
             }
         }
 
@@ -244,8 +274,32 @@ class TestMandatoryPoiAnyTime:
             mandatory=mandatory,
         )
 
-        # Should have mandatory nodes for each day
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
+        mand_node = mandatory_nodes[0]
+
+        assert mand_node.is_all_day is True, "All-day POI should have is_all_day=True"
+
+
+class TestMandatoryPoiAnyTime:
+    """Test Case 3: Mandatory POI with any_time (flexible scheduling)."""
+
+    def test_any_time_uses_role_defaults(self, mock_osrm, basic_maut_output, hotel):
+        """any_time POI should use role-based default windows."""
+        mandatory = {
+            "mandatory_poi": {
+                "time_type": "any_time",
+            }
+        }
+
+        day_specs, nodes, travel = build_problem(
+            basic_maut_output,
+            hotel,
+            pacing="balanced",
+            mandatory=mandatory,
+        )
+
+        # Should have mandatory nodes for each day (exclude hotel events)
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 3  # One for each day
 
         # Each should use attraction role defaults
@@ -273,7 +327,8 @@ class TestMandatoryPoiAnyTime:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 1
 
         mand_node = mandatory_nodes[0]
@@ -298,8 +353,8 @@ class TestMandatoryPoiFallback:
             mandatory=mandatory,
         )
 
-        # Should have mandatory nodes for each day (any_time behavior)
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Should have mandatory nodes for each day (any_time behavior), exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 3
 
     def test_empty_mandatory_spec_still_marks_mandatory(self, mock_osrm, basic_maut_output, hotel):
@@ -313,7 +368,8 @@ class TestMandatoryPoiFallback:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        # Exclude hotel events
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) > 0
         assert all(n.is_mandatory for n in mandatory_nodes)
 
@@ -328,7 +384,7 @@ class TestMandatoryPoiFallback:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) > 0
 
 
@@ -434,12 +490,12 @@ class TestMandatoryPoiEdgeCases:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         # Should still create node with fallback windows
         assert len(mandatory_nodes) >= 1
 
     def test_day_out_of_range_creates_no_node(self, mock_osrm, basic_maut_output, hotel):
-        """Day constraint beyond trip length should create no nodes."""
+        """Day constraint beyond trip length should create no nodes for that POI."""
         mandatory = {
             "mandatory_poi": {
                 "day": 10,  # Trip is only 3 days
@@ -455,7 +511,7 @@ class TestMandatoryPoiEdgeCases:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         # No nodes should be created for day 10 when trip is 3 days
         assert len(mandatory_nodes) == 0
 
@@ -491,7 +547,7 @@ class TestMandatoryPoiEdgeCases:
             mandatory=mandatory,
         )
 
-        mandatory_nodes = [n for n in nodes if n.is_mandatory]
+        mandatory_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
         assert len(mandatory_nodes) == 2
 
         # Verify each has correct constraints
@@ -504,6 +560,7 @@ class TestMandatoryPoiEdgeCases:
         # POI 1 should have specific window
         assert poi_1_nodes[0].windows_by_day[0] == [(600, 720)]
 
-        # POI 2 should have all-day window
+        # POI 2 should have all-day window (STAY day = full day)
         day_spec = day_specs[1]
         assert poi_2_nodes[0].windows_by_day[1] == [(day_spec.start_min, day_spec.end_min)]
+        assert poi_2_nodes[0].is_all_day is True

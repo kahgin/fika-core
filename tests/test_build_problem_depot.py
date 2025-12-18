@@ -212,10 +212,7 @@ class TestBuildProblemMandatory:
         )
 
         # Find the mandatory POI node (exclude hotel event nodes)
-        mandatory_poi_nodes = [
-            n for n in nodes
-            if n.is_mandatory and n.role not in ("depot", "accommodation")
-        ]
+        mandatory_poi_nodes = [n for n in nodes if n.is_mandatory and n.role not in ("depot", "accommodation")]
         assert len(mandatory_poi_nodes) > 0
 
     def test_build_problem_mandatory_window(self, mock_osrm, basic_maut_output, hotel):
@@ -231,10 +228,7 @@ class TestBuildProblemMandatory:
 
         # Find the mandatory POI node for day 0 (API is 1-based, so day=1 means day_index=0)
         # Exclude hotel event nodes (accommodation role)
-        mandatory_poi_nodes = [
-            n for n in nodes
-            if n.is_mandatory and n.role not in ("depot", "accommodation")
-        ]
+        mandatory_poi_nodes = [n for n in nodes if n.is_mandatory and n.role not in ("depot", "accommodation")]
         assert len(mandatory_poi_nodes) > 0
 
         # Check window is constrained for the attraction node

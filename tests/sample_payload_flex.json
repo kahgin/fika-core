@@ -1,9 +1,9 @@
 {
     "title": "Singapore @ 1 day",
-    "destination": "Singapore",
+    "destinations": [{"city": "Singapore"}],
     "dates": {
         "type": "flexible",
-        "days": 4,
+        "days": 1,
         "preferred_month": null
     },
     "travelers": {
