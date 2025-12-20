@@ -99,7 +99,7 @@ vm-force-stop:
 	@az vm deallocate --resource-group $(VM_RG) --name $(VM_NAME)
 
 optuna:
-	@python -m app.services.acs_tuning_optuna --synthetic --trials 200
+	@python -m app.services.solver_bench --optuna --optuna-scenarios 6 --optuna-trials 25 --write-yaml --include-multicity --include-long --long-days 10 --max-scenarios 18
 
 .PHONY: all venv sync sync-prod update dev run test clean distclean \
 	vm-start vm-stop vm-status vm-restart vm-deploy vm-ssh vm-up vm-down \

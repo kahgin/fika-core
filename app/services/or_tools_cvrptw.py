@@ -16,6 +16,23 @@ def _get_primary_theme(themes: Optional[List[str]]) -> Optional[str]:
     return themes[0] if themes else None
 
 
+def _get_base_id(poi_id: str) -> str:
+    """Strip internal suffixes to get base POI ID.
+
+    Handles:
+    - Regular POIs: 'uuid_day0' -> 'uuid'
+    - Hotel events: 'uuid_checkin_day0' -> 'uuid'
+    - Hotel events: 'uuid_checkout_day0' -> 'uuid'
+    - Hotel events: 'uuid_stay_day0' -> 'uuid'
+    """
+    base = poi_id.rsplit("_day", 1)[0]
+    for suffix in ("_checkin", "_checkout", "_stay"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+    return base
+
+
 def solve_cvrptw(
     day_specs: List[DaySpec],
     nodes: List[Node],
@@ -57,7 +74,6 @@ def solve_cvrptw(
 
     routing_idx_to_node = [manager.IndexToNode(i) for i in range(manager.GetNumberOfIndices())]
 
-    # Time callback (minutes): travel + service. No penalties.
     def time_cb(from_index, to_index):
         i = routing_idx_to_node[from_index]
         j = routing_idx_to_node[to_index]
@@ -72,11 +88,9 @@ def solve_cvrptw(
         base_cost = int(travel[i][j] + nodes[i].service)
         penalty = 0
 
-        # Penalize consecutive meals (strong penalty to prevent back-to-back meals)
         if nodes[i].role == "meal" and nodes[j].role == "meal":
             penalty += vrp_config.penalty_meal_to_meal * 2
 
-        # Penalize consecutive POIs with the same primary theme.
         # If the user explicitly picked a single theme, don't penalize repeating it.
         theme_i = _get_primary_theme(nodes[i].themes)
         theme_j = _get_primary_theme(nodes[j].themes)
@@ -100,7 +114,6 @@ def solve_cvrptw(
     )
     time_dim = routing.GetDimensionOrDie("Time")
 
-    # Depot time windows
     for v, d in enumerate(day_specs):
         time_dim.CumulVar(routing.Start(v)).SetRange(d.start_min, d.end_min)
         time_dim.CumulVar(routing.End(v)).SetRange(d.start_min, d.end_min)
@@ -112,7 +125,6 @@ def solve_cvrptw(
 
         available_days = list(n.windows_by_day.keys())
 
-        # For all-day days, only allow hotel events and the all-day POI itself
         if all_day_days:
             filtered_days = []
             for day_v in available_days:
@@ -125,17 +137,14 @@ def solve_cvrptw(
             available_days = filtered_days
 
         if not available_days:
-            # Node cannot be scheduled on any day - will be dropped
             continue
 
         if len(available_days) == 1:
-            # Day-specific POI
             day_v = available_days[0]
             routing.SetAllowedVehiclesForIndex([day_v], manager.NodeToIndex(ni))
             a_min, b_max = n.windows_by_day[day_v][0]
             time_dim.CumulVar(manager.NodeToIndex(ni)).SetRange(a_min, b_max)
         else:
-            # Multi-day POI: restrict to allowed days
             routing.SetAllowedVehiclesForIndex(available_days, manager.NodeToIndex(ni))
             for day_v in available_days:
                 if n.windows_by_day[day_v]:
@@ -154,7 +163,6 @@ def solve_cvrptw(
         penalty = vrp_config.mandatory_miss_penalty if is_mand else vrp_config.drop_poi_penalty
         routing.AddDisjunction([manager.NodeToIndex(i) for i in idxs], penalty, 1)
 
-    # Meals dimension (min/max meals per day, cap 3)
     def meal_cb(from_index, to_index):
         j = routing_idx_to_node[to_index]
         return 1 if nodes[j].role == "meal" else 0
@@ -169,7 +177,6 @@ def solve_cvrptw(
     )
     meal_dim = routing.GetDimensionOrDie("Meals")
 
-    # Soft meal bounds (allows finding feasible solutions when time windows are tight)
     if meals_required > 0:
         for v in range(V):
             available_meals_today = sum(1 for n in nodes if n.role == "meal" and v in n.windows_by_day)
@@ -204,7 +211,7 @@ def solve_cvrptw(
                 arrival_time = solution.Min(tvar)
                 service_start = solution.Min(tvar)
                 depart_time = service_start + n.service
-                clean_poi_id = n.poi_id.rsplit("_", 1)[0]
+                clean_poi_id = _get_base_id(n.poi_id)
 
                 stop_dict = {
                     "poi_id": clean_poi_id,
@@ -280,7 +287,13 @@ def run_cvrptw(
             }
 
         meal_nodes = sum(1 for n in nodes if n.role == "meal")
-        meals_required = min(3, meal_nodes // len(day_specs)) if meal_nodes > 0 and len(day_specs) > 0 else 0
+        # Prioritizes scheduling 3 meals per day when enough meal nodes are available
+        meals_per_day_available = meal_nodes // len(day_specs) if len(day_specs) > 0 else 0
+        meals_required = (
+            min(3, max(2, meals_per_day_available))
+            if meal_nodes >= len(day_specs) * 2
+            else min(2, meals_per_day_available)
+        )
 
         selected_themes = maut_output.get("meta", {}).get("selected_themes") or []
         user_themes = [str(t) for t in selected_themes if t] if isinstance(selected_themes, list) else None

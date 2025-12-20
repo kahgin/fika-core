@@ -50,7 +50,7 @@ class TestVRPConfig:
     def test_meal_windows_defined(self):
         """Test meal windows are defined."""
         assert hasattr(vrp_config, "meal_windows")
-        assert len(vrp_config.meal_windows) == 3  # breakfast, lunch, dinner
+        assert len(vrp_config.meal_windows) == 3
 
     def test_penalties_defined(self):
         """Test penalties are defined."""

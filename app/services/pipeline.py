@@ -4,7 +4,7 @@ import json
 import math
 import uuid
 from datetime import date, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.vrp_model import vrp_config
 from app.services.vrp_utils import build_problem
@@ -57,14 +57,12 @@ def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = Non
             name = name.split(",")[0].strip()
         return name
 
-    # Group POIs by city
     city_groups: Dict[str, List[Dict]] = {}
     uncategorized: List[Dict] = []
 
     for poi in places:
         area_name = None
 
-        # Area_name (normalized)
         if not area_name and poi.get("area_name"):
             area_name = _normalize_area_name(poi["area_name"])
 
@@ -112,16 +110,13 @@ def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = Non
                 logger.warning("sklearn not available, grouping uncategorized POIs as single cluster")
                 city_groups.setdefault("cluster_0", []).extend(valid_pois)
 
-    # Build city suboutputs
     result: Dict[str, Dict[str, Any]] = {}
     meta = maut_output.get("meta", {})
 
     for area_name, city_pois in city_groups.items():
-        # Normalize area_name on all POIs in this group to ensure consistency
         for poi in city_pois:
             poi["area_name"] = area_name
 
-        # Create city-specific meta
         city_meta = meta.copy()
         city_meta["area_name"] = area_name
 
@@ -163,13 +158,11 @@ def _find_global_fallback_hotel(
     """
     places = maut_output.get("places", [])
 
-    # Find all accommodations across all POIs
     all_accommodations = [poi for poi in places if "accommodation" in poi.get("roles", [])]
 
     if not all_accommodations:
         return None
 
-    # Select highest scored accommodation
     best_hotel = max(all_accommodations, key=lambda x: x.get("_score", 0))
 
     coords = best_hotel.get("coordinates", {})
@@ -219,7 +212,6 @@ def _find_nearest_accommodation(
     if not city_places or not all_accommodations:
         return None
 
-    # Calculate centroid of city POIs
     lat_sum = 0.0
     lon_sum = 0.0
     n = 0
@@ -238,7 +230,6 @@ def _find_nearest_accommodation(
     centroid_lat = lat_sum / n
     centroid_lon = lon_sum / n
 
-    # Find nearest accommodation to centroid
     best_hotel = None
     best_distance = float("inf")
 
@@ -314,7 +305,6 @@ def select_hotel_for_city(
     if user_hotels and area_name in user_hotels:
         user_hotel = user_hotels[area_name]
 
-        # Validate coordinates
         lat = user_hotel.get("lat")
         lon = user_hotel.get("lon") or user_hotel.get("lng")
 
@@ -368,17 +358,17 @@ def select_hotel_for_city(
                 "source": "maut_selected",
             }
 
-            _log_event(
-                "case_2_hotel_selected",
-                {
-                    "area_name": area_name,
-                    "hotel_id": hotel["id"],
-                    "hotel_name": hotel["name"],
-                    "source": "maut_selected",
-                    "coords": {"lat": lat, "lng": lon},
-                },
-                request_id,
-            )
+            # _log_event(
+            #     "case_2_hotel_selected",
+            #     {
+            #         "area_name": area_name,
+            #         "hotel_id": hotel["id"],
+            #         "hotel_name": hotel["name"],
+            #         "source": "maut_selected",
+            #         "coords": {"lat": lat, "lng": lon},
+            #     },
+            #     request_id,
+            # )
 
             return hotel
 
@@ -386,7 +376,6 @@ def select_hotel_for_city(
     accommodations = [poi for poi in places if "accommodation" in poi.get("roles", [])]
 
     if accommodations:
-        # Select highest MAUT score from city's accommodations
         best_hotel = max(accommodations, key=lambda x: x.get("_score", 0))
 
         coords = best_hotel.get("coordinates", {})
@@ -402,17 +391,17 @@ def select_hotel_for_city(
                 "source": "maut",
             }
 
-            _log_event(
-                "case_3_hotel_selected",
-                {
-                    "area_name": area_name,
-                    "hotel_id": hotel["id"],
-                    "hotel_name": hotel["name"],
-                    "source": "maut",
-                    "coords": {"lat": lat, "lng": lon},
-                },
-                request_id,
-            )
+            # _log_event(
+            #     "case_3_hotel_selected",
+            #     {
+            #         "area_name": area_name,
+            #         "hotel_id": hotel["id"],
+            #         "hotel_name": hotel["name"],
+            #         "source": "maut",
+            #         "coords": {"lat": lat, "lng": lon},
+            #     },
+            #     request_id,
+            # )
 
             return hotel
 
@@ -435,23 +424,58 @@ def select_hotel_for_city(
 
     # Case 5: Use global fallback hotel
     if global_fallback_hotel:
-        _log_event(
-            "case_5_hotel_selected",
-            {
-                "area_name": area_name,
-                "hotel_id": global_fallback_hotel["id"],
-                "hotel_name": global_fallback_hotel["name"],
-                "source": "global_fallback",
-                "coords": {
-                    "lat": global_fallback_hotel["lat"],
-                    "lng": global_fallback_hotel["lon"],
-                },
-            },
-            request_id,
-        )
+        # _log_event(
+        #     "case_5_hotel_selected",
+        #     {
+        #         "area_name": area_name,
+        #         "hotel_id": global_fallback_hotel["id"],
+        #         "hotel_name": global_fallback_hotel["name"],
+        #         "source": "global_fallback",
+        #         "coords": {
+        #             "lat": global_fallback_hotel["lat"],
+        #             "lng": global_fallback_hotel["lon"],
+        #         },
+        #     },
+        #     request_id,
+        # )
         return global_fallback_hotel.copy()
 
-    # Case 6: No accommodation found anywhere - return error
+    # Single-day trip - create virtual depot from POI centroid
+    # No actual hotel needed, just a reference point for OSRM matrix
+    if days_for_city == 1 and places:
+        lat_sum = 0.0
+        lon_sum = 0.0
+        n = 0
+        for poi in places:
+            coords = poi.get("coordinates") or {}
+            lat = coords.get("lat")
+            lon = coords.get("lng")
+            if lat is not None and lon is not None:
+                lat_sum += float(lat)
+                lon_sum += float(lon)
+                n += 1
+
+        if n > 0:
+            centroid_lat = lat_sum / n
+            centroid_lon = lon_sum / n
+            hotel = {
+                "id": f"virtual_depot_{area_name}",
+                "name": "Virtual Depot",
+                "lat": centroid_lat,
+                "lon": centroid_lon,
+                "source": "virtual_depot",
+            }
+            # _log_event(
+            #     "case_6_virtual_depot",
+            #     {
+            #         "area_name": area_name,
+            #         "source": "poi_centroid",
+            #         "coords": {"lat": centroid_lat, "lng": centroid_lon},
+            #     },
+            #     request_id,
+            # )
+            return hotel
+
     _log_event(
         "hotel_selected",
         {"area_name": area_name, "status": "error", "error": "no_accommodation"},
@@ -514,10 +538,10 @@ def validate_global_rules(
             if count > 2:
                 warnings.append(f"Day {day_idx + 1}: High concentration of '{theme}' theme ({count} attractions)")
 
-        # Track hotel events
+        # Track hotel events using hotel_event_type field (not poi_id suffix)
         for stop in stops:
             if stop.get("role") == "accommodation":
-                hotel_id = stop.get("poi_id", "").rsplit("_", 1)[0]
+                hotel_id = stop.get("poi_id", "")
                 event_type = stop.get("hotel_event_type")
                 if event_type == "checkin":
                     checkins[hotel_id] = day_idx + 1
@@ -542,7 +566,11 @@ def validate_global_rules(
 
     ok = len(errors) == 0
 
-    _log_event("validate_global_rules", {"ok": ok, "errors": errors, "warnings": warnings}, request_id)
+    _log_event(
+        "validate_global_rules",
+        {"ok": ok, "errors": errors, "warnings": warnings},
+        request_id,
+    )
 
     return {"ok": ok, "errors": errors, "warnings": warnings}
 
@@ -587,7 +615,6 @@ def _filter_mandatory_for_segment(
     if not city_norm:
         return mandatory
 
-    # Build lookup of poi_id -> area_name from places
     poi_area_lookup: Dict[str, str] = {}
     for poi in places:
         poi_id = poi.get("id")
@@ -605,7 +632,6 @@ def _filter_mandatory_for_segment(
     for poi_id, spec in mandatory.items():
         spec = spec or {}
 
-        # Check if POI belongs to this city
         poi_dest = spec.get("poi_destination")
         matches_city = False
 
@@ -625,7 +651,6 @@ def _filter_mandatory_for_segment(
         if not matches_city:
             continue
 
-        # Check if POI's day is in this segment
         global_day = spec.get("day")
 
         if global_day is not None:
@@ -635,7 +660,6 @@ def _filter_mandatory_for_segment(
                 # (It should be in another segment of the same city, if any)
                 continue
 
-            # Convert to segment-local day
             spec_copy = spec.copy()
             spec_copy["day"] = global_to_local[global_day]
             spec_copy["_original_global_day"] = global_day
@@ -683,7 +707,6 @@ def run_full_pipeline(
     try:
         places = maut_output.get("places", [])
 
-        # Multi-city path: segment and process per city
         try:
             cities = segment_by_city(maut_output, request_id)
         except ValueError as e:
@@ -694,7 +717,6 @@ def run_full_pipeline(
                 "meta": {"request_id": request_id},
             }
 
-        # Performance guardrail: max cities
         if len(cities) > MAX_CITIES_PER_REQUEST:
             _log_event(
                 "pipeline.error",
@@ -712,7 +734,6 @@ def run_full_pipeline(
                 "meta": {"request_id": request_id},
             }
 
-        # Derive user-provided hotels by city from user_input or meta.hotels
         user_hotels_by_city: Optional[Dict[str, Dict[str, Any]]] = None
         if user_input and isinstance(user_input.get("user_hotels_by_city"), dict):
             user_hotels_by_city = user_input.get("user_hotels_by_city")
@@ -742,7 +763,6 @@ def run_full_pipeline(
                         hlon = h.get("longitude") or (h.get("coordinates") or {}).get("lng")
                         if hlat is None or hlon is None:
                             continue
-                        # Find nearest city centroid among POIs
                         best_city = None
                         best_d = None
                         for cname, plat, plon in place_cities:
@@ -759,13 +779,11 @@ def run_full_pipeline(
                                 "source": "user",
                             }
 
-        # Process each city
         all_days: List[Dict[str, Any]] = []
         failed_cities: List[str] = []
         total_distance = 0.0
         city_day_offset = 0  # Track global day offset across city segments
 
-        # Parse dates info for day allocation
         dates_info = maut_output.get("meta", {}).get("dates", {}) or {}
         if dates_info.get("type") == "specific":
             start_str = dates_info.get("start_date")
@@ -781,22 +799,18 @@ def run_full_pipeline(
             trip_start = None
             total_trip_days = maut_output.get("meta", {}).get("num_days", 3)
 
-        # Build POI city lookup for the allocator
         poi_city_lookup: Dict[str, str] = {}
         for city_name, city_data in cities.items():
             for poi in city_data.get("places", []):
                 poi_id = poi.get("id", "")
-                base_id = poi_id.rsplit("_day", 1)[0] if "_day" in poi_id else poi_id
-                poi_city_lookup[base_id] = city_name
+                # Input POIs from MAUT don't have _day suffixes
+                poi_city_lookup[poi_id] = city_name
 
-        # Also add mandatory POI destinations to lookup
         if mandatory:
             for poi_id, spec in mandatory.items():
                 if spec and spec.get("poi_destination"):
-                    # Normalize the destination name for matching
                     dest = spec["poi_destination"]
                     dest_norm = _normalize_city_name(dest)
-                    # Find matching city in our cities dict
                     for city_name in cities.keys():
                         city_norm = _normalize_city_name(city_name)
                         if city_norm and dest_norm and (city_norm in dest_norm or dest_norm in city_norm):
@@ -819,13 +833,11 @@ def run_full_pipeline(
             request_id=request_id,
         )
 
-        # Log the allocation for debugging
         logger.info(
             f"City day allocation result: day_to_city={allocation.day_to_city}, "
             f"city_order={allocation.city_order}, switches={allocation.city_switches}"
         )
 
-        # Build a global fallback hotel from all accommodations across all cities
         # This is used when a cluster has no accommodations
         global_fallback_hotel = _find_global_fallback_hotel(maut_output, request_id)
 
@@ -891,7 +903,6 @@ def run_full_pipeline(
             if allocated_days == 0:
                 continue
 
-            # Calculate start date for this segment
             segment_start_day = segment_days[0]  # 1-based
             if trip_start:
                 segment_start_date = trip_start + timedelta(days=segment_start_day - 1)
@@ -916,7 +927,6 @@ def run_full_pipeline(
                 prev_city_hotel = segment_hotels[segment_idx - 1]
 
             try:
-                # Filter mandatory POIs for this segment's days
                 # The allocation already ensures mandatory POIs are on the correct days for this city
                 # We just need to filter by city and convert global days to segment-local days
                 segment_mandatory = _filter_mandatory_for_segment(
@@ -926,7 +936,6 @@ def run_full_pipeline(
                     places=maut_city.get("places", []),
                 )
 
-                # Log mandatory POI filtering for debugging
                 if segment_mandatory:
                     logger.info(
                         f"Mandatory POIs for {area_name} segment {segment_idx} "
@@ -959,7 +968,6 @@ def run_full_pipeline(
                         nodes=nodes,
                         travel=travel,
                         meals_required=3,
-                        mandatory=segment_mandatory,
                         cfg=vrp_config,
                     )
                     # _log_event(
@@ -1003,7 +1011,6 @@ def run_full_pipeline(
                     failed_cities.append(area_name)
                     continue
 
-                # Add city/destination/depot and absolute dates/weekday for this segment
                 for idx, day in enumerate(city_days):
                     day["area_name"] = area_name
                     day["destination"] = area_name
@@ -1031,7 +1038,6 @@ def run_full_pipeline(
 
                 all_days.extend(city_days)
 
-                # Track total distance from city solver
                 city_distance = cvrptw_output.get("meta", {}).get("total_distance", 0)
                 total_distance += city_distance
 
@@ -1045,17 +1051,25 @@ def run_full_pipeline(
         if not all_days:
             _log_event(
                 "pipeline.complete",
-                {"status": "error", "total_days": 0, "solver": solver, "failed_cities": failed_cities},
+                {
+                    "status": "error",
+                    "total_days": 0,
+                    "solver": solver,
+                    "failed_cities": failed_cities,
+                },
                 request_id,
             )
             return {
                 "status": "error",
                 "error": "No days generated for any city",
                 "days": [],
-                "meta": {"request_id": request_id, "solver": solver, "failed_cities": failed_cities},
+                "meta": {
+                    "request_id": request_id,
+                    "solver": solver,
+                    "failed_cities": failed_cities,
+                },
             }
 
-        # Enrich stops and calculate distances
         method_tag = "acs_cvrptw" if solver == "acs" else "cvrptw"
 
         # Reset total_distance for accurate calculation from enriched stops
@@ -1069,18 +1083,16 @@ def run_full_pipeline(
             day["total_distance"] = _calculate_day_distance(enriched_stops)
             total_distance += day["total_distance"]
 
-        # Add weekdays
         _add_weekdays_to_days(all_days, maut_output)
 
-        # Track mandatory POIs that were actually visited
+        # Solver output already has clean POI IDs (no internal suffixes)
         visited_poi_ids: set = set()
         for day in all_days:
             for stop in day.get("stops", []):
                 poi_id = stop.get("poi_id", "")
-                base_id = poi_id.rsplit("_day", 1)[0] if "_day" in poi_id else poi_id
-                visited_poi_ids.add(base_id)
+                if poi_id:
+                    visited_poi_ids.add(poi_id)
 
-        # Find missed mandatory POIs and convert to ideas
         missed_mandatory: List[Dict[str, Any]] = []
         mandatory_ideas: List[Dict[str, Any]] = []
 
@@ -1113,7 +1125,6 @@ def run_full_pipeline(
                         }
                     )
 
-        # Build result
         total_stops = sum(len(day.get("stops", [])) for day in all_days)
 
         result = {
@@ -1137,7 +1148,6 @@ def run_full_pipeline(
         if mandatory_ideas:
             result["meta"]["mandatory_ideas"] = mandatory_ideas
 
-        # Validate global rules
         validation = validate_global_rules(result, None, request_id)
         if not validation["ok"]:
             result["meta"]["validation_errors"] = validation["errors"]
@@ -1198,7 +1208,7 @@ def _enrich_stops_with_coords(
     """
     Enrich stops with full coordinate information from MAUT output.
 
-    Uses MAUT places list and strips `_dayX` suffix from poi_id when matching.
+    Solver output already has clean POI IDs (no internal suffixes).
     """
     poi_lookup: Dict[str, Dict[str, Any]] = {}
 
@@ -1225,14 +1235,9 @@ def _enrich_stops_with_coords(
         stop_copy = stop.copy()
         poi_id = stop.get("poi_id", "")
 
-        base_poi_id = poi_id.rsplit("_day", 1)[0]
-
-        if base_poi_id in poi_lookup:
+        # Solver output already has clean POI IDs
+        if poi_id in poi_lookup:
             # Only update fields not already present
-            for key, val in poi_lookup[base_poi_id].items():
-                if key not in stop_copy:
-                    stop_copy[key] = val
-        elif poi_id in poi_lookup:
             for key, val in poi_lookup[poi_id].items():
                 if key not in stop_copy:
                     stop_copy[key] = val

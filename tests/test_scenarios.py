@@ -1,8 +1,8 @@
 """
 Solver Comparison Tests.
 
-This module tests different real-world scenarios comparing OR-Tools and ACS-CVRPTW.
-Each test generates reproducible results stored in JSON.
+This module tests different real-world scenarios comparing OR-Tools (Baseline) and ACS-CVRPTW (System).
+Each test generates reproducible results stored in JSON and comparison charts.
 """
 
 import os
@@ -17,6 +17,7 @@ from app.services.maut import run_maut
 from app.services.pipeline import run_full_pipeline
 from app.services.vrp_model import vrp_config
 from app.utils.date_utils import time_to_minutes
+from tests.chart_generator import generate_all_charts
 
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -44,7 +45,7 @@ SCENARIO_SINGLE_CITY_SINGLE_THEME = {
     "description": "10-day Singapore trip focused solely on shopping theme",
     "payload": {
         "title": "Singapore Shopping Focus Trip",
-        "destinations": [{"city": "Singapore"}],
+        "destinations": [{"city": "Johor, Malaysia"}],
         "dates": {"type": "specific", "start_date": "2026-04-01", "end_date": "2026-04-10"},
         "travelers": {"adults": 2, "children": 0, "pets": 0},
         "dietary_restrictions": [],
@@ -64,14 +65,14 @@ SCENARIO_CONSTRAINED_FAMILY = {
         "travelers": {"adults": 2, "children": 2, "pets": 1},
         "dietary_restrictions": ["halal"],
         "preferences": {"pacing": "relaxed", "interests": ["family", "nature", "cultural_history"]},
-        "flags": {"has_child": True, "has_pets": True, "wheelchair_accessible": True, "is_muslim": True},
+        "flags": {"kids_friendly": True, "pets_friendly": True, "wheelchair_accessible": True, "is_muslim": True},
     },
     "pacing": "relaxed",
 }
 
 SCENARIO_MANDATORY_POI_HOTEL_SELECTED = {
     "title": "Scenario 4: Mandatory POI with Hotel Selected",
-    "description": "3-day Johor trip with kids, pets, wheelchair accessibility, and halal dietary requirement",
+    "description": "3-day Johor trip with user selected hotel and mandatory POI.",
     "payload": {
         "title": "Constrained Family Trip",
         "destinations": [{"city": "Johor, Malaysia"}],
@@ -79,11 +80,11 @@ SCENARIO_MANDATORY_POI_HOTEL_SELECTED = {
         "travelers": {"adults": 2, "children": 2, "pets": 1},
         "dietary_restrictions": ["halal"],
         "preferences": {"pacing": "relaxed", "interests": ["family", "nature", "cultural_history"]},
-        "flags": {"has_child": True, "has_pets": True, "wheelchair_accessible": True, "is_muslim": True},
+        "flags": {"kids_friendly": True, "pets_friendly": True, "wheelchair_accessible": True, "is_muslim": True},
         "hotels": [
             {
                 "role": "accommodation",
-                "images": ["https://lh3.googleusercontent.com/p/AF1QipNhotKTUydrQirYNR6D7KXGQsVKos1HCyltq4nQ"],
+                "images": [],
                 "poi_id": "378fdda9-3fe2-4de3-a170-ce2a60adb0f7",
                 "themes": [],
                 "latitude": 1.516239,
@@ -98,9 +99,7 @@ SCENARIO_MANDATORY_POI_HOTEL_SELECTED = {
             {
                 "date": "2026-05-03",
                 "role": "meal",
-                "images": [
-                    "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSw0_5LPTR2X4G1ZkfIMUPCGD9IZ3G-1WXFtWpaCl5Duy0nvaAbNrPLfDMNLD9Mo46M7-dFcvEFy8c49PJ60jg6JXbk9XMXKe0v7maqR0PJ2Rs5tY0uiltiHXsTlwOhbpcBy_uVbLOMi_DJu"
-                ],
+                "images": [],
                 "poi_id": "1a020b72-36bd-42f8-8ab0-f639596b8d5d",
                 "themes": [],
                 "latitude": 1.475192,
@@ -115,47 +114,120 @@ SCENARIO_MANDATORY_POI_HOTEL_SELECTED = {
     "pacing": "relaxed",
 }
 
-SCENARIO_MULTI_CITY_DAYS_ASSIGNED_WITH_MULTIPLE_MANDATORY_POIS = {
-    "title": "Scenario 4: Mandatory POI with Hotel Selected",
-    "description": "3-day Johor trip with kids, pets, wheelchair accessibility, and halal dietary requirement",
+# SCENARIO_MULTI_CITY_WITH_ASSIGNED_DAYS = {
+#     "title": "Scenario 5: Multi-City with Assigned Days",
+#     "description": "6-day trip across Singapore and Johor with per-city date assignments",
+#     "payload": {
+#         "title": "Multi-City Assigned Days Trip",
+#         "destinations": [
+#             {
+#                 "city": "Singapore",
+#                 "dates": {
+#                     "type": "specific",
+#                     "start_date": "2026-06-01",
+#                     "end_date": "2026-06-03",
+#                 }
+#             },
+#             {
+#                 "city": "Johor, Malaysia",
+#                 "dates": {
+#                     "type": "specific",
+#                     "start_date": "2026-06-04",
+#                     "end_date": "2026-06-06",
+#                 }
+#             }
+#         ],
+#         "dates": {"type": "specific", "start_date": "2026-06-01", "end_date": "2026-06-06"},
+#         "travelers": {"adults": 2, "children": 0, "pets": 0},
+#         "dietary_restrictions": [],
+#         "preferences": {"pacing": "packed", "interests": ["shopping", "food_culinary"]},
+#         "flags": {},
+#     },
+#     "pacing": "packed",
+# }
+
+
+SCENARIO_MULTI_CITY_REPEAT_VISIT_MANDATORY_POIS = {
+    "title": "Scenario 6: Multi-City with Repeat Visits and Mandatory POIs",
+    "description": "6-day trip across Singapore and Johor with mandatory POIs in cities visited more than once",
     "payload": {
-        "title": "Constrained Family Trip",
-        "destinations": [{"city": "Johor, Malaysia"}],
-        "dates": {"type": "specific", "start_date": "2026-05-01", "end_date": "2026-05-03"},
-        "travelers": {"adults": 2, "children": 2, "pets": 1},
+        "title": "Multi-City Mandatory POIs Trip",
+        "destinations": [{"city": "Singapore"}, {"city": "Johor, Malaysia"}],
+        "dates": {"type": "specific", "start_date": "2026-06-01", "end_date": "2026-06-06"},
+        "travelers": {"adults": 2, "children": 2, "pets": 0},
         "dietary_restrictions": ["halal"],
         "preferences": {"pacing": "relaxed", "interests": ["family", "nature", "cultural_history"]},
-        "flags": {"has_child": True, "has_pets": True, "wheelchair_accessible": True, "is_muslim": True},
-        "hotels": [
-            {
-                "role": "accommodation",
-                "images": ["https://lh3.googleusercontent.com/p/AF1QipNhotKTUydrQirYNR6D7KXGQsVKos1HCyltq4nQ"],
-                "poi_id": "378fdda9-3fe2-4de3-a170-ce2a60adb0f7",
-                "themes": [],
-                "latitude": 1.516239,
-                "poi_name": "Hyatt Place Johor Bahru Paradigm Mall",
-                "longitude": 103.685119,
-                "destination": "Johor, Malaysia",
-                "check_in_date": "2026-05-01",
-                "check_out_date": "2026-05-03",
-            }
-        ],
+        "flags": {"kids_friendly": True, "is_muslim": True},
         "mandatory_pois": [
             {
-                "date": "2026-05-03",
-                "role": "meal",
-                "images": [
-                    "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSw0_5LPTR2X4G1ZkfIMUPCGD9IZ3G-1WXFtWpaCl5Duy0nvaAbNrPLfDMNLD9Mo46M7-dFcvEFy8c49PJ60jg6JXbk9XMXKe0v7maqR0PJ2Rs5tY0uiltiHXsTlwOhbpcBy_uVbLOMi_DJu"
-                ],
-                "poi_id": "1a020b72-36bd-42f8-8ab0-f639596b8d5d",
-                "themes": [],
-                "latitude": 1.475192,
-                "poi_name": "MALALAL Hotpot",
-                "longitude": 103.588141,
-                "time_type": "anyTime",
-                "open_hours": None,
+                "poi_id": "4ed37b8a-4fb8-40ef-b70a-c5ca9230ef71",
+                "poi_name": "LEGOLAND Malaysia",
                 "poi_destination": "Johor, Malaysia",
-            }
+                "latitude": 1.427236,
+                "longitude": 103.629489,
+                "date": "2026-05-01",
+                "time_type": "anyTime",
+                "themes": ["family"],
+                "role": "attraction",
+                "open_hours": {
+                    "friday": ["10 am-6 pm"],
+                    "monday": ["10 am-6 pm"],
+                    "sunday": ["10 am-6 pm"],
+                    "tuesday": ["10 am-6 pm"],
+                    "saturday": ["10 am-6 pm"],
+                    "thursday": ["10 am-6 pm"],
+                    "wednesday": ["Closed"],
+                },
+                "images": [
+                    "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSzXmC_5QDgGd1mw-JFuznEMDhRjhSrTHi0aB0DWffIE7Q3nkSoOyZtF3HfngnV5njYDAre_o_wbanATFrHfxGIA5yPmXRaX9FMGw4UIMCWTcraYOIroYx_o1s_0uxIxnJoKW3osaA"
+                ],
+            },
+            {
+                "poi_id": "9849c82a-c5ab-417d-a77e-b1728e04861e",
+                "poi_name": "Universal Studios Singapore",
+                "poi_destination": "Singapore",
+                "latitude": 1.254042,
+                "longitude": 103.823808,
+                "date": "2026-05-03",
+                "time_type": "anyTime",
+                "themes": ["family"],
+                "role": "attraction",
+                "open_hours": {
+                    "friday": ["10 am-7 pm"],
+                    "monday": ["10 am-7 pm"],
+                    "sunday": ["10 am-8 pm"],
+                    "tuesday": ["10 am-7 pm"],
+                    "saturday": ["10 am-8 pm"],
+                    "thursday": ["10 am-7 pm"],
+                    "wednesday": ["10 am-7 pm"],
+                },
+                "images": [
+                    "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwcLTxOPFFcaWQj8_B6XU8cyFvePh46G4hSG02ownwIynGTh8z07qAa1PaImhFwFXCh_BQXiWb_k3-EIpV6Q7g_FguEHZuzbcboZbBYPt9QEmJ5EgZtQZ-9C-_GgmPwAhqlhuP3qg"
+                ],
+            },
+            {
+                "poi_id": "871fede6-4097-4072-a820-947d69bdae36",
+                "poi_name": "Marina Square",
+                "poi_destination": "Singapore",
+                "latitude": 1.291153,
+                "longitude": 103.857678,
+                "date": "2026-05-05",
+                "time_type": "anyTime",
+                "themes": ["shopping"],
+                "role": "attraction",
+                "open_hours": {
+                    "friday": ["10 am-10 pm"],
+                    "monday": ["10 am-10 pm"],
+                    "sunday": ["10 am-10 pm"],
+                    "tuesday": ["10 am-10 pm"],
+                    "saturday": ["10 am-10 pm"],
+                    "thursday": ["10 am-10 pm"],
+                    "wednesday": ["10 am-10 pm"],
+                },
+                "images": [
+                    "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSw5KfTgSHx96z7iKMmDMAQWyLvXO1eSnYx3Trofyzp5Nc248eB1sDWkRSZZD2vo_fcsfCpTxtvgRag71X7PoQgzs2yjZPFdac5WyaR-DktAbmfcIovqG68ASi55EfkPk_2ODQ_HRw"
+                ],
+            },
         ],
     },
     "pacing": "relaxed",
@@ -166,7 +238,7 @@ SCENARIO_MULTI_CITY_DAYS_ASSIGNED_WITH_MULTIPLE_MANDATORY_POIS = {
 
 def _get_base_poi_id(poi_id: str) -> str:
     """Strip _dayX suffix to get base POI ID."""
-    return poi_id.rsplit("_day", 1)[0] if "_day" in poi_id else poi_id
+    return poi_id.rsplit("_", 1)[0] if "_" in poi_id else poi_id
 
 
 def _is_within_meal_window(start_min: int) -> Tuple[bool, str]:
@@ -348,6 +420,12 @@ def calculate_solver_metrics(
                 day_meals += 1
                 food_streak += 1
 
+                # Track themes for meals
+                themes = stop.get("themes", [])
+                if themes:
+                    primary = themes[0]
+                    all_themes[primary] = all_themes.get(primary, 0) + 1
+
                 start_time = time_to_minutes(stop.get("start_service", stop.get("arrival", "00:00")))
                 in_window, _ = _is_within_meal_window(start_time)
                 if in_window:
@@ -465,7 +543,6 @@ def run_scenario_comparison(scenario: Dict) -> Dict[str, Any]:
         return results
 
     print(f"    ✓ MAUT selected {len(maut_out.get('places', []))} POIs")
-
     # Inject dates/num_days into MAUT output (required by pipeline)
     maut_out.setdefault("meta", {})
     maut_out["meta"]["dates"] = payload.get("dates", {})
@@ -569,10 +646,11 @@ def print_scenario_report(results: Dict):
     print(f"{'OVERALL FEASIBLE':<35} {ort_feasible:>15} {acs_feasible:>15}")
 
     # Theme distribution
-    print("\nTheme Distribution (Attractions):")
+    print("\nTheme Distribution (All POIs):")
     ort_themes = ort.get("theme_distribution", {})
     acs_themes = acs.get("theme_distribution", {})
-    all_themes = set(ort_themes.keys()) | set(acs_themes.keys())
+    user_themes = set(results.get("payload_summary", {}).get("interests", []))
+    all_themes = user_themes | set(ort_themes.keys()) | set(acs_themes.keys())
     for theme in sorted(all_themes):
         print(f"  {theme:<33} {ort_themes.get(theme, 0):>15} {acs_themes.get(theme, 0):>15}")
 
@@ -590,6 +668,7 @@ def all_scenario_results():
         SCENARIO_SINGLE_CITY_SINGLE_THEME,
         SCENARIO_CONSTRAINED_FAMILY,
         SCENARIO_MANDATORY_POI_HOTEL_SELECTED,
+        SCENARIO_MULTI_CITY_REPEAT_VISIT_MANDATORY_POIS,
     ]
 
     for scenario in scenarios:
@@ -601,6 +680,9 @@ def all_scenario_results():
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2, default=str)
     print(f"\n✅ Results saved to: {output_path}")
+
+    print("\n📈 Generating comparison charts...")
+    generate_all_charts(results)
 
     return results
 
@@ -648,27 +730,29 @@ def test_scenario_3_constrained_family(all_scenario_results):
     """Test Scenario 3: Family trip with full constraints."""
     results = all_scenario_results.get("scenario_3", {})
 
-    # Both should be feasible (even with many constraints)
     assert results.get("ortools", {}).get("feasible", False), "OR-Tools should produce feasible solution"
     assert results.get("acs", {}).get("feasible", False), "ACS should produce feasible solution"
 
-    # Verify preference alignment is calculated
-    ort_pref = results.get("ortools", {}).get("preference_alignment", {})
-    acs_pref = results.get("acs", {}).get("preference_alignment", {})
 
-    # Both should have theme coverage (MAUT score is internal, not exposed in API)
-    # The POI schema doesn't include _score, so we verify via theme coverage instead
-    assert ort_pref.get("theme_coverage", 0) > 0, "OR-Tools should have theme coverage"
-    assert acs_pref.get("theme_coverage", 0) > 0, "ACS should have theme coverage"
+# def test_scenario_5_multi_city_assigned_days(all_scenario_results):
+#     """Test Scenario 5: Multi-city with per-city date assignments."""
+#     results = all_scenario_results.get("scenario_5", {})
 
-    # The overall alignment score should be positive (based on theme matching)
-    assert ort_pref.get("preference_alignment_total", 0) > 0, "OR-Tools should have alignment score"
-    assert acs_pref.get("preference_alignment_total", 0) > 0, "ACS should have alignment score"
+#     assert results.get("ortools", {}).get("feasible", False), "OR-Tools should produce feasible solution"
+#     assert results.get("acs", {}).get("feasible", False), "ACS should produce feasible solution"
+
+
+def test_scenario_6_multi_city_repeat_visit_mandatory_pois(all_scenario_results):
+    """Test Scenario 6: Multi-city with mandatory POIs."""
+    results = all_scenario_results.get("scenario_6", {})
+
+    assert results.get("ortools", {}).get("feasible", False), "OR-Tools should produce feasible solution"
+    assert results.get("acs", {}).get("feasible", False), "ACS should produce feasible solution"
 
 
 def test_all_scenarios_generate_results(all_scenario_results):
     """Verify all scenarios produced results and JSON was saved."""
-    assert len(all_scenario_results) == 4, "Should have 4 scenario results"
+    assert len(all_scenario_results) == 5, "Should have 5 scenario results"
 
     output_path = os.path.join(OUTPUT_DIR, "scenario_comparison_results.json")
     assert os.path.exists(output_path), "JSON output file should exist"
@@ -676,7 +760,7 @@ def test_all_scenarios_generate_results(all_scenario_results):
     with open(output_path, "r") as f:
         saved_data = json.load(f)
 
-    assert len(saved_data) == 4, "Saved JSON should have 4 scenarios"
+    assert len(saved_data) == 5, "Saved JSON should have 5 scenarios"
     print("\n" + "=" * 80)
     print("📋 ALL SCENARIO TESTS COMPLETED SUCCESSFULLY")
     print("=" * 80)

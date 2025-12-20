@@ -703,14 +703,6 @@ def test_compare_solvers():
     selected_hotel = maut_output["meta"].get("selected_hotel")
     assert selected_hotel, "MAUT did not select a hotel"
 
-    coords = selected_hotel.get("coordinates") or {}
-    hotel = {
-        "id": selected_hotel["id"],
-        "name": selected_hotel["name"],
-        "lat": coords.get("lat"),
-        "lon": coords.get("lng"),
-    }
-
     pacing = maut_request["pacing"]
 
     # Run OR-Tools with timing
@@ -850,14 +842,6 @@ def test_compare_solvers_multiple_pacings():
         if not selected_hotel:
             print(f"⚠️  No hotel selected for {pacing}")
             continue
-
-        coords = selected_hotel.get("coordinates") or {}
-        hotel = {
-            "id": selected_hotel["id"],
-            "name": selected_hotel["name"],
-            "lat": coords.get("lat"),
-            "lon": coords.get("lng"),
-        }
 
         try:
             t0 = time.perf_counter()

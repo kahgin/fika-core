@@ -1,6 +1,6 @@
 # Fika Core
 
-Core for Fika — I haven't thought about what to write here yet.
+Core for Fika.
 
 ## Setup
 

@@ -7,8 +7,8 @@ from math import ceil
 
 logger = get_logger(__name__)
 
-MAX_OSRM_NODES = 1900  # Max nodes for OSRM /table requests
-OSRM_TIMEOUT = 5  # seconds
+MAX_OSRM_NODES = 1900
+OSRM_TIMEOUT = 5
 
 
 def tiered_round(minutes: float) -> int:

@@ -1,9 +1,9 @@
 {
-    "title": "Singapore @ 1 day",
+    "title": "Singapre - Flex Days",
     "destinations": [{"city": "Singapore"}],
     "dates": {
         "type": "flexible",
-        "days": 1,
+        "days": 3,
         "preferred_month": null
     },
     "travelers": {
@@ -22,15 +22,13 @@
     "dietary_restrictions": "vegetarian",
     "hotels": [
         {
-            "poi_id": "d6709b71-2dc6-4e84-9e4c-c498fef9fcdf",
-            "poi_name": "Q Loft Hotels@Bedok",
-            "latitude": 1.331589,
-            "longitude": 103.947165,
+            "poi_id": "e006e461-8a62-4c76-b127-52dd6cf2ea13",
+            "poi_name": "Resorts World Sentosa",
+            "latitude": 1.255179,
+            "longitude": 103.821811,
             "themes": [],
             "role": "accommodation",
-            "images": [
-                "https://lh3.googleusercontent.com/p/AF1QipPvDWNGK5AAFhhV4Gmd94o4L2eo7ebwUPD1zu34"
-            ]
+            "images": []
         }
     ],
     "mandatory_pois": [
@@ -46,9 +44,7 @@
                 "family"
             ],
             "role": "attraction",
-            "images": [
-                "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSwE2uvZmz6ESaVFMUjRrovGb4EQO4qyX4IDuXkvB64gldjcO2cf1jJOfpDXsUUkWXuWYllkYroljMGorvg6qvRrBdNTbBm05OFIcFMNjwrB9P4gGcNZnOcovOU2zMt59uGDXoEOqkjnFblR"
-            ]
+            "images": []
         }
     ]
 }

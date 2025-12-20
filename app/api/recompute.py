@@ -51,19 +51,29 @@ def _extract_pois_from_days(days: list) -> list[dict]:
     pois = []
 
     for day in days:
+        # Get area_name from the day itself (not from stops)
+        day_area = day.get("destination") or day.get("area_name")
+
         for stop in day.get("stops", []):
             poi_id = stop.get("poi_id")
-            if not poi_id or poi_id in seen_ids:
+            if not poi_id:
                 continue
 
-            # Skip depot/hotel nodes that aren't accommodation events
             role = stop.get("role", "attraction")
             if role == "depot":
                 continue
 
+            # For hotel events, we still want to extract the accommodation POI
+            # but only once (not for each checkin/checkout/stay event)
+            hotel_event = stop.get("hotel_event_type")
+            if hotel_event in ("checkin", "checkout", "stay"):
+                # Use accommodation role for hotel POIs
+                role = "accommodation"
+
+            if poi_id in seen_ids:
+                continue
             seen_ids.add(poi_id)
 
-            # Build POI dict
             coords = stop.get("coordinates") or {}
             lat = coords.get("lat") or stop.get("latitude")
             lng = coords.get("lng") or stop.get("longitude")
@@ -78,10 +88,8 @@ def _extract_pois_from_days(days: list) -> list[dict]:
                 "images": _sanitize_images(stop.get("images")),
             }
 
-            # Preserve area_name/destination for multi-city
-            area = stop.get("area_name") or stop.get("destination")
-            if area:
-                poi["area_name"] = area
+            if day_area:
+                poi["area_name"] = day_area
 
             pois.append(poi)
 
@@ -89,19 +97,26 @@ def _extract_pois_from_days(days: list) -> list[dict]:
 
 
 def _extract_pois_from_single_day(day: dict) -> list[dict]:
-    """Extract POIs from a single day."""
+    """Extract POIs from a single day, skipping hotel events."""
     seen_ids = set()
     pois = []
 
     for stop in day.get("stops", []):
         poi_id = stop.get("poi_id")
-        if not poi_id or poi_id in seen_ids:
+        if not poi_id:
             continue
 
         role = stop.get("role", "attraction")
         if role == "depot":
             continue
 
+        # Skip hotel event nodes (for single day recompute, we don't need hotel)
+        hotel_event = stop.get("hotel_event_type")
+        if hotel_event in ("checkin", "checkout", "stay"):
+            continue
+
+        if poi_id in seen_ids:
+            continue
         seen_ids.add(poi_id)
 
         coords = stop.get("coordinates") or {}
@@ -418,9 +433,19 @@ def _recompute_partial(data: dict, options: dict) -> dict:
                         "lon": coords.get("lng"),
                     }
                     break
+        # No hotel - use first POI as reference (single-day without hotel)
+        if not hotel and city_pois:
+            first_poi = city_pois[0]
+            coords = first_poi.get("coordinates", {})
+            hotel = {
+                "id": first_poi["id"],
+                "name": first_poi["name"],
+                "lat": coords.get("lat"),
+                "lon": coords.get("lng"),
+            }
 
         if not hotel:
-            raise HTTPException(status_code=400, detail="No hotel found for recompute")
+            raise HTTPException(status_code=400, detail="No POIs found for recompute")
 
         maut_output = {
             "status": "ok",
@@ -533,7 +558,8 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
 
     if depot_id:
         for stop in target_day.get("stops", []):
-            if stop.get("poi_id") == depot_id:
+            stop_base_id = stop.get("poi_id", "")
+            if stop_base_id == depot_id:
                 hotel = {
                     "id": depot_id,
                     "name": stop.get("name", "Hotel"),

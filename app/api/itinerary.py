@@ -26,9 +26,7 @@ from app.db.itinerary_storage import (
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
-# ============================================================================
 # Helpers
-# ============================================================================
 
 
 def _normalize_destination_name(raw) -> Optional[str]:
@@ -85,9 +83,7 @@ def _handle_storage_error(error: str, action: str = "modify") -> None:
     raise HTTPException(status_code=500, detail=f"Failed to {action} itinerary: {error}")
 
 
-# ============================================================================
 # Day/Stop Utilities
-# ============================================================================
 
 
 def _recompute_day_metrics(day: dict) -> None:
@@ -145,7 +141,7 @@ def _recalculate_day_times(day: dict, pacing: str = "balanced") -> None:
 
     for i, stop in enumerate(stops):
         role = stop.get("role", "attraction")
-        is_depot = role in ("depot", "hotel", "accommodation")
+        is_depot = role in ("accommodation")
 
         if i == 0 and is_depot:
             stop["arrival"] = stop["start_service"] = stop["depart"] = to_time(current)
@@ -212,9 +208,15 @@ def _extract_core_stops(stops: list) -> tuple[list, list, list]:
     if not stops:
         return [], [], []
 
-    is_depot = lambda s: s.get("role") in ("hotel", "accommodation")
+    def is_depot(s: dict) -> bool:
+        return s.get("role") in ("hotel", "accommodation") or s.get("hotel_event_type") in (
+            "checkin",
+            "checkout",
+            "stay",
+        )
+
     first = stops[0] if stops and is_depot(stops[0]) else None
-    last = stops[-1] if stops and is_depot(stops[-1]) and stops[-1] is not first else None
+    last = stops[-1] if len(stops) > 1 and is_depot(stops[-1]) and stops[-1] is not first else None
 
     start_idx = 1 if first else 0
     end_idx = -1 if last else len(stops)
@@ -223,9 +225,7 @@ def _extract_core_stops(stops: list) -> tuple[list, list, list]:
     return [first] if first else [], core, [last] if last else []
 
 
-# ============================================================================
 # API Endpoints
-# ============================================================================
 
 
 @router.post("/itinerary/create")
@@ -256,9 +256,6 @@ def create_itinerary(payload: dict, authorization: Optional[str] = Header(None))
         places = maut_output.get("places", [])
         hotels_from_payload = payload.get("hotels", [])
         mandatory_pois_from_payload = payload.get("mandatory_pois", [])
-        is_multi_city = bool(destinations)
-
-        hotel = _extract_hotel(places, hotels_from_payload, is_multi_city)
 
         _add_hotels_to_places(places, hotels_from_payload)
         mandatory = _process_mandatory_pois(places, mandatory_pois_from_payload, payload.get("dates", {}))
@@ -723,13 +720,13 @@ def reorder_itinerary_stops(itin_id: str, payload: dict, authorization: Optional
 
                         if target_pos is not None and isinstance(target_pos, int):
                             stops = target_day["stops"]
-                            is_depot = lambda s: s.get("role") in ("depot", "hotel", "accommodation")
+                            is_depot = lambda s: s.get("role") in ("accommodation")
                             min_pos = 1 if stops and is_depot(stops[0]) else 0
                             max_pos = len(stops) - 1 if stops and is_depot(stops[-1]) else len(stops)
                             target_day["stops"].insert(max(min_pos, min(target_pos, max_pos)), stop)
                         else:
                             stops = target_day["stops"]
-                            if stops and stops[-1].get("role") in ("depot", "hotel", "accommodation"):
+                            if stops and stops[-1].get("role") in ("accommodation"):
                                 target_day["stops"].insert(len(stops) - 1, stop)
                             else:
                                 target_day["stops"].append(stop)
@@ -883,7 +880,7 @@ def schedule_poi(itin_id: str, payload: dict, authorization: Optional[str] = Hea
 
         if target_position is not None and isinstance(target_position, int):
             stops = target_day["stops"]
-            is_depot = lambda s: s.get("role") in ("depot", "hotel", "accommodation")
+            is_depot = lambda s: s.get("role") in ("accommodation")
             min_pos = 1 if stops and is_depot(stops[0]) else 0
             max_pos = len(stops) - 1 if stops and is_depot(stops[-1]) else len(stops)
             target_day["stops"].insert(max(min_pos, min(target_position, max_pos)), poi_stop)

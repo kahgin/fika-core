@@ -8,6 +8,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 import yaml
 from pathlib import Path
+import textwrap
 
 
 class HotelEventType(Enum):
@@ -45,7 +46,6 @@ class DaySpec:
     start_min: int
     end_min: int
     depot_id: str  # Kept for backward compatibility, but may be None for free days
-    # Hotel events for this day (check-in, check-out, or none)
     hotel_events: List[HotelEvent] = field(default_factory=list)
 
     @property
@@ -95,21 +95,21 @@ class VRPConfig(BaseModel):
     # Pacing and Service Times
     pace_day_budget_min: Dict[str, int] = Field(
         default={
-            "relaxed": 10 * 60,
+            "relaxed": 11 * 60,
             "balanced": 12 * 60,
-            "packed": 16 * 60,
+            "packed": 15 * 60,
         }
     )
     pace_day_start_min: Dict[str, int] = Field(
         default={
-            "relaxed": 11 * 60,
+            "relaxed": 10 * 60,
             "balanced": 10 * 60,
-            "packed": 8 * 60,
+            "packed": 9 * 60,
         }
     )
     service_time_min: Dict[str, Dict[str, int]] = Field(
         default={
-            "attraction": {"relaxed": 240, "balanced": 180, "packed": 120},
+            "attraction": {"relaxed": 180, "balanced": 150, "packed": 120},
             "meal": {"relaxed": 90, "balanced": 75, "packed": 60},
             "accommodation": {"relaxed": 0, "balanced": 0, "packed": 0},
         }
@@ -133,12 +133,10 @@ class VRPConfig(BaseModel):
     )
 
     # Hotel Event Time Windows (minutes from midnight)
-    # Check-in: typically 14:00-16:00 (840-960 minutes)
     hotel_check_in_window: Tuple[int, int] = Field(
         default=(14 * 60, 16 * 60),
         description="Time window for hotel check-in (arrival at hotel)",
     )
-    # Check-out: typically 10:00-12:00 (600-720 minutes)
     hotel_check_out_window: Tuple[int, int] = Field(
         default=(10 * 60, 12 * 60),
         description="Time window for hotel check-out (departure from hotel)",
@@ -213,7 +211,6 @@ def load_config(config_path: Optional[Path] = None) -> VRPConfig:
         VRPConfig instance with loaded or default values.
     """
     if config_path is None:
-        # Default: look in app/core/vrp_config.yaml
         config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
 
     if config_path.exists():
@@ -237,13 +234,11 @@ def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     if config_path is None:
         config_path = Path(__file__).parent.parent / "core" / "vrp_config.yaml"
 
-    # Round float values to 2 decimal places for cleaner output
     def round_value(v):
         if isinstance(v, float):
             return round(v, 2)
         return v
 
-    # Get values with rounding
     acs_alpha = round_value(config.acs_alpha)
     acs_beta = round_value(config.acs_beta)
     acs_evaporation_rate = round_value(config.acs_evaporation_rate)
@@ -259,10 +254,10 @@ def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     acs_n_iterations: {config.acs_n_iterations}
     acs_q: {acs_q}
 
-    # POI coverage reward (ACS uses this to prioritize visiting more POIs)
     poi_visit_bonus: {config.poi_visit_bonus}
     theme_diversity_bonus: {config.theme_diversity_bonus}
     theme_concentration_penalty: {config.theme_concentration_penalty}
+    meal_window_bonus: {config.meal_window_bonus}
 
     # Shared penalty parameters (used by both solvers)
     drop_poi_penalty: {config.drop_poi_penalty}
@@ -271,6 +266,8 @@ def save_config(config: VRPConfig, config_path: Optional[Path] = None) -> Path:
     penalty_meal_to_meal: {config.penalty_meal_to_meal}
     penalty_same_theme: {config.penalty_same_theme}
     """
+
+    yaml_content = textwrap.dedent(yaml_content).lstrip("\n")
 
     with open(config_path, "w") as f:
         f.write(yaml_content)

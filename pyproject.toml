@@ -8,13 +8,9 @@ dependencies = [
     "fastapi>=0.123.0",
     "uvicorn[standard]>=0.38.0",
     "supabase>=2.25.0",
-    "googlemaps>=4.10.0",
     "ortools>=9.12.0,<9.14.0",
     "numpy>=2.2.6",
-    "pandas>=2.3.3",
     "pydantic-settings>=2.12.0",
-    "numba>=0.62.1",
-    "google-generativeai>=0.8.5",
     "scikit-learn>=1.7.2",
     "pytest>=9.0.1",
     "optuna>=4.6.0",
@@ -25,6 +21,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff>=0.14.8",
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.2",
 ]
 
 [tool.pytest.ini_options]

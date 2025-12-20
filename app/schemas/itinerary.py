@@ -90,9 +90,6 @@ class ItineraryResponse(BaseModel):
     meta: Dict[str, Any]
 
 
-# Shared constraints and operations schemas (snake_case only)
-
-
 class MandatoryPoiSpec(BaseModel):
     """Mandatory POI spec (shared by API → Solver adapter and CVRPTW).
 
@@ -125,9 +122,9 @@ class ReorderItineraryRequest(BaseModel):
     """Reorder itinerary request (supports single_day or entire_trip scopes)."""
 
     scope: str = Field(default="single_day", description="single_day | entire_trip")
-    day_index: Optional[int] = None  # required if scope==single_day
+    day_index: Optional[int] = None
     ordered_poi_ids: List[str] = []
-    moves: Optional[Dict[str, int]] = None  # poi_id -> target day_index
+    moves: Optional[Dict[str, int]] = None
     options: Dict[str, Any] = {}
 
 
@@ -139,4 +136,4 @@ class SchedulePoiRequest(BaseModel):
     all_day: Optional[bool] = False
     start_time: Optional[str] = None
     end_time: Optional[str] = None
-    single_time: Optional[str] = None  # HH:MM; infer duration via role/pacing
+    single_time: Optional[str] = None

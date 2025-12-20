@@ -57,7 +57,7 @@ def popularity_score(rating: Optional[float], reviews: Optional[int]) -> float:
     r = 0.0 if rating is None else max(0.0, min(1.0, float(rating) / 5.0))
     if not reviews or reviews <= 0:
         return 0.5 * r
-    rc = min(1.0, math.log10(1.0 + reviews) / 6.0)
+    rc = min(1.0, math.log10(1.0 + reviews) / 5.0)
     return 0.2 * r + 0.8 * rc
 
 
@@ -86,9 +86,9 @@ def role_keep_counts(num_days: int) -> Dict[str, int]:
 def applicable_dims(req: Dict[str, Any], roles: List[str]) -> Set[str]:
     dims: Set[str] = {"interest", "popularity"}
     flags = req.get("flags", {})
-    if flags.get("has_child"):
+    if flags.get("kids_friendly"):
         dims.add("child")
-    if flags.get("has_pets"):
+    if flags.get("pets_friendly"):
         dims.add("pet")
     if "halal" in (req.get("dietary_restrictions") or []) and ("meal" in (roles or [])):
         dims.add("dietary")
