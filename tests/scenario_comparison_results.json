@@ -14,10 +14,10 @@
       "flags": {},
       "dietary": []
     },
-    "timestamp": "2025-12-19T09:44:46.655396",
+    "timestamp": "2026-01-02T18:53:48.081521",
     "ortools": {
       "solver": "OR-Tools",
-      "execution_time_sec": 31.38,
+      "execution_time_sec": 26.33,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 81.25,
       "daily_utilisation": [
@@ -27,7 +27,7 @@
         83.33,
         72.92
       ],
-      "total_distance_km": 71.09,
+      "total_distance_km": 72.42,
       "unique_pois": 25,
       "meals_scheduled": 11,
       "attractions_scheduled": 14,
@@ -53,11 +53,11 @@
         "theme_match_rate": 0.0,
         "preference_alignment_total": 51.73,
         "scheduled_themes": [
-          "art_museums",
-          "nightlife",
-          "family",
+          "nature",
           "shopping",
-          "nature"
+          "nightlife",
+          "art_museums",
+          "family"
         ],
         "user_themes": [],
         "total_attractions": 14,
@@ -66,28 +66,28 @@
     },
     "acs": {
       "solver": "ACS",
-      "execution_time_sec": 11.06,
+      "execution_time_sec": 9.8,
       "time_window_satisfaction_rate": 100.0,
-      "time_utilisation_score": 75.0,
+      "time_utilisation_score": 72.92,
       "daily_utilisation": [
         72.92,
         72.92,
         72.92,
         72.92,
-        83.33
+        72.92
       ],
-      "total_distance_km": 101.69,
+      "total_distance_km": 103.51,
       "unique_pois": 25,
-      "meals_scheduled": 14,
-      "attractions_scheduled": 11,
-      "meal_window_compliance": 50.0,
+      "meals_scheduled": 15,
+      "attractions_scheduled": 10,
+      "meal_window_compliance": 40.0,
       "theme_distribution": {
-        "family": 3,
-        "shopping": 5,
-        "nature": 1,
-        "food_culinary": 1,
         "nightlife": 1,
-        "art_museums": 1
+        "shopping": 4,
+        "art_museums": 2,
+        "food_culinary": 1,
+        "nature": 1,
+        "family": 1
       },
       "constraints": {
         "time_sequence": true,
@@ -99,21 +99,21 @@
       "feasible": true,
       "violations": [],
       "preference_alignment": {
-        "avg_maut_score": 0.6052,
+        "avg_maut_score": 0.6295,
         "theme_coverage": 100.0,
         "theme_match_rate": 0.0,
-        "preference_alignment_total": 54.21,
+        "preference_alignment_total": 55.18,
         "scheduled_themes": [
           "food_culinary",
-          "art_museums",
-          "nightlife",
-          "family",
+          "nature",
           "shopping",
-          "nature"
+          "nightlife",
+          "art_museums",
+          "family"
         ],
         "user_themes": [],
-        "total_attractions": 11,
-        "total_meals": 14
+        "total_attractions": 10,
+        "total_meals": 15
       }
     }
   },
@@ -133,10 +133,10 @@
       "flags": {},
       "dietary": []
     },
-    "timestamp": "2025-12-19T09:45:33.394075",
+    "timestamp": "2026-01-02T18:54:26.026718",
     "ortools": {
       "solver": "OR-Tools",
-      "execution_time_sec": 35.61,
+      "execution_time_sec": 34.94,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 79.17,
       "daily_utilisation": [
@@ -185,28 +185,28 @@
     },
     "acs": {
       "solver": "ACS",
-      "execution_time_sec": 35.48,
+      "execution_time_sec": 29.22,
       "time_window_satisfaction_rate": 100.0,
-      "time_utilisation_score": 76.04,
+      "time_utilisation_score": 81.25,
       "daily_utilisation": [
         72.92,
         72.92,
         72.92,
-        72.92,
         93.75,
-        72.92,
-        72.92,
+        93.75,
+        93.75,
+        83.33,
         83.33,
         72.92,
         72.92
       ],
-      "total_distance_km": 315.94,
-      "unique_pois": 51,
-      "meals_scheduled": 29,
-      "attractions_scheduled": 22,
-      "meal_window_compliance": 44.83,
+      "total_distance_km": 324.01,
+      "unique_pois": 53,
+      "meals_scheduled": 28,
+      "attractions_scheduled": 25,
+      "meal_window_compliance": 46.43,
       "theme_distribution": {
-        "shopping": 22,
+        "shopping": 24,
         "family": 1
       },
       "constraints": {
@@ -219,21 +219,20 @@
       "feasible": true,
       "violations": [],
       "preference_alignment": {
-        "avg_maut_score": 0.8395,
+        "avg_maut_score": 0.8462,
         "theme_coverage": 100.0,
         "theme_match_rate": 100.0,
-        "preference_alignment_total": 93.58,
+        "preference_alignment_total": 93.85,
         "scheduled_themes": [
-          "family",
           "food_culinary",
           "shopping",
-          "cultural_history"
+          "family"
         ],
         "user_themes": [
           "shopping"
         ],
-        "total_attractions": 22,
-        "total_meals": 29
+        "total_attractions": 25,
+        "total_meals": 28
       }
     }
   },
@@ -262,10 +261,10 @@
         "halal"
       ]
     },
-    "timestamp": "2025-12-19T09:46:45.651402",
+    "timestamp": "2026-01-02T18:55:31.700943",
     "ortools": {
       "solver": "OR-Tools",
-      "execution_time_sec": 23.21,
+      "execution_time_sec": 23.17,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 75.0,
       "daily_utilisation": [
@@ -300,16 +299,16 @@
         "theme_match_rate": 100.0,
         "preference_alignment_total": 88.84,
         "scheduled_themes": [
-          "art_museums",
-          "cultural_history",
           "religious_sites",
-          "family",
-          "nature"
+          "cultural_history",
+          "nature",
+          "art_museums",
+          "family"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 6,
         "total_meals": 6
@@ -317,7 +316,7 @@
     },
     "acs": {
       "solver": "ACS",
-      "execution_time_sec": 4.29,
+      "execution_time_sec": 3.96,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 75.0,
       "daily_utilisation": [
@@ -325,17 +324,17 @@
         75.0,
         75.0
       ],
-      "total_distance_km": 32.37,
+      "total_distance_km": 28.97,
       "unique_pois": 12,
       "meals_scheduled": 6,
       "attractions_scheduled": 6,
       "meal_window_compliance": 100.0,
       "theme_distribution": {
+        "nature": 1,
+        "family": 2,
         "art_museums": 1,
         "cultural_history": 1,
-        "religious_sites": 1,
-        "nature": 2,
-        "family": 1
+        "religious_sites": 1
       },
       "constraints": {
         "time_sequence": true,
@@ -347,21 +346,21 @@
       "feasible": true,
       "violations": [],
       "preference_alignment": {
-        "avg_maut_score": 0.7005,
+        "avg_maut_score": 0.7065,
         "theme_coverage": 100.0,
         "theme_match_rate": 100.0,
-        "preference_alignment_total": 88.02,
+        "preference_alignment_total": 88.26,
         "scheduled_themes": [
-          "art_museums",
-          "cultural_history",
           "religious_sites",
-          "family",
-          "nature"
+          "cultural_history",
+          "nature",
+          "art_museums",
+          "family"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 6,
         "total_meals": 6
@@ -393,10 +392,10 @@
         "halal"
       ]
     },
-    "timestamp": "2025-12-19T09:47:14.011015",
+    "timestamp": "2026-01-02T18:56:00.901800",
     "ortools": {
       "solver": "OR-Tools",
-      "execution_time_sec": 22.48,
+      "execution_time_sec": 22.57,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 54.17,
       "daily_utilisation": [
@@ -428,14 +427,14 @@
         "theme_match_rate": 100.0,
         "preference_alignment_total": 87.68,
         "scheduled_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 4,
         "total_meals": 5
@@ -443,7 +442,7 @@
     },
     "acs": {
       "solver": "ACS",
-      "execution_time_sec": 3.82,
+      "execution_time_sec": 3.58,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 58.33,
       "daily_utilisation": [
@@ -451,13 +450,14 @@
         75.0,
         50.0
       ],
-      "total_distance_km": 420.61,
+      "total_distance_km": 407.21,
       "unique_pois": 10,
       "meals_scheduled": 6,
       "attractions_scheduled": 4,
       "meal_window_compliance": 83.33,
       "theme_distribution": {
-        "cultural_history": 2,
+        "cultural_history": 1,
+        "shopping": 1,
         "family": 2
       },
       "constraints": {
@@ -470,19 +470,20 @@
       "feasible": true,
       "violations": [],
       "preference_alignment": {
-        "avg_maut_score": 0.6873,
+        "avg_maut_score": 0.6751,
         "theme_coverage": 100.0,
         "theme_match_rate": 100.0,
-        "preference_alignment_total": 87.49,
+        "preference_alignment_total": 87.0,
         "scheduled_themes": [
-          "family",
+          "shopping",
+          "nature",
           "cultural_history",
-          "nature"
+          "family"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 4,
         "total_meals": 6
@@ -513,10 +514,10 @@
         "halal"
       ]
     },
-    "timestamp": "2025-12-19T09:47:40.755396",
+    "timestamp": "2026-01-02T18:56:28.034740",
     "ortools": {
       "solver": "OR-Tools",
-      "execution_time_sec": 26.64,
+      "execution_time_sec": 26.62,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 75.0,
       "daily_utilisation": [
@@ -553,15 +554,15 @@
         "theme_match_rate": 100.0,
         "preference_alignment_total": 90.04,
         "scheduled_themes": [
-          "family",
-          "cultural_history",
+          "art_museums",
           "nature",
-          "art_museums"
+          "family",
+          "cultural_history"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 12,
         "total_meals": 12
@@ -569,7 +570,7 @@
     },
     "acs": {
       "solver": "ACS",
-      "execution_time_sec": 16.17,
+      "execution_time_sec": 13.91,
       "time_window_satisfaction_rate": 100.0,
       "time_utilisation_score": 75.0,
       "daily_utilisation": [
@@ -580,17 +581,17 @@
         75.0,
         75.0
       ],
-      "total_distance_km": 71.4,
+      "total_distance_km": 73.41,
       "unique_pois": 24,
       "meals_scheduled": 12,
       "attractions_scheduled": 12,
       "meal_window_compliance": 100.0,
       "theme_distribution": {
+        "art_museums": 3,
+        "cultural_history": 1,
+        "family": 4,
         "nature": 3,
-        "family": 5,
-        "religious_sites": 1,
-        "art_museums": 2,
-        "cultural_history": 1
+        "religious_sites": 1
       },
       "constraints": {
         "time_sequence": true,
@@ -602,21 +603,21 @@
       "feasible": true,
       "violations": [],
       "preference_alignment": {
-        "avg_maut_score": 0.7398,
+        "avg_maut_score": 0.754,
         "theme_coverage": 100.0,
         "theme_match_rate": 100.0,
-        "preference_alignment_total": 89.59,
+        "preference_alignment_total": 90.16,
         "scheduled_themes": [
-          "art_museums",
-          "cultural_history",
           "religious_sites",
-          "family",
-          "nature"
+          "cultural_history",
+          "nature",
+          "art_museums",
+          "family"
         ],
         "user_themes": [
+          "nature",
           "family",
-          "cultural_history",
-          "nature"
+          "cultural_history"
         ],
         "total_attractions": 12,
         "total_meals": 12

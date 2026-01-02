@@ -2,7 +2,7 @@
   "pacing": "balanced",
   "ortools": {
     "solver": "OR-Tools",
-    "execution_time_sec": 24.2882297039032,
+    "execution_time_sec": 24.03875708580017,
     "time_window_satisfaction_rate": 100.0,
     "time_utilisation_score": 86.11111111111113,
     "daily_utilisation": [
@@ -28,7 +28,7 @@
   },
   "acs": {
     "solver": "ACS",
-    "execution_time_sec": 9.97139024734497,
+    "execution_time_sec": 5.752978324890137,
     "time_window_satisfaction_rate": 100.0,
     "time_utilisation_score": 75.69444444444444,
     "daily_utilisation": [
@@ -36,8 +36,8 @@
       72.91666666666666,
       77.08333333333334
     ],
-    "total_travel_time_min": 2115,
-    "total_distance_km": 64.47,
+    "total_travel_time_min": 2110,
+    "total_distance_km": 56.5,
     "unique_pois": 15,
     "meals_scheduled": 9,
     "attractions_scheduled": 6,

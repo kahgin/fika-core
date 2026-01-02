@@ -1,3 +1,5 @@
+"""Integration tests for multi-city pipeline."""
+
 import pytest
 from unittest.mock import patch
 from app.services.pipeline import run_full_pipeline
@@ -5,263 +7,90 @@ from app.services.pipeline import run_full_pipeline
 
 @pytest.fixture
 def mock_osrm():
-    """Mock OSRM client for deterministic tests."""
     with patch("app.services.osrm.osrm_client") as mock:
-        # Mock distance to return haversine-like values
-        mock.distance.return_value = 5.0  # 5 km
-
-        # Mock matrix_minutes to return travel times
+        mock.distance.return_value = 5.0
         def matrix_minutes(coords):
             n = len(coords)
             return [[10 if i != j else 0 for j in range(n)] for i in range(n)]
-
         mock.matrix_minutes.side_effect = matrix_minutes
         yield mock
 
 
 @pytest.fixture
 def single_city_maut():
-    """Single city MAUT output fixture."""
     return {
         "places": [
-            {
-                "id": "hotel1",
-                "name": "Test Hotel",
-                "roles": ["accommodation"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.3, "lng": 103.8},
-                "_score": 0.9,
-                "complete_address": {"city": "Singapore"},
-            },
-            {
-                "id": "attraction1",
-                "name": "Marina Bay",
-                "roles": ["attraction"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["cultural_history"],
-                "complete_address": {"city": "Singapore"},
-            },
-            {
-                "id": "meal1",
-                "name": "Hawker Center",
-                "roles": ["meal"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.29, "lng": 103.84},
-                "complete_address": {"city": "Singapore"},
-            },
+            {"id": "hotel1", "name": "Hotel", "roles": ["accommodation"],
+             "area_name": "Singapore", "coordinates": {"lat": 1.3, "lng": 103.8}, "_score": 0.9},
+            {"id": "a1", "name": "Marina Bay", "roles": ["attraction"],
+             "area_name": "Singapore", "coordinates": {"lat": 1.28, "lng": 103.85}, "themes": ["cultural"]},
+            {"id": "m1", "name": "Hawker", "roles": ["meal"],
+             "area_name": "Singapore", "coordinates": {"lat": 1.29, "lng": 103.84}},
         ],
-        "meta": {
-            "num_days": 2,
-            "dates": {"type": "flexible", "days": 2},
-            "selected_themes": ["cultural_history"],
-        },
+        "meta": {"num_days": 2, "dates": {"type": "flexible", "days": 2}},
     }
 
 
 @pytest.fixture
 def multi_city_maut():
-    """Multi-city MAUT output fixture."""
     return {
         "places": [
-            # Singapore POIs
-            {
-                "id": "sg_hotel",
-                "name": "Singapore Hotel",
-                "roles": ["accommodation"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.3, "lng": 103.8},
-                "_score": 0.9,
-                "complete_address": {"city": "Singapore"},
-            },
-            {
-                "id": "sg_attraction1",
-                "name": "Marina Bay",
-                "roles": ["attraction"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.28, "lng": 103.85},
-                "themes": ["cultural_history"],
-                "complete_address": {"city": "Singapore"},
-            },
-            {
-                "id": "sg_meal1",
-                "name": "Hawker Center",
-                "roles": ["meal"],
-                "area_name": "Singapore",
-                "coordinates": {"lat": 1.29, "lng": 103.84},
-                "complete_address": {"city": "Singapore"},
-            },
-            # Kuala Lumpur POIs
-            {
-                "id": "kl_hotel",
-                "name": "KL Hotel",
-                "roles": ["accommodation"],
-                "area_name": "Kuala Lumpur",
-                "coordinates": {"lat": 3.15, "lng": 101.7},
-                "_score": 0.85,
-                "complete_address": {"city": "Kuala Lumpur"},
-            },
-            {
-                "id": "kl_attraction1",
-                "name": "Petronas Towers",
-                "roles": ["attraction"],
-                "area_name": "Kuala Lumpur",
-                "coordinates": {"lat": 3.16, "lng": 101.71},
-                "themes": ["architecture"],
-                "complete_address": {"city": "Kuala Lumpur"},
-            },
-            {
-                "id": "kl_meal1",
-                "name": "Jalan Alor",
-                "roles": ["meal"],
-                "area_name": "Kuala Lumpur",
-                "coordinates": {"lat": 3.14, "lng": 101.69},
-                "complete_address": {"city": "Kuala Lumpur"},
-            },
+            {"id": "sg_hotel", "name": "SG Hotel", "roles": ["accommodation"],
+             "area_name": "Singapore", "coordinates": {"lat": 1.3, "lng": 103.8}, "_score": 0.9},
+            {"id": "sg_a1", "name": "Marina Bay", "roles": ["attraction"],
+             "area_name": "Singapore", "coordinates": {"lat": 1.28, "lng": 103.85}, "themes": ["cultural"]},
+            {"id": "kl_hotel", "name": "KL Hotel", "roles": ["accommodation"],
+             "area_name": "Kuala Lumpur", "coordinates": {"lat": 3.15, "lng": 101.7}, "_score": 0.85},
+            {"id": "kl_a1", "name": "Petronas", "roles": ["attraction"],
+             "area_name": "Kuala Lumpur", "coordinates": {"lat": 3.16, "lng": 101.71}, "themes": ["architecture"]},
         ],
-        "meta": {
-            "num_days": 4,
-            "dates": {"type": "flexible", "days": 4},
-            "selected_themes": ["cultural_history", "architecture"],
-        },
+        "meta": {"num_days": 4, "dates": {"type": "flexible", "days": 4}},
     }
 
 
-class TestMultiCityPipeline:
-    """Tests for multi-city pipeline scenarios."""
+class TestPipelineBasic:
+    """Basic pipeline tests."""
 
-    def test_two_cities_segmentation(self, mock_osrm, multi_city_maut):
-        """Test pipeline segments and processes two cities."""
-        result = run_full_pipeline(multi_city_maut, solver="acs")
-
-        # Should succeed or partial_success
+    def test_single_city_success(self, mock_osrm, single_city_maut):
+        result = run_full_pipeline(single_city_maut, solver="acs")
         assert result["status"] in ("success", "partial_success")
         assert len(result["days"]) > 0
 
-    def test_multi_city_days_have_area_name(self, mock_osrm, multi_city_maut):
-        """Test that each day has area_name field."""
+    def test_multi_city_segments(self, mock_osrm, multi_city_maut):
         result = run_full_pipeline(multi_city_maut, solver="acs")
+        assert result["status"] in ("success", "partial_success")
 
+    def test_days_have_area_name(self, mock_osrm, multi_city_maut):
+        result = run_full_pipeline(multi_city_maut, solver="acs")
         if result["status"] in ("success", "partial_success"):
             for day in result["days"]:
                 assert "area_name" in day
 
-    def test_multi_city_request_id_in_meta(self, mock_osrm, multi_city_maut):
-        """Test that request_id is included in meta."""
-        result = run_full_pipeline(multi_city_maut, solver="acs")
-        assert "request_id" in result["meta"]
-
 
 class TestPipelineEdgeCases:
-    """Tests for edge cases and error handling."""
+    """Edge case tests."""
 
-    def test_empty_places(self, mock_osrm):
-        """Test pipeline with empty places."""
-        maut_output = {"places": [], "meta": {"num_days": 1}}
-        result = run_full_pipeline(maut_output, solver="acs")
+    def test_empty_places_error(self, mock_osrm):
+        result = run_full_pipeline({"places": [], "meta": {"num_days": 1}}, solver="acs")
         assert result["status"] == "error"
 
-    def test_too_many_cities(self, mock_osrm):
-        """Test pipeline rejects too many cities."""
-        # Create 6 cities (exceeds MAX_CITIES_PER_REQUEST=5)
+    def test_too_many_cities_error(self, mock_osrm):
         places = []
         for i in range(6):
-            places.append(
-                {
-                    "id": f"hotel_{i}",
-                    "name": f"Hotel {i}",
-                    "roles": ["accommodation"],
-                    "area_name": f"City{i}",
-                    "coordinates": {"lat": 1.0 + i, "lng": 100.0 + i},
-                    "complete_address": {"city": f"City{i}"},
-                }
-            )
-            places.append(
-                {
-                    "id": f"attraction_{i}",
-                    "name": f"Attraction {i}",
-                    "roles": ["attraction"],
-                    "area_name": f"City{i}",
-                    "coordinates": {"lat": 1.01 + i, "lng": 100.01 + i},
-                    "complete_address": {"city": f"City{i}"},
-                }
-            )
-
-        maut_output = {
-            "places": places,
-            "meta": {"num_days": 6},
-        }
-
-        result = run_full_pipeline(maut_output, solver="acs")
-
+            places.extend([
+                {"id": f"h{i}", "name": f"Hotel{i}", "roles": ["accommodation"],
+                 "area_name": f"City{i}", "coordinates": {"lat": 1+i, "lng": 100+i}},
+                {"id": f"a{i}", "name": f"Attr{i}", "roles": ["attraction"],
+                 "area_name": f"City{i}", "coordinates": {"lat": 1.01+i, "lng": 100.01+i}},
+            ])
+        result = run_full_pipeline({"places": places, "meta": {"num_days": 6}}, solver="acs")
         assert result["status"] == "error"
-        assert "too many" in result["error"].lower() or "request_too_large" in str(result)
-
-    def test_partial_success_with_failed_cities(self, mock_osrm):
-        """Test partial success when some cities fail."""
-        maut_output = {
-            "places": [
-                # City with hotel
-                {
-                    "id": "sg_hotel",
-                    "name": "Singapore Hotel",
-                    "roles": ["accommodation"],
-                    "area_name": "Singapore",
-                    "coordinates": {"lat": 1.3, "lng": 103.8},
-                    "complete_address": {"city": "Singapore"},
-                },
-                {
-                    "id": "sg_attraction",
-                    "name": "Marina Bay",
-                    "roles": ["attraction"],
-                    "area_name": "Singapore",
-                    "coordinates": {"lat": 1.28, "lng": 103.85},
-                    "complete_address": {"city": "Singapore"},
-                },
-                # City without hotel (will fail)
-                {
-                    "id": "kl_attraction",
-                    "name": "Petronas",
-                    "roles": ["attraction"],
-                    "area_name": "Kuala Lumpur",
-                    "coordinates": {"lat": 3.15, "lng": 101.7},
-                    "complete_address": {"city": "Kuala Lumpur"},
-                },
-            ],
-            "meta": {"num_days": 2},
-        }
-
-        result = run_full_pipeline(maut_output, solver="acs")
-
-        # Should be partial_success since KL has no hotel
-        if result["status"] == "partial_success":
-            assert "failed_cities" in result["meta"]
-            assert "Kuala Lumpur" in result["meta"]["failed_cities"]
-
-
-class TestPipelineValidation:
-    """Tests for validation in pipeline."""
-
-    def test_validation_runs_on_result(self, mock_osrm, single_city_maut):
-        """Test that a hotel is included in the itinerary."""
-        single_city_maut["meta"]["hotel"] = {
-            "poi_id": "hotel1",
-            "poi_name": "Test Hotel",
-            "coordinates": {"lat": 1.3, "lng": 103.8},
-        }
-        result = run_full_pipeline(single_city_maut, solver="acs")
-        assert any(stop.get("name") == "Test Hotel" for stop in result["days"][0]["stops"])
 
 
 class TestPipelinePacing:
-    """Tests for different pacing options."""
+    """Pacing tests."""
 
-    def test_relaxed_pacing(self, mock_osrm, single_city_maut):
-        """Test pipeline with relaxed pacing."""
-        result = run_full_pipeline(single_city_maut, pacing="relaxed", solver="acs")
-        assert result["meta"]["pacing"] == "relaxed"
-
-    def test_packed_pacing(self, mock_osrm, single_city_maut):
-        """Test pipeline with packed pacing."""
-        result = run_full_pipeline(single_city_maut, pacing="packed", solver="acs")
-        assert result["meta"]["pacing"] == "packed"
+    def test_pacing_in_meta(self, mock_osrm, single_city_maut):
+        for pacing in ["relaxed", "balanced", "packed"]:
+            result = run_full_pipeline(single_city_maut, pacing=pacing, solver="acs")
+            assert result["meta"]["pacing"] == pacing

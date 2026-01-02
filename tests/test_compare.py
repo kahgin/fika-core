@@ -142,7 +142,7 @@ def _calculate_tus(days: List[Dict], pacing: str = "balanced") -> Tuple[float, L
 
         d_k = sum(
             time_to_minutes(s.get("depart", "00:00"))
-            - time_to_minutes(s.get("start_service", s.get("arrival", "00:00")))
+            - time_to_minutes(s.get("arrival", "00:00"))
             for s in stops
         )
 
@@ -269,7 +269,7 @@ def _check_meal_constraints(days: List[Dict]) -> Tuple[bool, float, List[str]]:
                 total_meals += 1
 
                 # Check if in preferred window
-                start_time = time_to_minutes(stop.get("start_service", stop.get("arrival", "00:00")))
+                start_time = time_to_minutes(stop.get("arrival", "00:00"))
                 in_window, window_name = _is_within_meal_window(start_time)
                 if in_window:
                     meals_in_window += 1

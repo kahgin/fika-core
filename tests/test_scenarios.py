@@ -426,7 +426,7 @@ def calculate_solver_metrics(
                     primary = themes[0]
                     all_themes[primary] = all_themes.get(primary, 0) + 1
 
-                start_time = time_to_minutes(stop.get("start_service", stop.get("arrival", "00:00")))
+                start_time = time_to_minutes(stop.get("arrival", "00:00"))
                 in_window, _ = _is_within_meal_window(start_time)
                 if in_window:
                     meals_in_window += 1

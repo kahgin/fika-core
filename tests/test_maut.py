@@ -1,5 +1,5 @@
 """
-MAUT (Multi-Attribute Utility Theory) pipeline test.
+MAUT (Multi-Attribute Utility Theory) test.
 
 Tests POI scoring and selection.
 """
@@ -13,9 +13,9 @@ from app.services.transformers import transform_frontend_payload
 TEST_PATH = os.path.join(os.path.dirname(__file__), "sample_payload_flex.json")
 
 
-def test_maut_pipeline():
+def test_maut():
     """
-    Test MAUT pipeline returns scored POIs.
+    Test MAUT returns scored POIs.
 
     Verifies:
     - Status is ok
