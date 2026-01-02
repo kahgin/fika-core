@@ -110,7 +110,6 @@ def _simulate_day_route(
             "role": n.role,
             "themes": n.themes or [],
             "arrival": format_time_minutes(arrival),
-            "start_service": format_time_minutes(start_service),
             "depart": format_time_minutes(finish_service),
             "latitude": n.lat,
             "longitude": n.lon,

@@ -144,7 +144,7 @@ def _recalculate_day_times(day: dict, pacing: str = "balanced") -> None:
         is_depot = role in ("accommodation")
 
         if i == 0 and is_depot:
-            stop["arrival"] = stop["start_service"] = stop["depart"] = to_time(current)
+            stop["arrival"] = stop["depart"] = to_time(current)
             continue
 
         if i > 0:
@@ -160,11 +160,11 @@ def _recalculate_day_times(day: dict, pacing: str = "balanced") -> None:
                 current += 15
 
         if i == len(stops) - 1 and is_depot:
-            stop["arrival"] = stop["start_service"] = to_time(current)
+            stop["arrival"] = to_time(current)
             stop["depart"] = None
             continue
 
-        stop["arrival"] = stop["start_service"] = to_time(current)
+        stop["arrival"] = to_time(current)
         current += get_duration(stop)
         stop["depart"] = to_time(current)
 
@@ -845,26 +845,26 @@ def schedule_poi(itin_id: str, payload: dict, authorization: Optional[str] = Hea
                         start_min = h * 60 + m + 30
                         end_min = min(start_min + duration, 22 * 60)
                         start_min = min(start_min, end_min - 30)
-                        poi_stop["arrival"] = poi_stop["start_service"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
+                        poi_stop["arrival"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
                         poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
                     except Exception:
-                        poi_stop["arrival"] = poi_stop["start_service"] = "10:00"
+                        poi_stop["arrival"] = "10:00"
                         poi_stop["depart"] = f"{10 + duration // 60:02d}:{duration % 60:02d}"
                 else:
                     end_min = 10 * 60 + duration
-                    poi_stop["arrival"] = poi_stop["start_service"] = "10:00"
+                    poi_stop["arrival"] = "10:00"
                     poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
             else:
-                poi_stop["arrival"] = poi_stop["start_service"] = poi_stop["depart"] = None
+                poi_stop["arrival"] = poi_stop["depart"] = None
         elif start_time and end_time:
-            poi_stop["arrival"] = poi_stop["start_service"] = start_time
+            poi_stop["arrival"] = start_time
             poi_stop["depart"] = end_time
         elif single_time:
             try:
                 h, m = map(int, str(single_time).split(":"))
                 start_min = h * 60 + m
                 end_min = min(start_min + duration, 24 * 60)
-                poi_stop["arrival"] = poi_stop["start_service"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
+                poi_stop["arrival"] = f"{start_min // 60:02d}:{start_min % 60:02d}"
                 poi_stop["depart"] = f"{end_min // 60:02d}:{end_min % 60:02d}"
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid singleTime format")
@@ -928,6 +928,44 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str, authorization: Optional
         raise
     except Exception as e:
         logger.exception(f"Failed to delete POI from itinerary {itin_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/itinerary/{itin_id}/poi/{poi_id}/lock")
+def toggle_poi_lock(itin_id: str, poi_id: str, payload: dict, authorization: Optional[str] = Header(None)):
+    """Toggle lock status on a POI's scheduled time.
+    
+    When locked, the POI's start/end times will be preserved during optimization.
+    """
+    try:
+        user_id = get_optional_user_id(authorization)
+        data = load_itinerary_with_auth(itin_id, user_id)
+
+        if "plan" not in data or "days" not in data["plan"]:
+            raise HTTPException(status_code=400, detail="Invalid itinerary structure")
+
+        is_locked = payload.get("isLocked", False)
+        found = False
+
+        for day in data["plan"]["days"]:
+            for stop in day.get("stops", []):
+                if stop.get("poi_id") == poi_id:
+                    stop["is_locked"] = is_locked
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            raise HTTPException(status_code=404, detail="POI not found in itinerary")
+
+        save_itinerary(itin_id, data, user_id)
+        return transform_itinerary_response_to_frontend(data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to toggle lock on POI {poi_id} in itinerary {itin_id}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

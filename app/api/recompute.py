@@ -14,7 +14,6 @@ from app.services.maut import run_maut
 from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
 from app.services.acs_cvrptw import run_acs_cvrptw
-from app.services.vrp_utils import build_problem
 from app.services.vrp_model import vrp_config
 
 logger = get_logger(__name__)
@@ -92,48 +91,6 @@ def _extract_pois_from_days(days: list) -> list[dict]:
                 poi["area_name"] = day_area
 
             pois.append(poi)
-
-    return pois
-
-
-def _extract_pois_from_single_day(day: dict) -> list[dict]:
-    """Extract POIs from a single day, skipping hotel events."""
-    seen_ids = set()
-    pois = []
-
-    for stop in day.get("stops", []):
-        poi_id = stop.get("poi_id")
-        if not poi_id:
-            continue
-
-        role = stop.get("role", "attraction")
-        if role == "depot":
-            continue
-
-        # Skip hotel event nodes (for single day recompute, we don't need hotel)
-        hotel_event = stop.get("hotel_event_type")
-        if hotel_event in ("checkin", "checkout", "stay"):
-            continue
-
-        if poi_id in seen_ids:
-            continue
-        seen_ids.add(poi_id)
-
-        coords = stop.get("coordinates") or {}
-        lat = coords.get("lat") or stop.get("latitude")
-        lng = coords.get("lng") or stop.get("longitude")
-
-        poi = {
-            "id": poi_id,
-            "name": stop.get("name", "Unknown"),
-            "coordinates": {"lat": lat, "lng": lng},
-            "roles": [role],
-            "themes": stop.get("themes", []),
-            "open_hours": stop.get("open_hours"),
-            "images": _sanitize_images(stop.get("images")),
-        }
-
-        pois.append(poi)
 
     return pois
 
@@ -533,10 +490,16 @@ def _recompute_partial(data: dict, options: dict) -> dict:
 
 def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     """
-    Single-day recompute: Re-optimize a specific day using that day's POIs.
-
-    Keeps other days unchanged, re-runs ACS for the specified day only.
+    Single-day recompute: Re-optimize a specific day with hotel events in solver.
+    
+    Hotel events (checkout/checkin/stay) are included as nodes so the solver
+    optimizes the full route including travel to/from hotels.
     """
+    import datetime as dt
+    from app.services.vrp_model import DaySpec, HotelEvent, HotelEventType
+    from app.services.vrp_utils import create_nodes
+    from app.services.osrm import osrm_client
+
     plan = data.get("plan", {})
     days = plan.get("days", [])
     meta = data.get("meta", {})
@@ -545,113 +508,121 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
         raise HTTPException(status_code=400, detail="Invalid day_index")
 
     target_day = days[day_index]
+    
+    # Extract POIs and build hotel events for solver
+    seen_ids = set()
+    places = []
+    hotel_events = []
+    depot_hotel = None
 
-    # Extract POIs from this day only
-    places = _extract_pois_from_single_day(target_day)
+    for stop in target_day.get("stops", []):
+        poi_id = stop.get("poi_id")
+        if not poi_id or stop.get("role") == "depot":
+            continue
+
+        coords = stop.get("coordinates") or {}
+        lat = coords.get("lat") or stop.get("latitude")
+        lng = coords.get("lng") or stop.get("longitude")
+        if not lat or not lng:
+            continue
+
+        event_type = stop.get("hotel_event_type")
+        if event_type == "checkout":
+            hotel_events.append(HotelEvent(
+                event_type=HotelEventType.CHECK_OUT,
+                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
+                lat=float(lat), lon=float(lng),
+                window=vrp_config.hotel_check_out_window,
+                service_time=vrp_config.hotel_service_time,
+            ))
+            depot_hotel = {"id": poi_id, "name": stop.get("name"), "lat": lat, "lon": lng}
+        elif event_type == "checkin":
+            hotel_events.append(HotelEvent(
+                event_type=HotelEventType.CHECK_IN,
+                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
+                lat=float(lat), lon=float(lng),
+                window=vrp_config.hotel_check_in_window,
+                service_time=vrp_config.hotel_service_time,
+            ))
+        elif event_type == "stay":
+            hotel_events.append(HotelEvent(
+                event_type=HotelEventType.STAY,
+                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
+                lat=float(lat), lon=float(lng),
+                window=(0, 24 * 60), service_time=0,
+            ))
+            if not depot_hotel:
+                depot_hotel = {"id": poi_id, "name": stop.get("name"), "lat": lat, "lon": lng}
+        else:
+            # Regular POI
+            if poi_id in seen_ids:
+                continue
+            seen_ids.add(poi_id)
+            places.append({
+                "id": poi_id,
+                "name": stop.get("name", "Unknown"),
+                "coordinates": {"lat": lat, "lng": lng},
+                "roles": [stop.get("role", "attraction")],
+                "themes": stop.get("themes", []),
+                "open_hours": stop.get("open_hours"),
+                "images": _sanitize_images(stop.get("images")),
+            })
 
     if not places:
         raise HTTPException(status_code=400, detail="No POIs found in day")
 
-    # Find hotel for this day
-    depot_id = target_day.get("depot_id")
-    hotel = None
+    # Find depot from meta if not from hotel events
+    if not depot_hotel:
+        for h in meta.get("hotels", []):
+            depot_hotel = {"id": h.get("poi_id"), "name": h.get("poi_name", "Hotel"),
+                          "lat": h.get("latitude"), "lon": h.get("longitude")}
+            break
+    if not depot_hotel:
+        c = places[0].get("coordinates", {})
+        depot_hotel = {"id": places[0]["id"], "name": places[0]["name"],
+                       "lat": c.get("lat"), "lon": c.get("lng")}
 
-    if depot_id:
-        for stop in target_day.get("stops", []):
-            stop_base_id = stop.get("poi_id", "")
-            if stop_base_id == depot_id:
-                hotel = {
-                    "id": depot_id,
-                    "name": stop.get("name", "Hotel"),
-                    "lat": stop.get("latitude"),
-                    "lon": stop.get("longitude"),
-                }
-                break
-
-    if not hotel:
-        hotels_from_meta = meta.get("hotels", [])
-        if hotels_from_meta:
-            first_hotel = hotels_from_meta[0]
-            hotel = {
-                "id": first_hotel.get("poi_id"),
-                "name": first_hotel.get("poi_name", "Hotel"),
-                "lat": first_hotel.get("latitude"),
-                "lon": first_hotel.get("longitude"),
-            }
-
-    if not hotel:
-        for stop in target_day.get("stops", []):
-            if stop.get("role") == "accommodation":
-                hotel = {
-                    "id": stop.get("poi_id"),
-                    "name": stop.get("name", "Hotel"),
-                    "lat": stop.get("latitude"),
-                    "lon": stop.get("longitude"),
-                }
-                break
-
-    if not hotel and places:
-        # Use first POI as reference point
-        first_poi = places[0]
-        coords = first_poi.get("coordinates", {})
-        hotel = {
-            "id": first_poi.get("id"),
-            "name": first_poi.get("name", "Start Point"),
-            "lat": coords.get("lat"),
-            "lon": coords.get("lng"),
-        }
-
-    if not hotel:
-        raise HTTPException(status_code=400, detail="No hotel or reference point found for day")
-
-    dates_info = meta.get("dates", {})
-
-    maut_output = {
-        "status": "ok",
-        "places": places,
-        "meta": {
-            "dates": dates_info,
-            "num_days": 1,
-        },
-    }
-
+    # Build day spec with hotel events
     pacing = options.get("pacing") or meta.get("preferences", {}).get("pacing", "balanced")
+    start_min = vrp_config.pace_day_start_min.get(pacing, 9 * 60)
+    end_min = start_min + vrp_config.pace_day_budget_min.get(pacing, 11 * 60)
 
-    day_specs, nodes, travel = build_problem(
-        maut_output,
-        hotel,
-        pacing=pacing,
-        mandatory=None,
+    day_date = dt.date.today()
+    if target_day.get("date"):
+        try:
+            day_date = dt.date.fromisoformat(str(target_day["date"]).split("T")[0])
+        except (ValueError, TypeError):
+            pass
+
+    day_spec = DaySpec(
+        day_index=0, date=day_date,
+        start_min=start_min, end_min=end_min,
+        depot_id=str(depot_hotel["id"]),
+        hotel_events=hotel_events,
     )
 
-    if not day_specs:
-        raise HTTPException(status_code=400, detail="Failed to build problem for day")
+    # Create nodes and travel matrix
+    maut_output = {"status": "ok", "places": places, "meta": {"num_days": 1}}
+    nodes = create_nodes(maut_output, [day_spec], depot_hotel, pacing)
+    coords = [(n.lat, n.lon) for n in nodes]
+    travel = osrm_client.matrix_minutes(coords)
 
-    meals_required = options.get("meals_required", 3)
-
+    # Run solver
     result = run_acs_cvrptw(
-        day_specs=[day_specs[0]],
-        nodes=nodes,
-        travel=travel,
-        meals_required=meals_required,
-        cfg=vrp_config,
+        day_specs=[day_spec], nodes=nodes, travel=travel,
+        meals_required=options.get("meals_required", 3), cfg=vrp_config,
     )
 
     if not result.get("days"):
         raise HTTPException(status_code=500, detail="Failed to optimize day")
 
     new_day = result["days"][0]
-    new_day["date"] = target_day.get("date")
-    new_day["weekday"] = target_day.get("weekday")
-    new_day["area_name"] = target_day.get("area_name")
-    new_day["destination"] = target_day.get("destination")
-    new_day["depot_id"] = depot_id
-    new_day["source"] = target_day.get("source")
+    for key in ("date", "weekday", "area_name", "destination", "depot_id", "source"):
+        new_day[key] = target_day.get(key)
     new_day["optimization_method"] = "acs_cvrptw"
 
     days[day_index] = new_day
     data["plan"]["days"] = days
-
     return data
 
 

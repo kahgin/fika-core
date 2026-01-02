@@ -497,6 +497,7 @@ def validate_global_rules(
     2. Theme concentration: warn if >4 attractions with same theme per day
     3. Mandatory POIs: missed mandatory appear in meta["missed_mandatory"]
     4. Hotel events: check-in/check-out pairing
+    5. Single hotel event per day: only one of checkin/checkout/stay per day (except transition days)
 
     Args:
         result: Pipeline result with days
@@ -516,6 +517,7 @@ def validate_global_rules(
     # Track hotel events for pairing validation
     checkins: Dict[str, int] = {}
     checkouts: Dict[str, int] = {}
+    hotel_events_per_day: Dict[int, List[str]] = {}
 
     for day_idx, day in enumerate(days):
         stops = day.get("stops", [])
@@ -545,8 +547,12 @@ def validate_global_rules(
                 event_type = stop.get("hotel_event_type")
                 if event_type == "checkin":
                     checkins[hotel_id] = day_idx + 1
+                    hotel_events_per_day.setdefault(day_idx + 1, []).append("checkin")
                 elif event_type == "checkout":
                     checkouts[hotel_id] = day_idx + 1
+                    hotel_events_per_day.setdefault(day_idx + 1, []).append("checkout")
+                elif event_type == "stay":
+                    hotel_events_per_day.setdefault(day_idx + 1, []).append("stay")
 
     # Check 3: Mandatory POIs
     meta = result.get("meta", {})
@@ -563,6 +569,18 @@ def validate_global_rules(
             warnings.append(f"Hotel {hotel_id}: check-in on day {checkins[hotel_id]} but no check-out")
         elif has_checkout and not has_checkin:
             warnings.append(f"Hotel {hotel_id}: check-out on day {checkouts[hotel_id]} but no check-in")
+
+    # Check 5: Single hotel event per day
+    for day_num, events in hotel_events_per_day.items():
+        unique_events = list(set(events))
+        if len(unique_events) > 1:
+            # Allow checkout + checkin on transition days
+            if set(unique_events) == {"checkout", "checkin"}:
+                pass  # Allowed
+            elif "stay" in unique_events and len(unique_events) > 1:
+                errors.append(f"Day {day_num}: Multiple hotel events ({', '.join(unique_events)}) - stay should be alone")
+            elif len(unique_events) > 2:
+                errors.append(f"Day {day_num}: Too many hotel events ({', '.join(unique_events)})")
 
     ok = len(errors) == 0
 

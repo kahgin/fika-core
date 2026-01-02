@@ -153,7 +153,7 @@ def _check_meal_constraints(days: List[Dict[str, Any]]) -> Tuple[bool, float, Li
             if stop.get("role") != "meal":
                 continue
             total_meals += 1
-            start = stop.get("start_service") or stop.get("arrival")
+            start = stop.get("arrival")
             if not start:
                 continue
             start_min = time_to_minutes(start)

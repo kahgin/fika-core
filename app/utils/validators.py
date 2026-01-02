@@ -160,6 +160,8 @@ def validate_itinerary(
     # Track accommodation events
     checkins: Dict[str, int] = {}
     checkouts: Dict[str, int] = {}
+    stays: Dict[str, int] = {}
+    hotel_events_per_day: Dict[int, List[str]] = {}  # day -> list of event types
 
     for day_idx, day in enumerate(days):
         day_num = day_idx + 1
@@ -206,6 +208,12 @@ def validate_itinerary(
                     checkins[poi_id] = day_num
                 elif hotel_event_type == "checkout":
                     checkouts[poi_id] = day_num
+                elif hotel_event_type == "stay":
+                    stays[poi_id] = day_num
+                
+                # Track hotel events per day for single-event-per-day validation
+                if hotel_event_type:
+                    hotel_events_per_day.setdefault(day_num, []).append(hotel_event_type)
 
             # Skip depot for most checks
             if role in ("hotel", "depot"):
@@ -366,6 +374,39 @@ def validate_itinerary(
                         "day": checkins[hotel_id],
                         "weekday": None,
                         "poi": hotel_id,
+                    }
+                )
+
+    # Validate single hotel event per day (only one of checkin/checkout/stay per day)
+    for day_num, events in hotel_events_per_day.items():
+        # Filter to unique hotel event types (not counting duplicate stays)
+        unique_events = list(set(events))
+        # A day should have at most: checkin OR checkout OR stay
+        # Exception: checkout + checkin is allowed on transition days
+        if len(unique_events) > 1:
+            if set(unique_events) == {"checkout", "checkin"}:
+                # This is allowed for transition days
+                pass
+            elif "stay" in unique_events and len(unique_events) > 1:
+                violations.append(
+                    {
+                        "type": "multiple_hotel_events",
+                        "severity": "error",
+                        "message": f"Day {day_num}: Multiple hotel events ({', '.join(unique_events)}) - stay should be alone",
+                        "day": day_num,
+                        "weekday": None,
+                        "poi": None,
+                    }
+                )
+            elif len(unique_events) > 2:
+                violations.append(
+                    {
+                        "type": "multiple_hotel_events",
+                        "severity": "error",
+                        "message": f"Day {day_num}: Too many hotel events ({', '.join(unique_events)})",
+                        "day": day_num,
+                        "weekday": None,
+                        "poi": None,
                     }
                 )
 

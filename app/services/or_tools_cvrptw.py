@@ -219,7 +219,6 @@ def solve_cvrptw(
                     "role": n.role,
                     "themes": n.themes or [],
                     "arrival": format_time_minutes(arrival_time),
-                    "start_service": format_time_minutes(service_start),
                     "depart": format_time_minutes(depart_time),
                     "latitude": n.lat,
                     "longitude": n.lon,
