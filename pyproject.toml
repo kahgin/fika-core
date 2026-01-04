@@ -3,24 +3,24 @@ name = "fika-core"
 version = "0.1.0"
 description = "Core for Fika Travel Itinerary Planner"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
+requires-python = "==3.11.*"
 dependencies = [
-    "fastapi>=0.123.0",
+    "fastapi>=0.125.0",
     "uvicorn[standard]>=0.38.0",
-    "supabase>=2.25.0",
+    "supabase>=2.27.0",
     "ortools>=9.12.0,<9.14.0",
-    "numpy>=2.2.6",
+    "numpy>=2.3.5",
     "pydantic-settings>=2.12.0",
-    "scikit-learn>=1.7.2",
-    "pytest>=9.0.1",
-    "optuna>=4.6.0",
+    "scikit-learn>=1.8.0",
     "PyYAML>=6.0.3",
-    "bcrypt>=4.0.0",
+    "bcrypt>=5.0.0",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.14.8",
+    "ruff>=0.14.10",
+    "pytest>=9.0.2",
+    "optuna>=4.6.0",
     "matplotlib>=3.10.0",
     "seaborn>=0.13.2",
 ]

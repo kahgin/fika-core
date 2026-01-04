@@ -27,19 +27,33 @@ class TestThemeValidation:
     """Tests for theme repetition validation."""
 
     def test_themes_within_limit(self):
-        result = {"days": [{"stops": [
-            {"role": "attraction", "themes": ["cultural"]},
-            {"role": "attraction", "themes": ["cultural"]},
-        ]}], "meta": {}}
+        result = {
+            "days": [
+                {
+                    "stops": [
+                        {"role": "attraction", "themes": ["cultural"]},
+                        {"role": "attraction", "themes": ["cultural"]},
+                    ]
+                }
+            ],
+            "meta": {},
+        }
         validation = validate_global_rules(result)
         assert validation["ok"]
 
     def test_themes_exceed_limit_warns(self):
-        result = {"days": [{"stops": [
-            {"role": "attraction", "themes": ["cultural"]},
-            {"role": "attraction", "themes": ["cultural"]},
-            {"role": "attraction", "themes": ["cultural"]},
-        ]}], "meta": {}}
+        result = {
+            "days": [
+                {
+                    "stops": [
+                        {"role": "attraction", "themes": ["cultural"]},
+                        {"role": "attraction", "themes": ["cultural"]},
+                        {"role": "attraction", "themes": ["cultural"]},
+                    ]
+                }
+            ],
+            "meta": {},
+        }
         validation = validate_global_rules(result)
         assert validation["ok"]
         assert any("theme" in w.lower() for w in validation["warnings"])
@@ -49,18 +63,28 @@ class TestHotelEventValidation:
     """Tests for hotel event pairing validation."""
 
     def test_paired_checkin_checkout(self):
-        result = {"days": [
-            {"stops": [{"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkin"}]},
-            {"stops": [{"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkout"}]},
-        ], "meta": {}}
+        result = {
+            "days": [
+                {"stops": [{"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkin"}]},
+                {"stops": [{"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkout"}]},
+            ],
+            "meta": {},
+        }
         validation = validate_global_rules(result)
         assert validation["ok"]
 
     def test_transition_day_allowed(self):
         """Checkout + checkin on same day (transition) is allowed."""
-        result = {"days": [{"stops": [
-            {"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkout"},
-            {"role": "accommodation", "poi_id": "h2", "hotel_event_type": "checkin"},
-        ]}], "meta": {}}
+        result = {
+            "days": [
+                {
+                    "stops": [
+                        {"role": "accommodation", "poi_id": "h1", "hotel_event_type": "checkout"},
+                        {"role": "accommodation", "poi_id": "h2", "hotel_event_type": "checkin"},
+                    ]
+                }
+            ],
+            "meta": {},
+        }
         validation = validate_global_rules(result)
         assert validation["ok"]

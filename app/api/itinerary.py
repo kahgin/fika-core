@@ -11,7 +11,7 @@ from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
 from app.services.vrp_model import vrp_config
 from app.services.osrm import osrm_client, tiered_round
-from app.utils.naming import transform_frontend_to_canonical
+from app.utils.naming import transform_frontend_to_canonical, normalize_location_name
 from app.utils.date_utils import recompute_day_labels, time_to_minutes, compute_num_days
 from app.db.itinerary_storage import (
     save_itinerary_to_db,
@@ -27,14 +27,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["itinerary"])
 
 # Helpers
-
-
-def _normalize_destination_name(raw) -> Optional[str]:
-    """Normalize location label to city name. Example: 'Johor, Malaysia' -> 'Johor'."""
-    if not raw:
-        return None
-    name = str(raw).strip()
-    return name.split(",")[0].strip() if "," in name else name
 
 
 def get_optional_user_id(authorization: Optional[str]) -> Optional[str]:
@@ -333,7 +325,7 @@ def _run_multi_city_maut(maut_request: dict, destinations: list) -> dict:
         return [name, "Johor Bahru"] if name.lower() == "johor" else [name]
 
     for d in destinations:
-        city = _normalize_destination_name(d.get("city"))
+        city = normalize_location_name(d.get("city"))
         if not city:
             continue
 
@@ -392,7 +384,7 @@ def _extract_hotel(places: list, hotels_from_payload: list, is_multi_city: bool)
 def _add_hotels_to_places(places: list, hotels: list) -> None:
     """Add hotel POIs to places list."""
     for h in hotels:
-        area = _normalize_destination_name(h.get("destination"))
+        area = normalize_location_name(h.get("destination"))
         poi = {
             "id": h.get("poi_id"),
             "name": h.get("poi_name", "Hotel"),
@@ -431,7 +423,7 @@ def _process_mandatory_pois(places: list, mandatory_pois: list, dates_info: dict
             "images": poi.get("images", []),
         }
 
-        dest = _normalize_destination_name(poi.get("poi_destination"))
+        dest = normalize_location_name(poi.get("poi_destination"))
         if dest:
             entry["poi_destination"] = dest
 
@@ -531,7 +523,7 @@ def _compute_days_per_city(destinations: list, total_days: int) -> tuple[dict, l
     per_city_dates = {}
 
     for d in destinations:
-        city = _normalize_destination_name(d.get("city"))
+        city = normalize_location_name(d.get("city"))
         if not city:
             continue
         ordered.append(city)
@@ -583,7 +575,7 @@ def _validate_multi_city_output(pipeline_output: dict, destinations: list) -> No
     - Day allocation couldn't fit all cities
     - Mandatory POIs forced all days to one city
     """
-    expected = [_normalize_destination_name(d.get("city")) for d in destinations if d.get("city")]
+    expected = [normalize_location_name(d.get("city")) for d in destinations if d.get("city")]
     days_out = pipeline_output.get("days", []) or []
     actual = sorted({str(d.get("destination") or d.get("area_name") or "").strip() for d in days_out} - {""})
 
@@ -934,7 +926,7 @@ def delete_poi_from_itinerary(itin_id: str, poi_id: str, authorization: Optional
 @router.post("/itinerary/{itin_id}/poi/{poi_id}/lock")
 def toggle_poi_lock(itin_id: str, poi_id: str, payload: dict, authorization: Optional[str] = Header(None)):
     """Toggle lock status on a POI's scheduled time.
-    
+
     When locked, the POI's start/end times will be preserved during optimization.
     """
     try:

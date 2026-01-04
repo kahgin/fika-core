@@ -1,4 +1,5 @@
-"""Tests for mandatory POI handling.
+"""
+Tests for mandatory POI handling.
 
 4 cases:
 1. Specific day/time - POI scheduled on specific day with time window
@@ -15,7 +16,9 @@ from app.services.vrp_utils import build_problem
 @pytest.fixture
 def mock_osrm():
     with patch("app.services.osrm.osrm_client") as mock:
-        mock.matrix_minutes.side_effect = lambda coords: [[10 if i != j else 0 for j in range(len(coords))] for i in range(len(coords))]
+        mock.matrix_minutes.side_effect = lambda coords: [
+            [10 if i != j else 0 for j in range(len(coords))] for i in range(len(coords))
+        ]
         yield mock
 
 
@@ -28,9 +31,21 @@ def hotel():
 def basic_maut():
     return {
         "places": [
-            {"id": "a1", "name": "Attraction", "roles": ["attraction"], "coordinates": {"lat": 1.28, "lng": 103.85}, "themes": ["cultural_history"]},
+            {
+                "id": "a1",
+                "name": "Attraction",
+                "roles": ["attraction"],
+                "coordinates": {"lat": 1.28, "lng": 103.85},
+                "themes": ["cultural_history"],
+            },
             {"id": "m1", "name": "Meal", "roles": ["meal"], "coordinates": {"lat": 1.30, "lng": 103.84}},
-            {"id": "mandatory_poi", "name": "Must Visit", "roles": ["attraction"], "coordinates": {"lat": 1.40, "lng": 103.79}, "themes": ["family"]},
+            {
+                "id": "mandatory_poi",
+                "name": "Must Visit",
+                "roles": ["attraction"],
+                "coordinates": {"lat": 1.40, "lng": 103.79},
+                "themes": ["family"],
+            },
         ],
         "meta": {"num_days": 3, "dates": {"type": "flexible", "days": 3}},
     }
@@ -70,6 +85,17 @@ class TestAllDay:
         _, nodes, _ = build_problem(basic_maut, hotel, pacing="balanced", mandatory=mandatory)
 
         mand_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
+        assert mand_nodes[0].is_all_day is True
+
+    def test_all_day_only_affects_specified_day(self, mock_osrm, basic_maut, hotel):
+        """All-day POI with day=2 only creates a node for day 1 (0-indexed)."""
+        mandatory = {"mandatory_poi": {"day": 2, "time_type": "all_day"}}
+        _, nodes, _ = build_problem(basic_maut, hotel, pacing="balanced", mandatory=mandatory)
+
+        mand_nodes = [n for n in nodes if n.is_mandatory and n.role != "accommodation"]
+        # Should only have 1 node (for day 2 which is index 1)
+        assert len(mand_nodes) == 1
+        assert list(mand_nodes[0].windows_by_day.keys()) == [1]
         assert mand_nodes[0].is_all_day is True
 
 

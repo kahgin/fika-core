@@ -13,9 +13,6 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str
     GOOGLE_AI_STUDIO_KEY: str
     OSRM_URL: str
-    UNSPLASH_APPLICATION_ID: str
-    UNSPLASH_ACCESS_KEY: str
-    UNSPLASH_SECRET_KEY: str
 
     CORS_ORIGINS: list[str] = ["*"]
 

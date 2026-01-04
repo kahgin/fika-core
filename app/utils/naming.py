@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Optional
+
 
 # Naming convention policy:
 # - Frontend uses camelCase
@@ -55,3 +56,25 @@ def transform_frontend_to_canonical(obj: Any) -> Any:
     - Returns the transformed object with all keys in snake_case.
     """
     return dict_to_snake_case(obj)
+
+
+def normalize_location_name(raw: Optional[str]) -> Optional[str]:
+    """
+    Normalize a location/city/destination name.
+
+    - Strips whitespace
+    - Extracts first part before comma (e.g., 'Johor, Malaysia' -> 'Johor')
+    - Preserves case (caller should .lower() if case-insensitive matching needed)
+
+    Args:
+        raw: Raw location name string
+
+    Returns:
+        Normalized name or None if input is empty/None
+    """
+    if not raw:
+        return None
+    name = str(raw).strip()
+    if "," in name:
+        name = name.split(",")[0].strip()
+    return name

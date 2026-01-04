@@ -13,7 +13,18 @@ class TestSegmentByCity:
 
     def test_segment_single_city(self):
         """Single city via area_name."""
-        maut = {"places": [{"id": "p1", "name": "A", "area_name": "Singapore", "coordinates": {"lat": 1.3, "lng": 103.8}, "roles": ["attraction"]}], "meta": {}}
+        maut = {
+            "places": [
+                {
+                    "id": "p1",
+                    "name": "A",
+                    "area_name": "Singapore",
+                    "coordinates": {"lat": 1.3, "lng": 103.8},
+                    "roles": ["attraction"],
+                }
+            ],
+            "meta": {},
+        }
         result = segment_by_city(maut)
         assert "Singapore" in result
         assert len(result["Singapore"]["places"]) == 1
@@ -23,7 +34,12 @@ class TestSegmentByCity:
         maut = {
             "places": [
                 {"id": "p1", "area_name": "Johor", "coordinates": {"lat": 1.5, "lng": 103.8}, "roles": ["attraction"]},
-                {"id": "p2", "area_name": "Singapore", "coordinates": {"lat": 1.3, "lng": 103.8}, "roles": ["attraction"]},
+                {
+                    "id": "p2",
+                    "area_name": "Singapore",
+                    "coordinates": {"lat": 1.3, "lng": 103.8},
+                    "roles": ["attraction"],
+                },
             ],
             "meta": {},
         }
@@ -32,7 +48,13 @@ class TestSegmentByCity:
 
     def test_segment_kmeans_fallback(self):
         """KMeans clustering for POIs without area_name."""
-        maut = {"places": [{"id": f"p{i}", "coordinates": {"lat": 1.3 + i * 0.01, "lng": 103.8}, "roles": ["attraction"]} for i in range(10)], "meta": {}}
+        maut = {
+            "places": [
+                {"id": f"p{i}", "coordinates": {"lat": 1.3 + i * 0.01, "lng": 103.8}, "roles": ["attraction"]}
+                for i in range(10)
+            ],
+            "meta": {},
+        }
         result = segment_by_city(maut)
         assert any(k.startswith("cluster_") for k in result.keys())
 
@@ -52,13 +74,19 @@ class TestCityDayAllocator:
 
     def test_allocate_respects_fixed(self):
         """Allocation respects fixed days."""
-        cities = {"SG": {"places": [{"id": f"sg{i}"} for i in range(10)]}, "JH": {"places": [{"id": f"jh{i}"} for i in range(10)]}}
+        cities = {
+            "SG": {"places": [{"id": f"sg{i}"} for i in range(10)]},
+            "JH": {"places": [{"id": f"jh{i}"} for i in range(10)]},
+        }
         result = allocate_days_to_cities(cities=cities, total_days=5, user_input={"day_assignments": {"1": "JH", "3": "SG"}})
         assert result.day_to_city[1] == "JH" and result.day_to_city[3] == "SG"
 
     def test_contiguous_blocks(self):
         """Allocation minimizes city switches."""
-        cities = {"SG": {"places": [{"id": f"sg{i}"} for i in range(10)]}, "JH": {"places": [{"id": f"jh{i}"} for i in range(10)]}}
+        cities = {
+            "SG": {"places": [{"id": f"sg{i}"} for i in range(10)]},
+            "JH": {"places": [{"id": f"jh{i}"} for i in range(10)]},
+        }
         result = allocate_days_to_cities(cities=cities, total_days=6)
         assert len(result.city_switches) <= 1
 
@@ -70,8 +98,20 @@ class TestSelectHotel:
         """Select hotel by MAUT score."""
         maut = {
             "places": [
-                {"id": "h1", "name": "H1", "roles": ["accommodation"], "coordinates": {"lat": 1.3, "lng": 103.8}, "_score": 0.5},
-                {"id": "h2", "name": "H2", "roles": ["accommodation"], "coordinates": {"lat": 1.31, "lng": 103.81}, "_score": 0.9},
+                {
+                    "id": "h1",
+                    "name": "H1",
+                    "roles": ["accommodation"],
+                    "coordinates": {"lat": 1.3, "lng": 103.8},
+                    "_score": 0.5,
+                },
+                {
+                    "id": "h2",
+                    "name": "H2",
+                    "roles": ["accommodation"],
+                    "coordinates": {"lat": 1.31, "lng": 103.81},
+                    "_score": 0.9,
+                },
             ],
             "meta": {"area_name": "SG"},
         }
@@ -81,12 +121,20 @@ class TestSelectHotel:
 
     def test_user_hotel(self):
         """User-provided hotel takes precedence."""
-        hotel = select_hotel_for_city({"places": [], "meta": {"area_name": "SG"}}, 3, {"SG": {"id": "user_h", "lat": 1.3, "lon": 103.8}})
+        hotel = select_hotel_for_city(
+            {"places": [], "meta": {"area_name": "SG"}}, 3, {"SG": {"id": "user_h", "lat": 1.3, "lon": 103.8}}
+        )
         assert hotel["id"] == "user_h" and hotel["source"] == "user"
 
     def test_no_accommodation_error(self):
         """Error when no accommodation available."""
-        hotel = select_hotel_for_city({"places": [{"id": "p1", "roles": ["attraction"], "coordinates": {"lat": 1.3, "lng": 103.8}}], "meta": {"area_name": "SG"}}, 3)
+        hotel = select_hotel_for_city(
+            {
+                "places": [{"id": "p1", "roles": ["attraction"], "coordinates": {"lat": 1.3, "lng": 103.8}}],
+                "meta": {"area_name": "SG"},
+            },
+            3,
+        )
         assert hotel.get("error") == "no_accommodation"
 
 

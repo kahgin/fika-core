@@ -425,18 +425,3 @@ def delete_account(authorization: Optional[str] = Header(None)):
     except Exception as e:
         logger.exception(f"Delete account error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# Utility function for other modules to get user from request
-def get_optional_user_id(authorization: Optional[str]) -> Optional[str]:
-    """
-    Get user ID from authorization header if valid, None otherwise.
-    Used for endpoints that work for both authenticated and anonymous users.
-    """
-    if not authorization:
-        return None
-
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-    user = get_user_from_token(token)
-
-    return user["id"] if user else None

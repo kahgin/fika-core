@@ -33,8 +33,7 @@ class TestDaySpec:
     """Tests for DaySpec dataclass."""
 
     def test_creation(self):
-        ds = DaySpec(day_index=0, date=dt.date(2025, 1, 15),
-                     start_min=9*60, end_min=20*60, depot_id="hotel1")
+        ds = DaySpec(day_index=0, date=dt.date(2025, 1, 15), start_min=9 * 60, end_min=20 * 60, depot_id="hotel1")
         assert ds.day_index == 0
         assert ds.start_min == 9 * 60
         assert ds.end_min == 20 * 60
@@ -44,14 +43,30 @@ class TestNode:
     """Tests for Node dataclass."""
 
     def test_creation(self):
-        node = Node(idx=0, poi_id="poi1", name="Test POI", role="attraction",
-                    lat=1.3, lon=103.8, service=60, themes=["cultural"],
-                    windows_by_day={0: [(10*60, 18*60)]})
+        node = Node(
+            idx=0,
+            poi_id="poi1",
+            name="Test POI",
+            role="attraction",
+            lat=1.3,
+            lon=103.8,
+            service=60,
+            themes=["cultural"],
+            windows_by_day={0: [(10 * 60, 18 * 60)]},
+        )
         assert node.poi_id == "poi1"
         assert node.service == 60
 
     def test_mandatory_defaults_false(self):
-        node = Node(idx=0, poi_id="poi1", name="Test", role="attraction",
-                    lat=1.3, lon=103.8, service=60, themes=None,
-                    windows_by_day={0: [(10*60, 18*60)]})
+        node = Node(
+            idx=0,
+            poi_id="poi1",
+            name="Test",
+            role="attraction",
+            lat=1.3,
+            lon=103.8,
+            service=60,
+            themes=None,
+            windows_by_day={0: [(10 * 60, 18 * 60)]},
+        )
         assert node.is_mandatory is False

@@ -1,4 +1,4 @@
-"""Tests for ACS-CVRPTW solver - core functionality."""
+"""Tests for ACS-CVRPTW solver"""
 
 import pytest
 import datetime as dt
@@ -23,18 +23,41 @@ class TestAcsHelpers:
 def simple_setup():
     """Simple node setup for testing."""
     nodes = [
-        Node(idx=0, poi_id="hotel1", name="Hotel", role="depot",
-             lat=1.3, lon=103.8, service=0, themes=None,
-             windows_by_day={0: [(9 * 60, 20 * 60)]}),
-        Node(idx=1, poi_id="poi1_day0", name="Attraction 1", role="attraction",
-             lat=1.31, lon=103.81, service=60, themes=["cultural_history"],
-             windows_by_day={0: [(10 * 60, 18 * 60)]}),
-        Node(idx=2, poi_id="meal1_day0", name="Restaurant", role="meal",
-             lat=1.32, lon=103.82, service=45, themes=["food"],
-             windows_by_day={0: [(11 * 60, 14 * 60)]}),
+        Node(
+            idx=0,
+            poi_id="hotel1",
+            name="Hotel",
+            role="depot",
+            lat=1.3,
+            lon=103.8,
+            service=0,
+            themes=None,
+            windows_by_day={0: [(9 * 60, 20 * 60)]},
+        ),
+        Node(
+            idx=1,
+            poi_id="poi1_day0",
+            name="Attraction 1",
+            role="attraction",
+            lat=1.31,
+            lon=103.81,
+            service=60,
+            themes=["cultural_history"],
+            windows_by_day={0: [(10 * 60, 18 * 60)]},
+        ),
+        Node(
+            idx=2,
+            poi_id="meal1_day0",
+            name="Restaurant",
+            role="meal",
+            lat=1.32,
+            lon=103.82,
+            service=45,
+            themes=["food"],
+            windows_by_day={0: [(11 * 60, 14 * 60)]},
+        ),
     ]
-    day_specs = [DaySpec(day_index=0, date=dt.date(2025, 1, 15),
-                         start_min=9*60, end_min=20*60, depot_id="hotel1")]
+    day_specs = [DaySpec(day_index=0, date=dt.date(2025, 1, 15), start_min=9 * 60, end_min=20 * 60, depot_id="hotel1")]
     travel = [[0, 10, 10], [10, 0, 10], [10, 10, 0]]
     return nodes, day_specs, travel
 
@@ -69,17 +92,35 @@ class TestAcsSolver:
     def test_handles_mandatory_pois(self):
         """ACS schedules mandatory POIs."""
         nodes = [
-            Node(idx=0, poi_id="hotel1", name="Hotel", role="depot",
-                 lat=1.3, lon=103.8, service=0, themes=None,
-                 windows_by_day={0: [(9*60, 20*60)]}),
-            Node(idx=1, poi_id="mand_day0", name="Mandatory", role="attraction",
-                 lat=1.31, lon=103.81, service=60, themes=["cultural"],
-                 windows_by_day={0: [(10*60, 18*60)]}, is_mandatory=True),
+            Node(
+                idx=0,
+                poi_id="hotel1",
+                name="Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 20 * 60)]},
+            ),
+            Node(
+                idx=1,
+                poi_id="mand_day0",
+                name="Mandatory",
+                role="attraction",
+                lat=1.31,
+                lon=103.81,
+                service=60,
+                themes=["cultural"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+                is_mandatory=True,
+            ),
         ]
-        day_specs = [DaySpec(day_index=0, date=dt.date(2025, 1, 15),
-                             start_min=9*60, end_min=20*60, depot_id="hotel1")]
+        day_specs = [
+            DaySpec(day_index=0, date=dt.date(2025, 1, 15), start_min=9 * 60, end_min=20 * 60, depot_id="hotel1")
+        ]
         travel = [[0, 10], [10, 0]]
-        
+
         result = run_acs_cvrptw(day_specs=day_specs, nodes=nodes, travel=travel, meals_required=0)
         poi_ids = [s["poi_id"] for s in result["days"][0]["stops"]]
         assert "mand" in poi_ids
@@ -87,22 +128,46 @@ class TestAcsSolver:
     def test_no_duplicate_visits(self):
         """Same POI not visited multiple times across days."""
         nodes = [
-            Node(idx=0, poi_id="hotel", name="Hotel", role="depot",
-                 lat=1.3, lon=103.8, service=0, themes=None,
-                 windows_by_day={0: [(9*60, 20*60)], 1: [(9*60, 20*60)]}),
-            Node(idx=1, poi_id="poi1_day0", name="A", role="attraction",
-                 lat=1.31, lon=103.81, service=60, themes=["nature"],
-                 windows_by_day={0: [(10*60, 18*60)]}),
-            Node(idx=2, poi_id="poi1_day1", name="A", role="attraction",
-                 lat=1.31, lon=103.81, service=60, themes=["nature"],
-                 windows_by_day={1: [(10*60, 18*60)]}),
+            Node(
+                idx=0,
+                poi_id="hotel",
+                name="Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 20 * 60)], 1: [(9 * 60, 20 * 60)]},
+            ),
+            Node(
+                idx=1,
+                poi_id="poi1_day0",
+                name="A",
+                role="attraction",
+                lat=1.31,
+                lon=103.81,
+                service=60,
+                themes=["nature"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+            ),
+            Node(
+                idx=2,
+                poi_id="poi1_day1",
+                name="A",
+                role="attraction",
+                lat=1.31,
+                lon=103.81,
+                service=60,
+                themes=["nature"],
+                windows_by_day={1: [(10 * 60, 18 * 60)]},
+            ),
         ]
         day_specs = [
-            DaySpec(day_index=0, date=dt.date(2025, 1, 15), start_min=9*60, end_min=20*60, depot_id="hotel"),
-            DaySpec(day_index=1, date=dt.date(2025, 1, 16), start_min=9*60, end_min=20*60, depot_id="hotel"),
+            DaySpec(day_index=0, date=dt.date(2025, 1, 15), start_min=9 * 60, end_min=20 * 60, depot_id="hotel"),
+            DaySpec(day_index=1, date=dt.date(2025, 1, 16), start_min=9 * 60, end_min=20 * 60, depot_id="hotel"),
         ]
         travel = [[0, 10, 10], [10, 0, 10], [10, 10, 0]]
-        
+
         result = run_acs_cvrptw(day_specs=day_specs, nodes=nodes, travel=travel, meals_required=0)
         all_ids = []
         for day in result["days"]:
@@ -114,36 +179,75 @@ class TestAcsSolver:
     def test_accepts_user_themes(self, simple_setup):
         """ACS accepts user_themes parameter."""
         nodes, day_specs, travel = simple_setup
-        result = run_acs_cvrptw(day_specs=day_specs, nodes=nodes, travel=travel,
-                                meals_required=0, user_themes={"cultural_history"})
+        result = run_acs_cvrptw(
+            day_specs=day_specs, nodes=nodes, travel=travel, meals_required=0, user_themes={"cultural_history"}
+        )
         assert "days" in result
 
     def test_hotel_events_in_output(self):
         """Hotel events appear in solver output."""
         from app.services.vrp_model import HotelEvent, HotelEventType
-        
+
         hotel_events = [
-            HotelEvent(event_type=HotelEventType.CHECK_IN, hotel_id="h1",
-                      hotel_name="Hotel", lat=1.3, lon=103.8,
-                      window=(14*60, 16*60), service_time=30),
+            HotelEvent(
+                event_type=HotelEventType.CHECK_IN,
+                hotel_id="h1",
+                hotel_name="Hotel",
+                lat=1.3,
+                lon=103.8,
+                window=(14 * 60, 16 * 60),
+                service_time=30,
+            ),
         ]
         nodes = [
-            Node(idx=0, poi_id="h1", name="Hotel", role="depot",
-                 lat=1.3, lon=103.8, service=0, themes=None,
-                 windows_by_day={0: [(9*60, 20*60)]}),
-            Node(idx=1, poi_id="h1_checkin_day0", name="Hotel", role="accommodation",
-                 lat=1.3, lon=103.8, service=30, themes=None,
-                 windows_by_day={0: [(14*60, 16*60)]}, is_mandatory=True,
-                 hotel_event_type="checkin"),
-            Node(idx=2, poi_id="poi1_day0", name="A", role="attraction",
-                 lat=1.31, lon=103.81, service=60, themes=["nature"],
-                 windows_by_day={0: [(10*60, 18*60)]}),
+            Node(
+                idx=0,
+                poi_id="h1",
+                name="Hotel",
+                role="depot",
+                lat=1.3,
+                lon=103.8,
+                service=0,
+                themes=None,
+                windows_by_day={0: [(9 * 60, 20 * 60)]},
+            ),
+            Node(
+                idx=1,
+                poi_id="h1_checkin_day0",
+                name="Hotel",
+                role="accommodation",
+                lat=1.3,
+                lon=103.8,
+                service=30,
+                themes=None,
+                windows_by_day={0: [(14 * 60, 16 * 60)]},
+                is_mandatory=True,
+                hotel_event_type="checkin",
+            ),
+            Node(
+                idx=2,
+                poi_id="poi1_day0",
+                name="A",
+                role="attraction",
+                lat=1.31,
+                lon=103.81,
+                service=60,
+                themes=["nature"],
+                windows_by_day={0: [(10 * 60, 18 * 60)]},
+            ),
         ]
-        day_specs = [DaySpec(day_index=0, date=dt.date(2025, 1, 15),
-                             start_min=9*60, end_min=20*60, depot_id="h1",
-                             hotel_events=hotel_events)]
+        day_specs = [
+            DaySpec(
+                day_index=0,
+                date=dt.date(2025, 1, 15),
+                start_min=9 * 60,
+                end_min=20 * 60,
+                depot_id="h1",
+                hotel_events=hotel_events,
+            )
+        ]
         travel = [[0, 0, 10], [0, 0, 10], [10, 10, 0]]
-        
+
         result = run_acs_cvrptw(day_specs=day_specs, nodes=nodes, travel=travel, meals_required=0)
         hotel_stops = [s for s in result["days"][0]["stops"] if s.get("hotel_event_type")]
         assert len(hotel_stops) >= 1

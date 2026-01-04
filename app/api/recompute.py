@@ -13,19 +13,12 @@ from app.services.transformers import transform_frontend_payload
 from app.services.maut import run_maut
 from app.services.pipeline import run_full_pipeline
 from app.utils.logger import get_logger
+from app.utils.naming import normalize_location_name
 from app.services.acs_cvrptw import run_acs_cvrptw
 from app.services.vrp_model import vrp_config
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["recompute"])
-
-
-def _normalize_destination_name(raw) -> str | None:
-    """Normalize location label to city name."""
-    if not raw:
-        return None
-    name = str(raw).strip()
-    return name.split(",")[0].strip() if "," in name else name
 
 
 def _sanitize_images(v) -> list[str]:
@@ -50,7 +43,6 @@ def _extract_pois_from_days(days: list) -> list[dict]:
     pois = []
 
     for day in days:
-        # Get area_name from the day itself (not from stops)
         day_area = day.get("destination") or day.get("area_name")
 
         for stop in day.get("stops", []):
@@ -190,7 +182,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
 
         for d in destinations:
             raw_city = d.get("city")
-            city = _normalize_destination_name(raw_city)
+            city = normalize_location_name(raw_city)
             if not city:
                 continue
 
@@ -226,7 +218,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
 
     for hotel_data in payload.get("hotels", []):
         hotel_destination = hotel_data.get("destination")
-        hotel_area_name = _normalize_destination_name(hotel_destination) if hotel_destination else None
+        hotel_area_name = normalize_location_name(hotel_destination) if hotel_destination else None
 
         hotel_poi = {
             "id": hotel_data.get("poi_id"),
@@ -252,10 +244,13 @@ def _recompute_full(data: dict, options: dict) -> dict:
         if not poi_id:
             continue
 
+        # Normalize poi_destination to match how segment_by_city normalizes area_name
+        poi_destination = normalize_location_name(poi.get("poi_destination"))
+
         mandatory[poi_id] = {
             "time_type": poi.get("time_type", "any_time"),
             "day": poi.get("day"),
-            "poi_destination": poi.get("poi_destination"),
+            "poi_destination": poi_destination,
         }
 
         if poi.get("time_type") == "all_day":
@@ -271,7 +266,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
                 "lng": poi.get("longitude"),
             },
             "roles": [poi.get("role", "attraction")],
-            "area_name": poi.get("poi_destination"),
+            "area_name": poi_destination,
             "themes": poi.get("themes", []),
             "images": _sanitize_images(poi.get("images")),
         }
@@ -285,7 +280,7 @@ def _recompute_full(data: dict, options: dict) -> dict:
     user_hotels_by_city = {}
     for hotel_data in payload.get("hotels", []):
         hotel_destination = hotel_data.get("destination")
-        hotel_area_name = _normalize_destination_name(hotel_destination) if hotel_destination else None
+        hotel_area_name = normalize_location_name(hotel_destination) if hotel_destination else None
         if hotel_area_name:
             user_hotels_by_city[hotel_area_name] = {
                 "id": hotel_data.get("poi_id"),
@@ -327,6 +322,8 @@ def _recompute_partial(data: dict, options: dict) -> dict:
 
     Extracts POIs from plan.days (not items bucket), deduplicates,
     and re-runs ACS solver while preserving city assignments.
+
+    POIs that don't fit within the time budget are moved to the ideas list.
     """
     plan = data.get("plan", {})
     days = plan.get("days", [])
@@ -335,22 +332,19 @@ def _recompute_partial(data: dict, options: dict) -> dict:
     if not days:
         raise HTTPException(status_code=400, detail="No existing days to recompute")
 
-    # Extract POIs from days
+    # Extract POIs from days - store original details for overflow handling
     places = _extract_pois_from_days(days)
+    original_poi_details = {p["id"]: p.copy() for p in places}
 
     if not places:
         raise HTTPException(status_code=400, detail="No POIs found in days")
 
-    # Group POIs by city/destination
     pois_by_city: dict[str, list] = {}
     for poi in places:
         city = poi.get("area_name") or "default"
         pois_by_city.setdefault(city, []).append(poi)
 
-    # Get hotel info
     hotels_from_meta = meta.get("hotels", [])
-
-    # Build mandatory constraints
     mandatory = {}
     for poi in meta.get("mandatory_pois", []):
         poi_id = poi.get("poi_id")
@@ -456,7 +450,7 @@ def _recompute_partial(data: dict, options: dict) -> dict:
         # Build hotels by city
         user_hotels = {}
         for h in hotels_from_meta:
-            dest = _normalize_destination_name(h.get("destination"))
+            dest = normalize_location_name(h.get("destination"))
             if dest:
                 user_hotels[dest] = {
                     "id": h.get("poi_id"),
@@ -482,8 +476,59 @@ def _recompute_partial(data: dict, options: dict) -> dict:
     ):
         raise HTTPException(status_code=500, detail="Failed to optimize itinerary")
 
-    data["plan"]["days"] = pipeline_output.get("days", [])
+    new_days = pipeline_output.get("days", [])
+    data["plan"]["days"] = new_days
     data["plan"]["meta"] = pipeline_output.get("meta", {})
+
+    # Detect overflow: POIs that were in the original days but couldn't be scheduled
+    scheduled_poi_ids = set()
+    for day in new_days:
+        for stop in day.get("stops", []):
+            poi_id = stop.get("poi_id", "")
+            if poi_id:
+                # Strip day suffix if present (e.g., "poi123_day0" -> "poi123")
+                base_id = poi_id.rsplit("_day", 1)[0]
+                scheduled_poi_ids.add(base_id)
+                scheduled_poi_ids.add(poi_id)
+
+    # Find unscheduled POIs and add them to ideas
+    original_poi_ids = set(original_poi_details.keys())
+    unscheduled_ids = original_poi_ids - scheduled_poi_ids
+
+    if unscheduled_ids:
+        data.setdefault("meta", {}).setdefault("ideas", [])
+        existing_idea_ids = {i.get("id") for i in data["meta"]["ideas"]}
+
+        for poi_id in unscheduled_ids:
+            if poi_id not in existing_idea_ids:
+                poi_detail = original_poi_details.get(poi_id, {})
+                data["meta"]["ideas"].append(
+                    {
+                        "id": poi_id,
+                        "name": poi_detail.get("name", "Unknown"),
+                        "category": None,
+                        "categories": [],
+                        "rating": None,
+                        "reviews_count": None,
+                        "roles": poi_detail.get("roles", ["attraction"]),
+                        "role": poi_detail.get("roles", ["attraction"])[0] if poi_detail.get("roles") else "attraction",
+                        "themes": poi_detail.get("themes", []),
+                        "location": poi_detail.get("area_name"),
+                        "images": poi_detail.get("images", []),
+                        "coordinates": poi_detail.get("coordinates"),
+                        "reason_not_scheduled": "Could not fit within trip's time budget",
+                    }
+                )
+
+        logger.info(f"Moved {len(unscheduled_ids)} overflow POIs to ideas during partial recompute")
+
+    # Also add mandatory POIs that couldn't be scheduled (from pipeline meta)
+    if pipeline_output.get("meta", {}).get("mandatory_ideas"):
+        data.setdefault("meta", {}).setdefault("ideas", [])
+        existing_idea_ids = {i.get("id") for i in data["meta"]["ideas"]}
+        for idea in pipeline_output["meta"]["mandatory_ideas"]:
+            if idea.get("id") not in existing_idea_ids:
+                data["meta"]["ideas"].append(idea)
 
     return data
 
@@ -491,9 +536,11 @@ def _recompute_partial(data: dict, options: dict) -> dict:
 def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     """
     Single-day recompute: Re-optimize a specific day with hotel events in solver.
-    
+
     Hotel events (checkout/checkin/stay) are included as nodes so the solver
     optimizes the full route including travel to/from hotels.
+
+    POIs that don't fit within the time budget are moved to the ideas list.
     """
     import datetime as dt
     from app.services.vrp_model import DaySpec, HotelEvent, HotelEventType
@@ -508,12 +555,13 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
         raise HTTPException(status_code=400, detail="Invalid day_index")
 
     target_day = days[day_index]
-    
+
     # Extract POIs and build hotel events for solver
     seen_ids = set()
     places = []
     hotel_events = []
     depot_hotel = None
+    original_poi_details = {}
 
     for stop in target_day.get("stops", []):
         poi_id = stop.get("poi_id")
@@ -528,45 +576,74 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
 
         event_type = stop.get("hotel_event_type")
         if event_type == "checkout":
-            hotel_events.append(HotelEvent(
-                event_type=HotelEventType.CHECK_OUT,
-                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
-                lat=float(lat), lon=float(lng),
-                window=vrp_config.hotel_check_out_window,
-                service_time=vrp_config.hotel_service_time,
-            ))
+            hotel_events.append(
+                HotelEvent(
+                    event_type=HotelEventType.CHECK_OUT,
+                    hotel_id=str(poi_id),
+                    hotel_name=stop.get("name", "Hotel"),
+                    lat=float(lat),
+                    lon=float(lng),
+                    window=vrp_config.hotel_check_out_window,
+                    service_time=vrp_config.hotel_service_time,
+                )
+            )
             depot_hotel = {"id": poi_id, "name": stop.get("name"), "lat": lat, "lon": lng}
         elif event_type == "checkin":
-            hotel_events.append(HotelEvent(
-                event_type=HotelEventType.CHECK_IN,
-                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
-                lat=float(lat), lon=float(lng),
-                window=vrp_config.hotel_check_in_window,
-                service_time=vrp_config.hotel_service_time,
-            ))
+            hotel_events.append(
+                HotelEvent(
+                    event_type=HotelEventType.CHECK_IN,
+                    hotel_id=str(poi_id),
+                    hotel_name=stop.get("name", "Hotel"),
+                    lat=float(lat),
+                    lon=float(lng),
+                    window=vrp_config.hotel_check_in_window,
+                    service_time=vrp_config.hotel_service_time,
+                )
+            )
         elif event_type == "stay":
-            hotel_events.append(HotelEvent(
-                event_type=HotelEventType.STAY,
-                hotel_id=str(poi_id), hotel_name=stop.get("name", "Hotel"),
-                lat=float(lat), lon=float(lng),
-                window=(0, 24 * 60), service_time=0,
-            ))
+            hotel_events.append(
+                HotelEvent(
+                    event_type=HotelEventType.STAY,
+                    hotel_id=str(poi_id),
+                    hotel_name=stop.get("name", "Hotel"),
+                    lat=float(lat),
+                    lon=float(lng),
+                    window=(0, 24 * 60),
+                    service_time=0,
+                )
+            )
             if not depot_hotel:
                 depot_hotel = {"id": poi_id, "name": stop.get("name"), "lat": lat, "lon": lng}
         else:
-            # Regular POI
             if poi_id in seen_ids:
                 continue
             seen_ids.add(poi_id)
-            places.append({
+            places.append(
+                {
+                    "id": poi_id,
+                    "name": stop.get("name", "Unknown"),
+                    "coordinates": {"lat": lat, "lng": lng},
+                    "roles": [stop.get("role", "attraction")],
+                    "themes": stop.get("themes", []),
+                    "open_hours": stop.get("open_hours"),
+                    "images": _sanitize_images(stop.get("images")),
+                }
+            )
+            # Store original stop details for potential overflow
+            original_poi_details[poi_id] = {
                 "id": poi_id,
                 "name": stop.get("name", "Unknown"),
-                "coordinates": {"lat": lat, "lng": lng},
+                "category": stop.get("category"),
+                "categories": stop.get("categories", []),
+                "rating": stop.get("rating"),
+                "reviews_count": stop.get("reviews_count"),
                 "roles": [stop.get("role", "attraction")],
+                "role": stop.get("role", "attraction"),
                 "themes": stop.get("themes", []),
-                "open_hours": stop.get("open_hours"),
+                "location": target_day.get("destination"),
                 "images": _sanitize_images(stop.get("images")),
-            })
+                "coordinates": {"lat": lat, "lng": lng},
+            }
 
     if not places:
         raise HTTPException(status_code=400, detail="No POIs found in day")
@@ -574,13 +651,16 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     # Find depot from meta if not from hotel events
     if not depot_hotel:
         for h in meta.get("hotels", []):
-            depot_hotel = {"id": h.get("poi_id"), "name": h.get("poi_name", "Hotel"),
-                          "lat": h.get("latitude"), "lon": h.get("longitude")}
+            depot_hotel = {
+                "id": h.get("poi_id"),
+                "name": h.get("poi_name", "Hotel"),
+                "lat": h.get("latitude"),
+                "lon": h.get("longitude"),
+            }
             break
     if not depot_hotel:
         c = places[0].get("coordinates", {})
-        depot_hotel = {"id": places[0]["id"], "name": places[0]["name"],
-                       "lat": c.get("lat"), "lon": c.get("lng")}
+        depot_hotel = {"id": places[0]["id"], "name": places[0]["name"], "lat": c.get("lat"), "lon": c.get("lng")}
 
     # Build day spec with hotel events
     pacing = options.get("pacing") or meta.get("preferences", {}).get("pacing", "balanced")
@@ -595,22 +675,25 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
             pass
 
     day_spec = DaySpec(
-        day_index=0, date=day_date,
-        start_min=start_min, end_min=end_min,
+        day_index=0,
+        date=day_date,
+        start_min=start_min,
+        end_min=end_min,
         depot_id=str(depot_hotel["id"]),
         hotel_events=hotel_events,
     )
 
-    # Create nodes and travel matrix
     maut_output = {"status": "ok", "places": places, "meta": {"num_days": 1}}
     nodes = create_nodes(maut_output, [day_spec], depot_hotel, pacing)
     coords = [(n.lat, n.lon) for n in nodes]
     travel = osrm_client.matrix_minutes(coords)
 
-    # Run solver
     result = run_acs_cvrptw(
-        day_specs=[day_spec], nodes=nodes, travel=travel,
-        meals_required=options.get("meals_required", 3), cfg=vrp_config,
+        day_specs=[day_spec],
+        nodes=nodes,
+        travel=travel,
+        meals_required=options.get("meals_required", 3),
+        cfg=vrp_config,
     )
 
     if not result.get("days"):
@@ -620,6 +703,47 @@ def _recompute_single_day(data: dict, day_index: int, options: dict) -> dict:
     for key in ("date", "weekday", "area_name", "destination", "depot_id", "source"):
         new_day[key] = target_day.get(key)
     new_day["optimization_method"] = "acs_cvrptw"
+
+    # Detect overflow: POIs that were in the day but couldn't be scheduled
+    scheduled_poi_ids = set()
+    for stop in new_day.get("stops", []):
+        poi_id = stop.get("poi_id", "")
+        if poi_id:
+            # Strip day suffix if present (e.g., "poi123_day0" -> "poi123")
+            base_id = poi_id.rsplit("_day", 1)[0]
+            scheduled_poi_ids.add(base_id)
+            scheduled_poi_ids.add(poi_id)  # Also add original
+
+    # Find unscheduled POIs and add them to ideas
+    original_poi_ids = set(original_poi_details.keys())
+    unscheduled_ids = original_poi_ids - scheduled_poi_ids
+
+    if unscheduled_ids:
+        data.setdefault("meta", {}).setdefault("ideas", [])
+        existing_idea_ids = {i.get("id") for i in data["meta"]["ideas"]}
+
+        for poi_id in unscheduled_ids:
+            if poi_id not in existing_idea_ids:
+                poi_detail = original_poi_details.get(poi_id, {})
+                data["meta"]["ideas"].append(
+                    {
+                        "id": poi_id,
+                        "name": poi_detail.get("name", "Unknown"),
+                        "category": poi_detail.get("category"),
+                        "categories": poi_detail.get("categories", []),
+                        "rating": poi_detail.get("rating"),
+                        "reviews_count": poi_detail.get("reviews_count"),
+                        "roles": poi_detail.get("roles", ["attraction"]),
+                        "role": poi_detail.get("role", "attraction"),
+                        "themes": poi_detail.get("themes", []),
+                        "location": poi_detail.get("location"),
+                        "images": poi_detail.get("images", []),
+                        "coordinates": poi_detail.get("coordinates"),
+                        "reason_not_scheduled": "Could not fit within day's time budget",
+                    }
+                )
+
+        logger.info(f"Moved {len(unscheduled_ids)} overflow POIs to ideas for day {day_index}")
 
     days[day_index] = new_day
     data["plan"]["days"] = days

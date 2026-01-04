@@ -9,9 +9,11 @@ from app.services.vrp_utils import build_problem
 def mock_osrm():
     """Mock OSRM client for deterministic tests."""
     with patch("app.services.osrm.osrm_client") as mock:
+
         def matrix_minutes(coords):
             n = len(coords)
             return [[10 if i != j else 0 for j in range(n)] for i in range(n)]
+
         mock.matrix_minutes.side_effect = matrix_minutes
         yield mock
 
@@ -25,10 +27,14 @@ def hotel():
 def maut_output():
     return {
         "places": [
-            {"id": "attraction1", "name": "Marina Bay", "roles": ["attraction"],
-             "coordinates": {"lat": 1.28, "lng": 103.85}, "themes": ["cultural_history"]},
-            {"id": "meal1", "name": "Hawker Center", "roles": ["meal"],
-             "coordinates": {"lat": 1.29, "lng": 103.84}},
+            {
+                "id": "attraction1",
+                "name": "Marina Bay",
+                "roles": ["attraction"],
+                "coordinates": {"lat": 1.28, "lng": 103.85},
+                "themes": ["cultural_history"],
+            },
+            {"id": "meal1", "name": "Hawker Center", "roles": ["meal"], "coordinates": {"lat": 1.29, "lng": 103.84}},
         ],
         "meta": {"num_days": 2, "dates": {"type": "flexible", "days": 2}},
     }
@@ -72,9 +78,10 @@ class TestBuildProblem:
 
     def test_single_day_no_hotel_events(self, mock_osrm, hotel):
         """Single-day trip has no hotel events."""
-        maut = {"places": [{"id": "a1", "name": "A", "roles": ["attraction"],
-                           "coordinates": {"lat": 1.3, "lng": 103.8}}],
-                "meta": {"num_days": 1}}
+        maut = {
+            "places": [{"id": "a1", "name": "A", "roles": ["attraction"], "coordinates": {"lat": 1.3, "lng": 103.8}}],
+            "meta": {"num_days": 1},
+        }
         day_specs, nodes, _ = build_problem(maut, hotel, is_first_city=True, is_last_city=True)
         assert day_specs[0].has_hotel_event is False
         accommodation_nodes = [n for n in nodes if n.role == "accommodation" and n.is_mandatory]
@@ -95,11 +102,13 @@ class TestBuildProblem:
 
     def test_skips_poi_without_coords(self, mock_osrm, hotel):
         """POIs without coordinates are skipped."""
-        maut = {"places": [
-            {"id": "no_coords", "name": "X", "roles": ["attraction"]},
-            {"id": "has_coords", "name": "Y", "roles": ["attraction"],
-             "coordinates": {"lat": 1.3, "lng": 103.8}},
-        ], "meta": {"num_days": 1}}
+        maut = {
+            "places": [
+                {"id": "no_coords", "name": "X", "roles": ["attraction"]},
+                {"id": "has_coords", "name": "Y", "roles": ["attraction"], "coordinates": {"lat": 1.3, "lng": 103.8}},
+            ],
+            "meta": {"num_days": 1},
+        }
         _, nodes, _ = build_problem(maut, hotel)
         poi_ids = [n.poi_id for n in nodes]
         assert not any("no_coords" in pid for pid in poi_ids)

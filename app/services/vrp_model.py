@@ -95,7 +95,7 @@ class VRPConfig(BaseModel):
     # Pacing and Service Times
     pace_day_budget_min: Dict[str, int] = Field(
         default={
-            "relaxed": 11 * 60,
+            "relaxed": 10 * 60,
             "balanced": 12 * 60,
             "packed": 15 * 60,
         }

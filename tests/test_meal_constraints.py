@@ -54,31 +54,39 @@ class TestMealNodeCreation:
     @pytest.fixture
     def mock_osrm(self):
         with patch("app.services.osrm.osrm_client") as mock:
+
             def matrix_minutes(coords):
                 n = len(coords)
                 return [[10 if i != j else 0 for j in range(n)] for i in range(n)]
+
             mock.matrix_minutes.side_effect = matrix_minutes
             yield mock
 
     def test_meal_nodes_restricted(self, mock_osrm):
         from app.services.vrp_utils import build_problem
+
         maut = {
-            "places": [{"id": "r1", "name": "Restaurant", "roles": ["meal"],
-                       "coordinates": {"lat": 1.3, "lng": 103.8},
-                       "open_hours": {"Monday": ["8:00 am-10:00 pm"]}}],
+            "places": [
+                {
+                    "id": "r1",
+                    "name": "Restaurant",
+                    "roles": ["meal"],
+                    "coordinates": {"lat": 1.3, "lng": 103.8},
+                    "open_hours": {"Monday": ["8:00 am-10:00 pm"]},
+                }
+            ],
             "meta": {"num_days": 1, "dates": {"type": "specific", "start_date": "2025-01-13"}},
         }
         hotel = {"id": "h1", "name": "Hotel", "lat": 1.3, "lon": 103.8}
         _, nodes, _ = build_problem(maut, hotel, pacing="balanced")
-        
+
         meal_nodes = [n for n in nodes if n.role == "meal"]
         assert len(meal_nodes) > 0
         for node in meal_nodes:
             for windows in node.windows_by_day.values():
                 for start, end in windows:
                     near_meal = any(
-                        start < m_end + vrp_config.meal_hard_tol_min and
-                        end > m_start - vrp_config.meal_hard_tol_min
+                        start < m_end + vrp_config.meal_hard_tol_min and end > m_start - vrp_config.meal_hard_tol_min
                         for m_start, m_end in vrp_config.meal_windows
                     )
                     assert near_meal

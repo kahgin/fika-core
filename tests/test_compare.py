@@ -140,11 +140,7 @@ def _calculate_tus(days: List[Dict], pacing: str = "balanced") -> Tuple[float, L
             daily_utilisation.append(0.0)
             continue
 
-        d_k = sum(
-            time_to_minutes(s.get("depart", "00:00"))
-            - time_to_minutes(s.get("arrival", "00:00"))
-            for s in stops
-        )
+        d_k = sum(time_to_minutes(s.get("depart", "00:00")) - time_to_minutes(s.get("arrival", "00:00")) for s in stops)
 
         daily_utilisation.append((d_k / t_max) * 100 if t_max > 0 else 0)
 

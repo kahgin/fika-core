@@ -8,6 +8,3 @@ __pycache__/
 # Distribution
 build/
 *.egg-info
-
-storage/*
-tests/*output.json

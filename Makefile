@@ -1,10 +1,7 @@
 VENV := .venv
-VM_RG := fika-rg
-VM_NAME := fika-vm
-VM_USER := azureuser
-VM_IP := 4.218.15.39
-VM_KEY := ~/.ssh/fika-vm_key.pem
-VM_PROJECT_DIR := ~/fika
+
+-include .env
+export
 
 all: sync
 
@@ -39,68 +36,31 @@ clean:
 distclean: clean
 	@rm -rf $(VENV) uv.lock
 
-# Azure VM Control
+# VM Commands
+
 vm-start:
-	@echo "Starting Azure VM..."
 	@az vm start --resource-group $(VM_RG) --name $(VM_NAME)
-	@echo "VM started successfully!"
 
 vm-stop:
-	@echo "Stopping Azure VM (deallocating to stop billing)..."
 	@az vm deallocate --resource-group $(VM_RG) --name $(VM_NAME)
-	@echo "VM stopped successfully!"
 
-vm-status:
-	@az vm get-instance-view \
-		--resource-group $(VM_RG) \
-		--name $(VM_NAME) \
-		--query "instanceView.statuses[1].{Status:code, DisplayStatus:displayStatus}" \
-		--output table
-
-vm-restart:
-	@echo "Restarting Azure VM..."
-	@az vm restart --resource-group $(VM_RG) --name $(VM_NAME)
-	@echo "VM restarted successfully!"
-
-# Deploy to VM
-vm-deploy:
-	@echo "Deploying to Azure VM..."
-	@ssh -i $(VM_KEY) $(VM_USER)@$(VM_IP) '\
-		cd $(VM_PROJECT_DIR)/fika-core && \
-		git pull origin main && \
-		cd $(VM_PROJECT_DIR) && \
-		docker-compose up -d --build core'
-	@echo "Deployment completed!"
-
-# SSH into VM
 vm-ssh:
 	@ssh -i $(VM_KEY) $(VM_USER)@$(VM_IP)
 
-# Full workflow: start VM, deploy, check status
-vm-up: vm-start
-	@echo "Waiting for VM to fully start (30 seconds)..."
-	@sleep 30
-	@$(MAKE) vm-deploy
-	@$(MAKE) vm-status
-
-# Stop VM after ensuring deployment is done
-vm-down: vm-stop
-
-# View VM logs
 vm-logs:
+	@ssh -i $(VM_KEY) $(VM_USER)@$(VM_IP) 'cd $(VM_PROJECT_DIR) && docker-compose logs -f core'
+
+vm-sync-env:
+	@grep -v '^VM_' .env | sed 's|OSRM_URL=.*|OSRM_URL=http://osrm:5000|' > .env.vm.tmp
+	@scp -i $(VM_KEY) .env.vm.tmp $(VM_USER)@$(VM_IP):$(VM_PROJECT_DIR)/fika-core/.env
+	@rm .env.vm.tmp
+
+vm-deploy:
 	@ssh -i $(VM_KEY) $(VM_USER)@$(VM_IP) '\
-		cd $(VM_PROJECT_DIR) && \
-		docker-compose logs -f core'
+		cd $(VM_PROJECT_DIR)/fika-core && git pull origin main && \
+		cd $(VM_PROJECT_DIR) && docker-compose up -d --build core'
 
-# Emergency: force stop VM
-vm-force-stop:
-	@echo "Force stopping VM..."
-	@az vm stop --resource-group $(VM_RG) --name $(VM_NAME) --force
-	@az vm deallocate --resource-group $(VM_RG) --name $(VM_NAME)
-
-optuna:
-	@python -m app.services.solver_bench --optuna --optuna-scenarios 6 --optuna-trials 25 --write-yaml --include-multicity --include-long --long-days 10 --max-scenarios 18
+vm-deploy-full: vm-sync-env vm-deploy
 
 .PHONY: all venv sync sync-prod update dev run test clean distclean \
-	vm-start vm-stop vm-status vm-restart vm-deploy vm-ssh vm-up vm-down \
-	vm-logs vm-force-stop
+	vm-start vm-stop vm-ssh vm-logs vm-sync-env vm-deploy vm-deploy-full

@@ -9,9 +9,11 @@ from app.services.vrp_model import vrp_config
 @pytest.fixture
 def mock_osrm():
     with patch("app.services.osrm.osrm_client") as mock:
+
         def matrix_minutes(coords):
             n = len(coords)
             return [[10 if i != j else 0 for j in range(n)] for i in range(n)]
+
         mock.matrix_minutes.side_effect = matrix_minutes
         yield mock
 
@@ -25,10 +27,14 @@ def hotel():
 def maut_output():
     return {
         "places": [
-            {"id": "a1", "name": "Attraction", "roles": ["attraction"],
-             "coordinates": {"lat": 1.28, "lng": 103.85}, "themes": ["cultural"]},
-            {"id": "m1", "name": "Meal", "roles": ["meal"],
-             "coordinates": {"lat": 1.30, "lng": 103.84}},
+            {
+                "id": "a1",
+                "name": "Attraction",
+                "roles": ["attraction"],
+                "coordinates": {"lat": 1.28, "lng": 103.85},
+                "themes": ["cultural"],
+            },
+            {"id": "m1", "name": "Meal", "roles": ["meal"], "coordinates": {"lat": 1.30, "lng": 103.84}},
         ],
         "meta": {"num_days": 2, "dates": {"type": "flexible", "days": 2}},
     }

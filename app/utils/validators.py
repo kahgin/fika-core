@@ -210,7 +210,7 @@ def validate_itinerary(
                     checkouts[poi_id] = day_num
                 elif hotel_event_type == "stay":
                     stays[poi_id] = day_num
-                
+
                 # Track hotel events per day for single-event-per-day validation
                 if hotel_event_type:
                     hotel_events_per_day.setdefault(day_num, []).append(hotel_event_type)

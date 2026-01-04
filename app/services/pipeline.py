@@ -12,6 +12,8 @@ from app.services.or_tools_cvrptw import run_cvrptw
 from app.services.acs_cvrptw import run_acs_cvrptw
 from app.services.city_day_allocator import allocate_days_to_cities
 from app.utils.logger import get_logger
+from app.utils.naming import normalize_location_name
+
 
 logger = get_logger(__name__)
 
@@ -47,16 +49,6 @@ def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = Non
         logger.warning("segment_by_city: No places in MAUT output")
         return {}
 
-    def _normalize_area_name(raw: Optional[str]) -> Optional[str]:
-        """Normalize area name to handle variants like 'Johor' vs 'Johor, Malaysia'."""
-        if not raw:
-            return None
-        name = str(raw).strip()
-        # Remove country suffix (e.g., "Johor, Malaysia" -> "Johor")
-        if "," in name:
-            name = name.split(",")[0].strip()
-        return name
-
     city_groups: Dict[str, List[Dict]] = {}
     uncategorized: List[Dict] = []
 
@@ -64,7 +56,7 @@ def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = Non
         area_name = None
 
         if not area_name and poi.get("area_name"):
-            area_name = _normalize_area_name(poi["area_name"])
+            area_name = normalize_location_name(poi["area_name"])
 
         if area_name:
             city_groups.setdefault(area_name, []).append(poi)
@@ -122,15 +114,6 @@ def segment_by_city(maut_output: Dict[str, Any], request_id: Optional[str] = Non
 
         result[area_name] = {"places": city_pois, "meta": city_meta}
 
-        # _log_event(
-        #     "segment_by_city",
-        #     {
-        #         "area_name": area_name,
-        #         "poi_count": len(city_pois),
-        #         "request_id": request_id,
-        #     },
-        # )
-
     # Assertion: at least one city identified
     if not result:
         logger.error("segment_by_city: No cities identified from MAUT output")
@@ -179,16 +162,6 @@ def _find_global_fallback_hotel(
         "lon": lon,
         "source": "global_fallback",
     }
-
-    # _log_event(
-    #     "global_fallback_hotel_found",
-    #     {
-    #         "hotel_id": hotel["id"],
-    #         "hotel_name": hotel["name"],
-    #         "coords": {"lat": lat, "lng": lon},
-    #     },
-    #     request_id,
-    # )
 
     return hotel
 
@@ -328,18 +301,6 @@ def select_hotel_for_city(
             "source": "user",
         }
 
-        # _log_event(
-        #     "hotel_selected",
-        #     {
-        #         "area_name": area_name,
-        #         "hotel_id": hotel["id"],
-        #         "hotel_name": hotel["name"],
-        #         "source": "user",
-        #         "coords": {"lat": lat, "lng": lon},
-        #     },
-        #     request_id,
-        # )
-
         return hotel
 
     # Case 2: Check meta.selected_hotel first
@@ -357,18 +318,6 @@ def select_hotel_for_city(
                 "lon": lon,
                 "source": "maut_selected",
             }
-
-            # _log_event(
-            #     "case_2_hotel_selected",
-            #     {
-            #         "area_name": area_name,
-            #         "hotel_id": hotel["id"],
-            #         "hotel_name": hotel["name"],
-            #         "source": "maut_selected",
-            #         "coords": {"lat": lat, "lng": lon},
-            #     },
-            #     request_id,
-            # )
 
             return hotel
 
@@ -391,18 +340,6 @@ def select_hotel_for_city(
                 "source": "maut",
             }
 
-            # _log_event(
-            #     "case_3_hotel_selected",
-            #     {
-            #         "area_name": area_name,
-            #         "hotel_id": hotel["id"],
-            #         "hotel_name": hotel["name"],
-            #         "source": "maut",
-            #         "coords": {"lat": lat, "lng": lon},
-            #     },
-            #     request_id,
-            # )
-
             return hotel
 
     # Case 4: No accommodations in city - find nearest from global list
@@ -424,20 +361,6 @@ def select_hotel_for_city(
 
     # Case 5: Use global fallback hotel
     if global_fallback_hotel:
-        # _log_event(
-        #     "case_5_hotel_selected",
-        #     {
-        #         "area_name": area_name,
-        #         "hotel_id": global_fallback_hotel["id"],
-        #         "hotel_name": global_fallback_hotel["name"],
-        #         "source": "global_fallback",
-        #         "coords": {
-        #             "lat": global_fallback_hotel["lat"],
-        #             "lng": global_fallback_hotel["lon"],
-        #         },
-        #     },
-        #     request_id,
-        # )
         return global_fallback_hotel.copy()
 
     # Single-day trip - create virtual depot from POI centroid
@@ -465,15 +388,6 @@ def select_hotel_for_city(
                 "lon": centroid_lon,
                 "source": "virtual_depot",
             }
-            # _log_event(
-            #     "case_6_virtual_depot",
-            #     {
-            #         "area_name": area_name,
-            #         "source": "poi_centroid",
-            #         "coords": {"lat": centroid_lat, "lng": centroid_lon},
-            #     },
-            #     request_id,
-            # )
             return hotel
 
     _log_event(
@@ -514,7 +428,6 @@ def validate_global_rules(
 
     days = result.get("days", [])
 
-    # Track hotel events for pairing validation
     checkins: Dict[str, int] = {}
     checkouts: Dict[str, int] = {}
     hotel_events_per_day: Dict[int, List[str]] = {}
@@ -574,11 +487,12 @@ def validate_global_rules(
     for day_num, events in hotel_events_per_day.items():
         unique_events = list(set(events))
         if len(unique_events) > 1:
-            # Allow checkout + checkin on transition days
             if set(unique_events) == {"checkout", "checkin"}:
-                pass  # Allowed
+                pass  # transition day - allowed
             elif "stay" in unique_events and len(unique_events) > 1:
-                errors.append(f"Day {day_num}: Multiple hotel events ({', '.join(unique_events)}) - stay should be alone")
+                errors.append(
+                    f"Day {day_num}: Multiple hotel events ({', '.join(unique_events)}) - stay should be alone"
+                )
             elif len(unique_events) > 2:
                 errors.append(f"Day {day_num}: Too many hotel events ({', '.join(unique_events)})")
 
@@ -591,17 +505,6 @@ def validate_global_rules(
     )
 
     return {"ok": ok, "errors": errors, "warnings": warnings}
-
-
-def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
-    """Normalize a city name for matching (lowercase, strip whitespace, handle common variants)."""
-    if not raw:
-        return None
-    name = str(raw).strip().lower()
-
-    if "," in name:
-        name = name.split(",")[0].strip()
-    return name
 
 
 def _filter_mandatory_for_segment(
@@ -629,9 +532,10 @@ def _filter_mandatory_for_segment(
     if not mandatory or not segment_days:
         return None
 
-    city_norm = _normalize_city_name(city_name)
+    city_norm = normalize_location_name(city_name)
     if not city_norm:
         return mandatory
+    city_lower = city_norm.lower()
 
     poi_area_lookup: Dict[str, str] = {}
     for poi in places:
@@ -654,16 +558,20 @@ def _filter_mandatory_for_segment(
         matches_city = False
 
         if poi_dest:
-            dest_norm = _normalize_city_name(poi_dest)
-            if dest_norm and (dest_norm in city_norm or city_norm in dest_norm):
-                matches_city = True
+            dest_norm = normalize_location_name(poi_dest)
+            if dest_norm:
+                dest_lower = dest_norm.lower()
+                if dest_lower in city_lower or city_lower in dest_lower:
+                    matches_city = True
 
         if not matches_city:
             poi_area = poi_area_lookup.get(poi_id)
             if poi_area:
-                area_norm = _normalize_city_name(poi_area)
-                if area_norm and (area_norm in city_norm or city_norm in area_norm):
-                    matches_city = True
+                area_norm = normalize_location_name(poi_area)
+                if area_norm:
+                    area_lower = area_norm.lower()
+                    if area_lower in city_lower or city_lower in area_lower:
+                        matches_city = True
 
         # If no destination info, skip (don't include in all segments)
         if not matches_city:
@@ -821,19 +729,22 @@ def run_full_pipeline(
         for city_name, city_data in cities.items():
             for poi in city_data.get("places", []):
                 poi_id = poi.get("id", "")
-                # Input POIs from MAUT don't have _day suffixes
                 poi_city_lookup[poi_id] = city_name
 
         if mandatory:
             for poi_id, spec in mandatory.items():
                 if spec and spec.get("poi_destination"):
                     dest = spec["poi_destination"]
-                    dest_norm = _normalize_city_name(dest)
-                    for city_name in cities.keys():
-                        city_norm = _normalize_city_name(city_name)
-                        if city_norm and dest_norm and (city_norm in dest_norm or dest_norm in city_norm):
-                            poi_city_lookup[poi_id] = city_name
-                            break
+                    dest_norm = normalize_location_name(dest)
+                    if dest_norm:
+                        dest_lower = dest_norm.lower()
+                        for city_name in cities.keys():
+                            city_norm = normalize_location_name(city_name)
+                            if city_norm:
+                                city_lower = city_norm.lower()
+                                if city_lower in dest_lower or dest_lower in city_lower:
+                                    poi_city_lookup[poi_id] = city_name
+                                    break
 
         # Use the smart city day allocator that respects mandatory POI day constraints
         # This handles:
@@ -856,13 +767,9 @@ def run_full_pipeline(
             f"city_order={allocation.city_order}, switches={allocation.city_switches}"
         )
 
-        # This is used when a cluster has no accommodations
         global_fallback_hotel = _find_global_fallback_hotel(maut_output, request_id)
-
-        # Build list of all accommodations for nearest-search fallback
         all_accommodations = [poi for poi in places if "accommodation" in poi.get("roles", [])]
 
-        # Process cities in the order they appear in the trip (may repeat if non-contiguous)
         # Group consecutive days by city for batch processing
         city_segments: List[Tuple[str, List[int]]] = []
         current_city = None
@@ -883,10 +790,8 @@ def run_full_pipeline(
         if current_city and current_days:
             city_segments.append((current_city, current_days))
 
-        # Track hotels for each segment to handle city transitions
         segment_hotels: List[Dict[str, Any]] = []
 
-        # First pass: select hotels for all segments
         for segment_idx, (area_name, segment_days) in enumerate(city_segments):
             maut_city = cities.get(area_name)
             if not maut_city:
@@ -988,16 +893,6 @@ def run_full_pipeline(
                         meals_required=3,
                         cfg=vrp_config,
                     )
-                    # _log_event(
-                    #     "solver.run",
-                    #     {
-                    #         "area_name": area_name,
-                    #         "solver": "acs",
-                    #         "days_count": len(cvrptw_output.get("days", [])),
-                    #         "total_candidates": max(0, len(nodes) - 1),
-                    #     },
-                    #     request_id,
-                    # )
                 else:
                     cvrptw_output = run_cvrptw(
                         maut_output=maut_city,
@@ -1181,8 +1076,6 @@ def run_full_pipeline(
             request_id,
         )
 
-        # _save_debug_output(result, request_id)
-
         return result
 
     except Exception as e:
@@ -1197,26 +1090,6 @@ def run_full_pipeline(
 
 
 # Helpers
-
-
-def _save_debug_output(result: Dict[str, Any], request_id: str) -> None:
-    """Save pipeline output to storage for debugging."""
-    from pathlib import Path
-    import datetime
-
-    storage_dir = Path(__file__).parent.parent.parent / "storage"
-    storage_dir.mkdir(exist_ok=True)
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"itinerary_debug_{timestamp}_{request_id[:8]}.json"
-    filepath = storage_dir / filename
-
-    try:
-        with open(filepath, "w") as f:
-            json.dump(result, f, indent=2, default=str)
-        logger.info(f"Debug output saved to {filepath}")
-    except Exception as e:
-        logger.warning(f"Failed to save debug output: {e}")
 
 
 def _enrich_stops_with_coords(

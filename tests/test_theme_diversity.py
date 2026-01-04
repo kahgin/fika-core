@@ -36,15 +36,23 @@ class TestThemeDistribution:
             "meta": {"selected_themes": ["cultural_history", "nature"]},
         }
         cvrptw_output = {
-            "days": [{
-                "date": "2025-01-15",
-                "stops": [
-                    {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "09:00", "depart": "09:00"},
-                    {"poi_id": "poi1", "name": "Museum", "role": "attraction", "arrival": "10:00", "depart": "12:00"},
-                    {"poi_id": "poi2", "name": "Park", "role": "attraction", "arrival": "13:00", "depart": "15:00"},
-                    {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "16:00", "depart": "16:00"},
-                ],
-            }]
+            "days": [
+                {
+                    "date": "2025-01-15",
+                    "stops": [
+                        {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "09:00", "depart": "09:00"},
+                        {
+                            "poi_id": "poi1",
+                            "name": "Museum",
+                            "role": "attraction",
+                            "arrival": "10:00",
+                            "depart": "12:00",
+                        },
+                        {"poi_id": "poi2", "name": "Park", "role": "attraction", "arrival": "13:00", "depart": "15:00"},
+                        {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "16:00", "depart": "16:00"},
+                    ],
+                }
+            ]
         }
 
         result = validate_itinerary(cvrptw_output, maut_output)
@@ -60,14 +68,22 @@ class TestThemeDistribution:
             "meta": {"selected_themes": ["cultural_history", "nature", "shopping"]},
         }
         cvrptw_output = {
-            "days": [{
-                "date": "2025-01-15",
-                "stops": [
-                    {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "09:00", "depart": "09:00"},
-                    {"poi_id": "poi1", "name": "Museum", "role": "attraction", "arrival": "10:00", "depart": "12:00"},
-                    {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "13:00", "depart": "13:00"},
-                ],
-            }]
+            "days": [
+                {
+                    "date": "2025-01-15",
+                    "stops": [
+                        {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "09:00", "depart": "09:00"},
+                        {
+                            "poi_id": "poi1",
+                            "name": "Museum",
+                            "role": "attraction",
+                            "arrival": "10:00",
+                            "depart": "12:00",
+                        },
+                        {"poi_id": "hotel", "name": "Hotel", "role": "hotel", "arrival": "13:00", "depart": "13:00"},
+                    ],
+                }
+            ]
         }
 
         result = validate_itinerary(cvrptw_output, maut_output)
@@ -82,7 +98,9 @@ class TestThemeNodeCreation:
     @pytest.fixture
     def mock_osrm(self):
         with patch("app.services.osrm.osrm_client") as mock:
-            mock.matrix_minutes.side_effect = lambda coords: [[10 if i != j else 0 for j in range(len(coords))] for i in range(len(coords))]
+            mock.matrix_minutes.side_effect = lambda coords: [
+                [10 if i != j else 0 for j in range(len(coords))] for i in range(len(coords))
+            ]
             yield mock
 
     def test_nodes_preserve_themes(self, mock_osrm):
@@ -90,8 +108,15 @@ class TestThemeNodeCreation:
         from app.services.vrp_utils import build_problem
 
         maut = {
-            "places": [{"id": "poi1", "name": "Museum", "roles": ["attraction"],
-                       "coordinates": {"lat": 1.3, "lng": 103.8}, "themes": ["cultural_history", "history"]}],
+            "places": [
+                {
+                    "id": "poi1",
+                    "name": "Museum",
+                    "roles": ["attraction"],
+                    "coordinates": {"lat": 1.3, "lng": 103.8},
+                    "themes": ["cultural_history", "history"],
+                }
+            ],
             "meta": {"num_days": 1},
         }
         hotel = {"id": "hotel1", "name": "Hotel", "lat": 1.3, "lon": 103.8}

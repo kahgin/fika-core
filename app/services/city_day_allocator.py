@@ -32,6 +32,8 @@ from datetime import date
 from typing import Dict, List, Optional, Set, Tuple, Any
 
 from app.utils.logger import get_logger
+from app.utils.naming import normalize_location_name
+
 
 logger = get_logger(__name__)
 
@@ -55,16 +57,6 @@ class CityDayAllocation:
     city_order: List[str]  # Order of cities as they appear in the trip
     fixed_days: Dict[int, FixedDayAssignment]  # Days that cannot be moved
     city_switches: List[int]  # Day indices where city changes (for travel planning)
-
-
-def _normalize_city_name(raw: Optional[str]) -> Optional[str]:
-    """Normalize city name for matching."""
-    if not raw:
-        return None
-    name = str(raw).strip()
-    if "," in name:
-        name = name.split(",")[0].strip()
-    return name
 
 
 def _parse_day_from_date(
@@ -115,7 +107,7 @@ def extract_fixed_assignments(
             try:
                 day = int(day_str)
                 if 1 <= day <= total_days:
-                    city_norm = _normalize_city_name(city)
+                    city_norm = normalize_location_name(city)
                     if city_norm:
                         fixed[day] = FixedDayAssignment(
                             day=day,
@@ -132,7 +124,7 @@ def extract_fixed_assignments(
             if not isinstance(date_info, dict):
                 continue
 
-            city_norm = _normalize_city_name(city)
+            city_norm = normalize_location_name(city)
             if not city_norm:
                 continue
 
@@ -183,7 +175,7 @@ def extract_fixed_assignments(
             city = spec.get("poi_destination")
             if not city:
                 city = poi_city_lookup.get(poi_id)
-            city_norm = _normalize_city_name(city)
+            city_norm = normalize_location_name(city)
 
             if not city_norm:
                 continue
@@ -218,14 +210,9 @@ def _count_pois_per_city(
     poi_city_lookup = poi_city_lookup or {}
     mandatory = mandatory or {}
     mandatory_ids: Set[str] = set(mandatory.keys())
-
-    # Track which mandatory POIs we've already counted
     counted_mandatory: Set[str] = set()
-
-    # Initialize counts for all cities
     counts: Dict[str, Tuple[int, int]] = {city: (0, 0) for city in cities}
 
-    # Count POIs from places
     for city, city_data in cities.items():
         places = city_data.get("places", [])
         mandatory_count = 0
@@ -261,7 +248,7 @@ def _count_pois_per_city(
             poi_dest = poi_city_lookup.get(poi_id)
 
         if poi_dest:
-            city_norm = _normalize_city_name(poi_dest)
+            city_norm = normalize_location_name(poi_dest)
             if city_norm:
                 # Find matching city
                 matched = False
@@ -310,14 +297,12 @@ def _compute_weighted_days(
     Returns:
         Dict mapping city → total allocated days (including fixed)
     """
-    # Calculate weighted scores
     weighted_scores: Dict[str, float] = {}
     for city, (mand, opt) in poi_counts.items():
         weighted_scores[city] = mand * mandatory_weight + opt * optional_weight
 
     total_weight = sum(weighted_scores.values())
 
-    # Calculate remaining days to allocate
     total_fixed = sum(fixed_days_per_city.values())
     remaining_days = total_days - total_fixed
 
@@ -327,7 +312,6 @@ def _compute_weighted_days(
         result.update(fixed_days_per_city)
         return result
 
-    # Initialize with fixed days
     allocated: Dict[str, int] = {city: 0 for city in poi_counts}
     for city, days in fixed_days_per_city.items():
         allocated[city] = days
@@ -409,11 +393,9 @@ def _build_contiguous_blocks(
     """
     day_to_city: Dict[int, str] = {}
 
-    # Initialize with fixed assignments
     for day, assignment in fixed.items():
         day_to_city[day] = assignment.city
 
-    # Track current allocation per city
     current_per_city: Dict[str, int] = {city: 0 for city in target_days_per_city}
     for day, city in day_to_city.items():
         current_per_city[city] = current_per_city.get(city, 0) + 1
@@ -427,7 +409,6 @@ def _build_contiguous_blocks(
         day_to_city[day] = city
         current_per_city[city] = current_per_city.get(city, 0) + 1
 
-    # Get unfixed days
     unfixed_days = set(d for d in range(1, total_days + 1) if d not in day_to_city)
 
     if not unfixed_days:
