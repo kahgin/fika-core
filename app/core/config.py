@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
     GOOGLE_MAPS_API_KEY: str
-    GOOGLE_AI_STUDIO_KEY: str
     OSRM_URL: str
 
     CORS_ORIGINS: list[str] = ["*"]
